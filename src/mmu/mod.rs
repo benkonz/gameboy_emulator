@@ -3,6 +3,7 @@ pub mod interrupt;
 use mmu::interrupt::Interrupt;
 use std::fs::File;
 use std::io::prelude::Read;
+use std::ops::{Index, IndexMut};
 
 static BIOS: &'static [u8] = include_bytes!("bios.gb");
 
@@ -46,15 +47,15 @@ impl Memory {
         let interrupt_flags = self.read_byte(0xFF0F);
 
         match interrupt_enable & interrupt_flags {
-            01 =>  Some(Interrupt::Vblank),
-            02 =>  Some(Interrupt::Lcd),
-            04 =>  Some(Interrupt::Timer),
-            08 =>  Some(Interrupt::Joypad),
-            _ => None()
+            01 => Some(Interrupt::Vblank),
+            02 => Some(Interrupt::Lcd),
+            04 => Some(Interrupt::Timer),
+            08 => Some(Interrupt::Joypad),
+            _ => None
         }
     }
 
-    pub fn request_interrupt(&mut self, interrupt: &Interrupt) {
+    pub fn request_interrupt(&mut self, interrupt: Interrupt) {
         //TODO: update address 0xFF0F with the new interrupt
     }
 
@@ -63,24 +64,19 @@ impl Memory {
     }
 }
 
-//impl Index<usize> for Memory {
-//    type Output = Option<u8>;
-//
-//    fn index(&self, index: usize) -> &Self::Output {
-//        &Some(self.memory[index])
-//    }
-//}
-//
-//impl IndexMut<usize> for Memory {
-//
-//    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-//        if index > 0x8000 {
-//
-//        }
-//
-//        &mut None
-//    }
-//}
+impl Index<u16> for Memory {
+    type Output = u8;
+
+    fn index(&self, index: u16) -> &Self::Output {
+        &self.memory[index as usize]
+    }
+}
+
+impl IndexMut<u16> for Memory {
+    fn index_mut(&mut self, index: u16) -> &mut Self::Output {
+        &mut self.memory[index as usize]
+    }
+}
 
 #[cfg(test)]
 mod tests {

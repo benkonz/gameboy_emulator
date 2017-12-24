@@ -4,6 +4,7 @@ mod mode;
 use gpu::mode::Mode;
 use mmu::Memory;
 use mmu::interrupt::Interrupt;
+use emulator::traits::Drawer;
 
 const SCAN_LINE_INDEX: u16 = 3;
 
@@ -13,26 +14,26 @@ pub struct GPU {
     mode: Mode,
 }
 
-impl GPU  {
+impl GPU {
     pub fn new() -> GPU {
         GPU {
             pixels: [0; 144 * 160],
             cycles: 0,
-            mode: Mode::HBlank
+            mode: Mode::HBlank,
         }
     }
 
-    pub fn step(&mut self, steps: u32, memory: &mut Memory, drawer: &Drawer) {
+    pub fn step<T: Drawer>(&mut self, steps: u32, memory: &mut Memory, drawer: &T) {
         self.cycles += steps;
         match self.mode {
-            Mode::HBlank => self.h_blank(memory, &drawer),
+            Mode::HBlank => self.h_blank(memory, drawer),
             Mode::VBlank => self.v_blank(),
             Mode::OAM => self.oam(memory),
             Mode::VRAM => self.vram()
         }
     }
 
-    fn h_blank(&mut self, memory: &mut Memory, drawer: &Drawer) {
+    fn h_blank<T: Drawer>(&mut self, memory: &mut Memory, drawer: &T) {
         if self.cycles >= 204 {
             self.cycles = 0;
 
@@ -40,7 +41,7 @@ impl GPU  {
 
             if memory.read_byte(SCAN_LINE_INDEX) == 143 {
                 self.mode = Mode::OAM;
-                drawer.draw(self.pixels);
+                drawer.draw(&self.pixels);
                 memory.request_interrupt(Interrupt::Vblank);
             }
         }
@@ -63,7 +64,7 @@ impl GPU  {
                 self.mode = Mode::HBlank;
                 memory[SCAN_LINE_INDEX] = 0;
             }
-        }
+        }       
     }
 
     fn vram(&mut self) {

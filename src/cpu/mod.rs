@@ -383,7 +383,7 @@ impl Cpu {
                 self.ldh_n_a(n, memory);
             },
             0xE1 => self.pop_hl(memory),
-            0xE2 => self.ldh_c_a(),
+            0xE2 => self.ldh_c_a(memory),
             0xE3 => self.undefined(),
             0xE4 => self.undefined(),
             0xE5 => self.push_hl(memory),
@@ -423,7 +423,10 @@ impl Cpu {
                 self.or_n(n);
             },
             0xF7 => self.rst_30(memory),
-            0xF8 => self.ldhl_sp_d(),
+            0xF8 => {
+                let n = self.get_n(memory);
+                self.ldhl_sp_d(n, memory);
+            }
             0xF9 => self.ld_sp_hl(),
             0xFA => {
                 let n = self.get_nn(memory);
@@ -1590,14 +1593,18 @@ impl Cpu {
 
     fn rst_18(&mut self, memory: &mut Memory) { self.rst_n(0x18, memory); }
 
-    fn ldh_n_a(&self, n: u8, memory: &mut Memory) {}
+    fn ldh_n_a(&self, n: u8, memory: &mut Memory) {
+
+    }
 
     fn pop_hl(&mut self, memory: &Memory) { 
         let hl = self.pop(memory);
         self.registers.set_hl(hl); 
     }
 
-    fn ldh_c_a(&mut self) {}
+    fn ldh_c_a(&self, memory: &mut Memory) {
+        memory[0xFF00 + (self.registers.f.contains(Flag::FULL_CARRY) as u16)];
+    }
 
     fn push_hl(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
@@ -1612,13 +1619,32 @@ impl Cpu {
         self.registers.f.remove(Flag::NEGATIVE | Flag::FULL_CARRY);
     }
 
-    fn rst_20(&mut self, memory: &mut Memory) { self.rst_n(0x20, memory); }
+    fn rst_20(&mut self, memory: &mut Memory) { 
+        self.rst_n(0x20, memory); 
+    }
 
-    fn add_sp_d(&mut self, d: u8) {}
+    fn add_sp_d(&mut self, d: u8) {
+        let d = d as i8 as u16;
 
-    fn jp_hl(&mut self, memory: &Memory) {}
+        let half_carry = ((self.registers.sp & 0x3FFF) + (d & 0x3FFF)) & 0x4000 == 0x4000;
+        let full_carry = ((self.registers.sp as u32) + (d as u32)) & 0x10000 == 0x10000;
 
-    fn ld_nn_a(&self, nn: u16, memory: &mut Memory) { memory[nn] = self.registers.a; }
+        self.registers.sp = self.registers.sp.wrapping_add(d);
+
+        self.registers.f.remove(Flag::ZERO | Flag::NEGATIVE);
+        self.registers.f.set(Flag::HALF_CARRY, half_carry);
+        self.registers.f.set(Flag::FULL_CARRY, full_carry);
+
+    }
+
+    fn jp_hl(&mut self, memory: &Memory) {
+        let hl = self.registers.get_hl();
+        self.registers.pc = memory.read_word(hl);
+    }
+
+    fn ld_nn_a(&self, nn: u16, memory: &mut Memory) { 
+        memory[nn] = self.registers.a; 
+    }
 
     fn xor_n(&mut self, n: u8) {
         self.registers.a ^= n;
@@ -1627,9 +1653,13 @@ impl Cpu {
         self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY);
     }
 
-    fn rst_28(&mut self, memory: &mut Memory) { self.rst_n(0x28, memory); }
+    fn rst_28(&mut self, memory: &mut Memory) { 
+        self.rst_n(0x28, memory); 
+    }
 
-    fn ldh_a_n(&mut self, n: u8, memory: &Memory) {}
+    fn ldh_a_n(&mut self, n: u8, memory: &Memory) {
+        self.registers.a = memory[0xFF00 + (n as u16)];
+    }
 
     fn pop_af(&mut self, memory: &Memory) { 
         let af = self.pop(memory);
@@ -1650,31 +1680,53 @@ impl Cpu {
         self.registers.f.remove(Flag::NEGATIVE | Flag::FULL_CARRY | Flag::HALF_CARRY);
     }
 
-    fn rst_30(&mut self, memory: &mut Memory) { self.rst_n(0x30, memory); }
+    fn rst_30(&mut self, memory: &mut Memory) {
+       self.rst_n(0x30, memory); 
+   }
 
-    fn ldhl_sp_d(&mut self) {}
+   fn ldhl_sp_d(&mut self, d: u8, memory: &Memory) {
+    let d = d as i8 as u16;
 
-    fn ld_sp_hl(&mut self) {}
+    let half_carry = ((self.registers.sp & 0x3FFF) + (d & 0x3FFF)) & 0x4000 == 0x4000;
+    let full_carry = ((self.registers.sp as u32) + (d as u32)) & 0x10000 == 0x10000;
 
-    fn ld_a_nn(&mut self, nn: u16, memory: &Memory) { self.registers.a = memory[nn]; }
+    let hl = memory.read_word(self.registers.sp + d);
+    self.registers.set_hl(hl);
 
-    fn ei(&mut self) { self.registers.ime = true; }
+    self.registers.f.remove(Flag::ZERO | Flag::NEGATIVE);
+    self.registers.f.set(Flag::HALF_CARRY, half_carry);
+    self.registers.f.set(Flag::FULL_CARRY, full_carry);
+}
 
-    fn cp_n(&mut self, n: u8) {
-        let n = !n + 1;
+fn ld_sp_hl(&mut self) {
+    self.registers.sp = self.registers.get_hl();
+}
 
-        let half_carry = (((self.registers.a & 0xF) + (n & 0xF)) & 0x10) == 0x10;
-        let overflow = ((self.registers.a as u16) + (n as u16)) & 0x100 == 0x100;
+fn ld_a_nn(&mut self, nn: u16, memory: &Memory) { 
+    self.registers.a = memory[nn]; 
+}
 
-        let result = self.registers.a.wrapping_add(n);
+fn ei(&mut self) { 
+    self.registers.ime = true; 
+}
 
-        self.registers.f.set(Flag::FULL_CARRY, overflow);
-        self.registers.f.set(Flag::ZERO, result == 0);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.insert(Flag::NEGATIVE);
-    }
+fn cp_n(&mut self, n: u8) {
+    let n = !n + 1;
 
-    fn rst_38(&mut self, memory: &mut Memory) { self.rst_n(0x38, memory); }
+    let half_carry = (((self.registers.a & 0xF) + (n & 0xF)) & 0x10) == 0x10;
+    let overflow = ((self.registers.a as u16) + (n as u16)) & 0x100 == 0x100;
+
+    let result = self.registers.a.wrapping_add(n);
+
+    self.registers.f.set(Flag::FULL_CARRY, overflow);
+    self.registers.f.set(Flag::ZERO, result == 0);
+    self.registers.f.set(Flag::HALF_CARRY, half_carry);
+    self.registers.f.insert(Flag::NEGATIVE);
+}
+
+fn rst_38(&mut self, memory: &mut Memory) { 
+    self.rst_n(0x38, memory); 
+}
 
     //extended opcodes
 
@@ -1735,1209 +1787,1224 @@ impl Cpu {
     
     fn rrc_h(&mut self) { 
         let h = self.registers.h;
-        self.registers.h = self.rrc_n(h); }
-
-        fn rrc_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.rrc_n(l); 
-        }
-
-        fn rrc_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.rrc_n(memory[hl]);
-        }
-
-        fn rl_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.rl_n(b); 
-        }
-
-        fn rl_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.rl_n(c); 
-        }
-
-        fn rl_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.rl_n(d); 
-        }
-
-        fn rl_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.rl_n(e); 
-        }
-
-        fn rl_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.rl_n(h); 
-        }
-
-        fn rl_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.rl_n(l); 
-        }
-
-        fn rl_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.rl_n(memory[hl]);
-        }
-
-        fn rr_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.rr_n(b); 
-        }
-
-        fn rr_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.rr_n(c); 
-        }
-
-        fn rr_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.rr_n(d); 
-        }
-
-        fn rr_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.rr_n(e); 
-        }
-
-        fn rr_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.rr_n(h); 
-        }
-
-        fn rr_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.rr_n(l); 
-        }
-
-        fn rr_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.rr_n(memory[hl]);
-        }
-
-        fn sla_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.sla_n(b); 
-        }
-
-        fn sla_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.sla_n(c); 
-        }
-
-        fn sla_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.sla_n(d); 
-        }
-
-        fn sla_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.sla_n(e); 
-        }
-
-        fn sla_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.sla_n(h); 
-        }
-
-        fn sla_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.sla_n(l); 
-        }
-
-        fn sla_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.sla_n(memory[hl]);
-        }
-
-        fn sla_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.sla_n(a); 
-        }
-
-        fn sra_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.sla_n(b); 
-        }
-
-        fn sra_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.sra_n(c); 
-        }
-
-        fn sra_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.sra_n(d); 
-        }
-
-        fn sra_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.sra_n(e); 
-        }
-
-        fn sra_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.sra_n(h); 
-        }
-
-        fn sra_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.sra_n(l); 
-        }
-
-        fn sra_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.sra_n(memory[hl]);
-        }
-
-        fn sra_a(&mut self) {
-            let a = self.registers.a;
-            self.registers.a = self.sra_n(a);
-        }
-
-        fn swap_b(&mut self) {
-            let b = self.registers.b;
-            self.registers.b = self.swap_n(b);
-        }
-
-        fn swap_c(&mut self) {
-            let c = self.registers.c;
-            self.registers.c = self.swap_n(c);
-        }
-
-        fn swap_d(&mut self) {
-            let d = self.registers.d;
-            self.registers.d = self.swap_n(d);
-        }
-
-        fn swap_e(&mut self) {
-            let e = self.registers.e;
-            self.registers.e = self.swap_n(e);
-        }
-
-        fn swap_h(&mut self) {
-            let h = self.registers.h;
-            self.registers.h = self.swap_n(h);
-        }
-
-        fn swap_l(&mut self) {
-            let l = self.registers.l;
-            self.registers.l = self.swap_n(l);
-        }
-
-        fn swap_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.swap_n(memory[hl]);
-        }
-
-        fn swap_a(&mut self) {
-            let a = self.registers.a;
-            self.registers.a = self.swap_n(a);
-        }
-
-        fn srl_b(&mut self) {
-            let b = self.registers.b;
-            self.registers.b = self.srl_n(b);
-        }
-
-        fn srl_c(&mut self) {
-            let c = self.registers.c;
-            self.registers.c = self.srl_n(c);
-        }
-
-        fn srl_d(&mut self) {
-            let d = self.registers.d;
-            self.registers.d = self.srl_n(d);
-        }
-
-        fn srl_e(&mut self) {
-            let e = self.registers.e;
-            self.registers.e = self.srl_n(e);
-        }
-
-        fn srl_h(&mut self) {
-            let h = self.registers.h;
-            self.registers.h = self.srl_n(h);
-        }
-
-        fn srl_l(&mut self) {
-            let l = self.registers.l;
-            self.registers.l = self.srl_n(l);
-        }
-
-        fn srl_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.srl_n(memory[hl]);
-        }
-
-        fn srl_a(&mut self) {
-            let a = self.registers.a;
-            self.registers.a = self.srl_n(a);
-        }
-
-        fn bit_0_b(&mut self) { 
-            let b = self.registers.b;
-            self.bit_i_n(0, b); 
-        }
-
-        fn bit_0_c(&mut self) { 
-            let c = self.registers.c;
-            self.bit_i_n(0, c); 
-        }
-
-        fn bit_0_d(&mut self) { 
-            let d = self.registers.d;
-            self.bit_i_n(0, d); 
-        }
-
-        fn bit_0_e(&mut self) { 
-            let e = self.registers.e;
-            self.bit_i_n(0, e); 
-        }
-
-        fn bit_0_h(&mut self) { 
-            let h = self.registers.h;
-            self.bit_i_n(0, h); 
-        }
-
-        fn bit_0_l(&mut self) { 
-            let l = self.registers.l;
-            self.bit_i_n(0, l); 
-        }
-
-        fn bit_0_hl(&mut self, memory: &Memory) { 
-            let hl = self.registers.get_hl();
-            self.bit_i_n(0, memory[hl]); 
-        }
-
-        fn bit_0_a(&mut self) { 
-            let a = self.registers.a;
-            self.bit_i_n(0, a); 
-        }
-
-        fn bit_1_b(&mut self) { 
-            let b = self.registers.b;
-            self.bit_i_n(1, b); 
-        }
-
-        fn bit_1_c(&mut self) { 
-            let c = self.registers.c;
-            self.bit_i_n(1, c); 
-        }
-
-        fn bit_1_d(&mut self) { 
-            let d = self.registers.d;
-            self.bit_i_n(1, d); 
-        }
-
-        fn bit_1_e(&mut self) { 
-            let e = self.registers.e;
-            self.bit_i_n(1, e); 
-        }
-
-        fn bit_1_h(&mut self) { 
-            let h = self.registers.h;
-            self.bit_i_n(1, h); 
-        }
-
-        fn bit_1_l(&mut self) { 
-            let l = self.registers.l;
-            self.bit_i_n(1, l); 
-        }
-
-        fn bit_1_hl(&mut self, memory: &Memory) { 
-            let hl = self.registers.get_hl();
-            self.bit_i_n(1, memory[hl]); 
-        }
-
-        fn bit_1_a(&mut self) { 
-            let a = self.registers.a;
-            self.bit_i_n(1, a); 
-        }
-
-        fn bit_2_b(&mut self) { 
-            let b = self.registers.b;
-            self.bit_i_n(2, b); 
-        }
-
-        fn bit_2_c(&mut self) { 
-            let c = self.registers.c;
-            self.bit_i_n(2, c); 
-        }
-
-        fn bit_2_d(&mut self) { 
-            let d = self.registers.d;
-            self.bit_i_n(2, d); 
-        }
-
-        fn bit_2_e(&mut self) { 
-            let e = self.registers.e;
-            self.bit_i_n(2, e); 
-        }
-
-        fn bit_2_h(&mut self) { 
-            let h = self.registers.h;
-            self.bit_i_n(2, h); 
-        }
-
-        fn bit_2_l(&mut self) { 
-            let l = self.registers.l;
-            self.bit_i_n(2, l); 
-        }
-
-        fn bit_2_hl(&mut self, memory: &Memory) { 
-            let hl = self.registers.get_hl();
-            self.bit_i_n(2, memory[hl]); 
-        }
-
-        fn bit_2_a(&mut self) { 
-            let a = self.registers.a;
-            self.bit_i_n(2, a); 
-        }
-
-        fn bit_3_b(&mut self) { 
-            let b = self.registers.b;
-            self.bit_i_n(3, b); 
-        }
-
-        fn bit_3_c(&mut self) { 
-            let c = self.registers.c;
-            self.bit_i_n(3, c); 
-        }
-
-        fn bit_3_d(&mut self) { 
-            let d = self.registers.d;
-            self.bit_i_n(3, d); 
-        }
-
-        fn bit_3_e(&mut self) { 
-            let e = self.registers.e;
-            self.bit_i_n(3, e); 
-        }
-
-        fn bit_3_h(&mut self) { 
-            let h = self.registers.h;
-            self.bit_i_n(3, h); 
-        }
-
-        fn bit_3_l(&mut self) { 
-            let l = self.registers.l;
-            self.bit_i_n(3, l); 
-        }
-
-        fn bit_3_hl(&mut self, memory: &Memory) { 
-            let hl = self.registers.get_hl();
-            self.bit_i_n(3, memory[hl]); 
-        }
-
-        fn bit_3_a(&mut self) { 
-            let a = self.registers.a;
-            self.bit_i_n(3, a); 
-        }
-
-        fn bit_4_b(&mut self) { 
-            let b = self.registers.b;
-            self.bit_i_n(4, b); 
-        }
-
-        fn bit_4_c(&mut self) { 
-            let c = self.registers.c;
-            self.bit_i_n(4, c); 
-        }
-
-        fn bit_4_d(&mut self) { 
-            let d = self.registers.d;
-            self.bit_i_n(4, d); 
-        }
-
-        fn bit_4_e(&mut self) { 
-            let e = self.registers.e;
-            self.bit_i_n(4, e); 
-        }
-
-        fn bit_4_h(&mut self) { 
-            let h = self.registers.h;
-            self.bit_i_n(4, h); 
-        }
-
-        fn bit_4_l(&mut self) { 
-            let l = self.registers.l;
-            self.bit_i_n(4, l); 
-        }
-
-        fn bit_4_hl(&mut self, memory: &Memory) { 
-            let hl = self.registers.get_hl();
-            self.bit_i_n(4, memory[hl]); 
-        }
-
-        fn bit_4_a(&mut self) { 
-            let a = self.registers.a;
-            self.bit_i_n(4, a); 
-        }
-
-        fn bit_5_b(&mut self) { 
-            let b = self.registers.b;
-            self.bit_i_n(5, b); 
-        }
-
-        fn bit_5_c(&mut self) { 
-            let c = self.registers.c;
-            self.bit_i_n(5, c); 
-        }
-
-        fn bit_5_d(&mut self) { 
-            let d = self.registers.d;
-            self.bit_i_n(5, d); 
-        }
-
-        fn bit_5_e(&mut self) { 
-            let e = self.registers.e;
-            self.bit_i_n(5, e); 
-        }
-
-        fn bit_5_h(&mut self) { 
-            let h = self.registers.h;
-            self.bit_i_n(5, h); 
-        }
-
-        fn bit_5_l(&mut self) { 
-            let l = self.registers.l;
-            self.bit_i_n(5, l); 
-        }
-
-        fn bit_5_hl(&mut self, memory: &Memory) { 
-            let hl = self.registers.get_hl();
-            self.bit_i_n(5, memory[hl]); 
-        }
-
-        fn bit_5_a(&mut self) { 
-            let a = self.registers.a;
-            self.bit_i_n(5, a); 
-        }
-
-        fn bit_6_b(&mut self) { 
-            let b = self.registers.b;
-            self.bit_i_n(6, b); 
-        }
-
-        fn bit_6_c(&mut self) { 
-            let c = self.registers.c;
-            self.bit_i_n(6, c); 
-        }
-
-        fn bit_6_d(&mut self) { 
-            let d = self.registers.d;
-            self.bit_i_n(6, d); 
-        }
-
-        fn bit_6_e(&mut self) { 
-            let e = self.registers.e;
-            self.bit_i_n(6, e);
-        }
-
-        fn bit_6_h(&mut self) { 
-            let h = self.registers.h;
-            self.bit_i_n(6, h); 
-        }
-
-        fn bit_6_l(&mut self) { 
-            let l = self.registers.l;
-            self.bit_i_n(6, l); 
-        }
-
-        fn bit_6_hl(&mut self, memory: &Memory) { 
-            let hl = self.registers.get_hl();
-            self.bit_i_n(6, memory[hl]); 
-        }
-
-        fn bit_6_a(&mut self) { 
-            let a = self.registers.a;
-            self.bit_i_n(6, a); 
-        }
-
-        fn bit_7_b(&mut self) { 
-            let b = self.registers.b;
-            self.bit_i_n(7, b); 
-        }
-
-        fn bit_7_c(&mut self) { 
-            let c = self.registers.c;
-            self.bit_i_n(7, c); 
-        }
-
-        fn bit_7_d(&mut self) { 
-            let d = self.registers.d;
-            self.bit_i_n(7, d);
-        }
-
-        fn bit_7_e(&mut self) { 
-            let e = self.registers.e;
-            self.bit_i_n(7, e); 
-        }
-
-        fn bit_7_h(&mut self) { 
-            let h = self.registers.h;
-            self.bit_i_n(7, h); 
-        }
-
-        fn bit_7_l(&mut self) { 
-            let l = self.registers.l;
-            self.bit_i_n(7, l); 
-        }
-
-        fn bit_7_hl(&mut self, memory: &Memory) { 
-            let hl = self.registers.get_hl();
-            self.bit_i_n(7, memory[hl]); 
-        }
-
-        fn bit_7_a(&mut self) { 
-            let a = self.registers.a;
-            self.bit_i_n(7, a); 
-        }
-        fn res_0_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.res_i_n(0, b); 
-        }
-
-        fn res_0_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.res_i_n(0, c); 
-        }
-        fn res_0_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.res_i_n(0, d); 
-        }
-        fn res_0_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.res_i_n(0, e); 
-        }
-        fn res_0_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.res_i_n(0, h); 
-        }
-        fn res_0_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.res_i_n(0, l); 
-        }
-        fn res_0_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.res_i_n(0, memory[hl]);
-        }
-
-        fn res_0_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.res_i_n(0, a); 
-        }
-
-        fn res_1_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.res_i_n(1, b); 
-        }
-
-        fn res_1_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.res_i_n(1, c); 
-        }
-
-        fn res_1_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.res_i_n(1, d); 
-        }
-
-        fn res_1_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.res_i_n(1, e); 
-        }
-
-        fn res_1_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.res_i_n(1, h); 
-        }
-
-        fn res_1_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.res_i_n(1, l); 
-        }
-
-        fn res_1_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.res_i_n(1, memory[hl]);
-        }
-
-        fn res_1_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.res_i_n(1, a); 
-        }
-
-        fn res_2_b(&mut self) {
-            let b = self.registers.b;
-            self.registers.b = self.res_i_n(2, b); 
-        }
-
-        fn res_2_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.res_i_n(2, c); 
-        }
-
-        fn res_2_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.res_i_n(2, d); 
-        }
-
-        fn res_2_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.res_i_n(2, e); 
-        }
-
-        fn res_2_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.res_i_n(2, h); 
-        }
-
-        fn res_2_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.res_i_n(2, l); 
-        }
-
-        fn res_2_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.res_i_n(2, memory[hl]);
-        }
-
-        fn res_2_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.res_i_n(2, a); 
-        }
-
-        fn res_3_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.res_i_n(3, b); 
-        }
-
-        fn res_3_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.res_i_n(3, c); 
-        }
-
-        fn res_3_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.res_i_n(3, d); 
-        }
-
-        fn res_3_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.res_i_n(3, e); 
-        }
-
-        fn res_3_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.res_i_n(3, h); 
-        }
-
-        fn res_3_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.res_i_n(3, l); 
-        }
-
-        fn res_3_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.res_i_n(3, memory[hl]);
-        }
-
-        fn res_3_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.res_i_n(3, a); 
-        }
-
-        fn res_4_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.res_i_n(4, b); 
-        }
-
-        fn res_4_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.res_i_n(4, c); 
-        }
-
-        fn res_4_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.res_i_n(4, d); 
-        }
-
-        fn res_4_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.res_i_n(4, e); 
-        }
-
-        fn res_4_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.res_i_n(4, h); 
-        }
-
-        fn res_4_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.res_i_n(4, l); 
-        }
-
-        fn res_4_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.res_i_n(4, memory[hl]);
-        }
-
-        fn res_4_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.res_i_n(4, a); 
-        }
-
-        fn res_5_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.res_i_n(5, b); 
-        }
-
-        fn res_5_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.res_i_n(5, c); 
-        }
-
-        fn res_5_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.res_i_n(5, d); 
-        }
-
-        fn res_5_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.res_i_n(5, e); 
-        }
-
-        fn res_5_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.res_i_n(5, h); 
-        }
-
-        fn res_5_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.res_i_n(5, l); 
-        }
-
-        fn res_5_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.res_i_n(5, memory[hl]);
-        }
-
-        fn res_5_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.res_i_n(5, a); 
-        }
-
-        fn res_6_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.res_i_n(6, b); 
-        }
-
-        fn res_6_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.res_i_n(6, c); 
-        }
-
-        fn res_6_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.res_i_n(6, d); 
-        }
-
-        fn res_6_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.res_i_n(6, e); 
-        }
-
-        fn res_6_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.res_i_n(6, h); 
-        }
-
-        fn res_6_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.res_i_n(6, l); 
-        }
-
-        fn res_6_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.res_i_n(6, memory[hl]);
-        }
-
-        fn res_6_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.res_i_n(6, a); 
-        }
-
-        fn res_7_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.res_i_n(7, b); 
-        }
-
-        fn res_7_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.res_i_n(7, c); 
-        }
-
-        fn res_7_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.res_i_n(7, d); 
-        }
-
-        fn res_7_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.res_i_n(7, e); 
-        }
-
-        fn res_7_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.res_i_n(7, h); 
-        }
-
-        fn res_7_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.res_i_n(7, l); 
-        }
-
-        fn res_7_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.res_i_n(6, memory[hl]);
-        }
-
-        fn res_7_a(&mut self) { 
-            let a = self.registers.a;
-            self.res_i_n(7, a); 
-        }
-
-        fn set_0_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.set_i_n(0, b); 
-        }
-
-        fn set_0_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.set_i_n(0, c); 
-        }
-
-        fn set_0_d(&mut self) {
-            let d = self.registers.d;
-            self.registers.d = self.set_i_n(0, d);
-        }
-
-        fn set_0_e(&mut self) {
-            let e = self.registers.e;
-            self.registers.e = self.set_i_n(0, e); 
-        }
-
-        fn set_0_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.set_i_n(0, h); 
-        }
-
-        fn set_0_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.set_i_n(0, l); 
-        }
-
-        fn set_0_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.set_i_n(0, memory[hl]);
-        }
-
-        fn set_0_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.set_i_n(0, a); 
-        }
-
-        fn set_1_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.set_i_n(0, b); 
-        }
-
-        fn set_1_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.set_i_n(0, c); 
-        }
-
-        fn set_1_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.set_i_n(0, d);
-        }
-
-        fn set_1_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.set_i_n(0, e); 
-        }
-
-        fn set_1_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.set_i_n(0, h); 
-        }
-
-        fn set_1_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.set_i_n(0, l); 
-        }
-
-        fn set_1_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.set_i_n(1, memory[hl]);
-        }
-
-        fn set_1_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.set_i_n(1, a); 
-        }
-
-        fn set_2_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.set_i_n(2, b); 
-        }
-
-        fn set_2_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.set_i_n(2, c); 
-        }
-
-        fn set_2_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.set_i_n(2, d); 
-        }
-
-        fn set_2_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.set_i_n(2, e); 
-        }
-
-        fn set_2_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.set_i_n(2, h); 
-        }
-
-        fn set_2_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.set_i_n(2, l); 
-        }
-
-        fn set_2_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.set_i_n(2, memory[hl]);
-        }
-
-        fn set_2_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.set_i_n(2, a); 
-        }
-
-        fn set_3_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.set_i_n(3, b); 
-        }
-
-        fn set_3_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.set_i_n(3, c); 
-        }
-
-        fn set_3_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.set_i_n(3, d); 
-        }
-
-        fn set_3_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.set_i_n(3, e); 
-        }
-
-        fn set_3_h(&mut self) {
-            let h = self.registers.h;
-            self.registers.h = self.set_i_n(3, h);
-        }
-
-        fn set_3_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.set_i_n(3, l); 
-        }
-
-        fn set_3_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.set_i_n(3, memory[hl]);
-        }
-
-        fn set_3_a(&mut self) {
-            let a = self.registers.a;
-            self.registers.a = self.set_i_n(3, a); 
-        }
-
-        fn set_4_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.set_i_n(4, b); 
-        }
-
-        fn set_4_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.set_i_n(4, c);
-        }
-
-        fn set_4_d(&mut self) {
-            let d = self.registers.d;
-            self.registers.d = self.set_i_n(4, d); 
-        }
-
-        fn set_4_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.set_i_n(4, e); 
-        }
-
-        fn set_4_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.set_i_n(4, h);
-        }
-
-        fn set_4_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.set_i_n(4, l); 
-        }
-
-        fn set_4_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.set_i_n(4, memory[hl]);
-        }
-
-        fn set_4_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.set_i_n(3, a); 
-        }
-
-        fn set_5_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.set_i_n(5, b); 
-        }
-
-        fn set_5_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.set_i_n(5, c); 
-        }
-
-        fn set_5_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.set_i_n(5, d); 
-        }
-
-        fn set_5_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.set_i_n(5, e); 
-        }
-
-        fn set_5_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.set_i_n(5, h); 
-        }
-
-        fn set_5_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.set_i_n(5, l); 
-        }
-
-        fn set_5_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.set_i_n(5, memory[hl]);
-        }
-
-        fn set_5_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.set_i_n(5, a); 
-        }
-
-        fn set_6_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.set_i_n(6, b); 
-        }
-
-        fn set_6_c(&mut self) { 
-            let c = self.registers.c;
-            self.registers.c = self.set_i_n(6, c); 
-        }
-
-        fn set_6_d(&mut self) { 
-            let d = self.registers.d;
-            self.registers.d = self.set_i_n(6, d); 
-        }
-
-        fn set_6_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.set_i_n(6, e); 
-        }
-
-        fn set_6_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.set_i_n(6, h); 
-        }
-
-        fn set_6_l(&mut self) {
-            let l = self.registers.l;
-            self.registers.l = self.set_i_n(6, l); 
-        }
-
-        fn set_6_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.set_i_n(6, memory[hl]);
-        }
-
-        fn set_6_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.set_i_n(6, a); 
-        }
-
-        fn set_7_b(&mut self) { 
-            let b = self.registers.b;
-            self.registers.b = self.set_i_n(7, b); 
-        }
-
-        fn set_7_c(&mut self) {
-            let c = self.registers.c; 
-            self.registers.c = self.set_i_n(7, c); 
-        }
-
-        fn set_7_d(&mut self) {
-            let d = self.registers.d;
-            self.registers.d = self.set_i_n(7, d); 
-        }
-
-        fn set_7_e(&mut self) { 
-            let e = self.registers.e;
-            self.registers.e = self.set_i_n(7, e);
-        }
-
-        fn set_7_h(&mut self) { 
-            let h = self.registers.h;
-            self.registers.h = self.set_i_n(7, h); 
-        }
-
-        fn set_7_l(&mut self) { 
-            let l = self.registers.l;
-            self.registers.l = self.set_i_n(7, l); 
-        }
-
-        fn set_7_hl(&mut self, memory: &mut Memory) {
-            let hl = self.registers.get_hl();
-            memory[hl] = self.set_i_n(7, memory[hl]);
-        }
-
-        fn set_7_a(&mut self) { 
-            let a = self.registers.a;
-            self.registers.a = self.set_i_n(6, a); 
-        }
+        self.registers.h = self.rrc_n(h); 
+    }
+
+    fn rrc_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.rrc_n(l); 
+    }
+
+    fn rrc_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.rrc_n(memory[hl]);
+    }
+
+    fn rl_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.rl_n(b); 
+    }
+
+    fn rl_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.rl_n(c); 
+    }
+
+    fn rl_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.rl_n(d); 
+    }
+
+    fn rl_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.rl_n(e); 
+    }
+
+    fn rl_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.rl_n(h); 
+    }
+
+    fn rl_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.rl_n(l); 
+    }
+
+    fn rl_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.rl_n(memory[hl]);
+    }
+
+    fn rr_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.rr_n(b); 
+    }
+
+    fn rr_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.rr_n(c); 
+    }
+
+    fn rr_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.rr_n(d); 
+    }
+
+    fn rr_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.rr_n(e); 
+    }
+
+    fn rr_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.rr_n(h); 
+    }
+
+    fn rr_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.rr_n(l); 
+    }
+
+    fn rr_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.rr_n(memory[hl]);
+    }
+
+    fn sla_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.sla_n(b); 
+    }
+
+    fn sla_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.sla_n(c); 
+    }
+
+    fn sla_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.sla_n(d); 
+    }
+
+    fn sla_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.sla_n(e); 
+    }
+
+    fn sla_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.sla_n(h); 
+    }
+
+    fn sla_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.sla_n(l); 
+    }
+
+    fn sla_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.sla_n(memory[hl]);
+    }
+
+    fn sla_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.sla_n(a); 
+    }
+
+    fn sra_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.sla_n(b); 
+    }
+
+    fn sra_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.sra_n(c); 
+    }
+
+    fn sra_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.sra_n(d); 
+    }
+
+    fn sra_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.sra_n(e); 
+    }
+
+    fn sra_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.sra_n(h); 
+    }
+
+    fn sra_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.sra_n(l); 
+    }
+
+    fn sra_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.sra_n(memory[hl]);
+    }
+
+    fn sra_a(&mut self) {
+        let a = self.registers.a;
+        self.registers.a = self.sra_n(a);
+    }
+
+    fn swap_b(&mut self) {
+        let b = self.registers.b;
+        self.registers.b = self.swap_n(b);
+    }
+
+    fn swap_c(&mut self) {
+        let c = self.registers.c;
+        self.registers.c = self.swap_n(c);
+    }
+
+    fn swap_d(&mut self) {
+        let d = self.registers.d;
+        self.registers.d = self.swap_n(d);
+    }
+
+    fn swap_e(&mut self) {
+        let e = self.registers.e;
+        self.registers.e = self.swap_n(e);
+    }
+
+    fn swap_h(&mut self) {
+        let h = self.registers.h;
+        self.registers.h = self.swap_n(h);
+    }
+
+    fn swap_l(&mut self) {
+        let l = self.registers.l;
+        self.registers.l = self.swap_n(l);
+    }
+
+    fn swap_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.swap_n(memory[hl]);
+    }
+
+    fn swap_a(&mut self) {
+        let a = self.registers.a;
+        self.registers.a = self.swap_n(a);
+    }
+
+    fn srl_b(&mut self) {
+        let b = self.registers.b;
+        self.registers.b = self.srl_n(b);
+    }
+
+    fn srl_c(&mut self) {
+        let c = self.registers.c;
+        self.registers.c = self.srl_n(c);
+    }
+
+    fn srl_d(&mut self) {
+        let d = self.registers.d;
+        self.registers.d = self.srl_n(d);
+    }
+
+    fn srl_e(&mut self) {
+        let e = self.registers.e;
+        self.registers.e = self.srl_n(e);
+    }
+
+    fn srl_h(&mut self) {
+        let h = self.registers.h;
+        self.registers.h = self.srl_n(h);
+    }
+
+    fn srl_l(&mut self) {
+        let l = self.registers.l;
+        self.registers.l = self.srl_n(l);
+    }
+
+    fn srl_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.srl_n(memory[hl]);
+    }
+
+    fn srl_a(&mut self) {
+        let a = self.registers.a;
+        self.registers.a = self.srl_n(a);
+    }
+
+    fn bit_0_b(&mut self) { 
+        let b = self.registers.b;
+        self.bit_i_n(0, b); 
+    }
+
+    fn bit_0_c(&mut self) { 
+        let c = self.registers.c;
+        self.bit_i_n(0, c); 
+    }
+
+    fn bit_0_d(&mut self) { 
+        let d = self.registers.d;
+        self.bit_i_n(0, d); 
+    }
+
+    fn bit_0_e(&mut self) { 
+        let e = self.registers.e;
+        self.bit_i_n(0, e); 
+    }
+
+    fn bit_0_h(&mut self) { 
+        let h = self.registers.h;
+        self.bit_i_n(0, h); 
+    }
+
+    fn bit_0_l(&mut self) { 
+        let l = self.registers.l;
+        self.bit_i_n(0, l); 
+    }
+
+    fn bit_0_hl(&mut self, memory: &Memory) { 
+        let hl = self.registers.get_hl();
+        self.bit_i_n(0, memory[hl]); 
+    }
+
+    fn bit_0_a(&mut self) { 
+        let a = self.registers.a;
+        self.bit_i_n(0, a); 
+    }
+
+    fn bit_1_b(&mut self) { 
+        let b = self.registers.b;
+        self.bit_i_n(1, b); 
+    }
+
+    fn bit_1_c(&mut self) { 
+        let c = self.registers.c;
+        self.bit_i_n(1, c); 
+    }
+
+    fn bit_1_d(&mut self) { 
+        let d = self.registers.d;
+        self.bit_i_n(1, d); 
+    }
+
+    fn bit_1_e(&mut self) { 
+        let e = self.registers.e;
+        self.bit_i_n(1, e); 
+    }
+
+    fn bit_1_h(&mut self) { 
+        let h = self.registers.h;
+        self.bit_i_n(1, h); 
+    }
+
+    fn bit_1_l(&mut self) { 
+        let l = self.registers.l;
+        self.bit_i_n(1, l); 
+    }
+
+    fn bit_1_hl(&mut self, memory: &Memory) { 
+        let hl = self.registers.get_hl();
+        self.bit_i_n(1, memory[hl]); 
+    }
+
+    fn bit_1_a(&mut self) { 
+        let a = self.registers.a;
+        self.bit_i_n(1, a); 
+    }
+
+    fn bit_2_b(&mut self) { 
+        let b = self.registers.b;
+        self.bit_i_n(2, b); 
+    }
+
+    fn bit_2_c(&mut self) { 
+        let c = self.registers.c;
+        self.bit_i_n(2, c); 
+    }
+
+    fn bit_2_d(&mut self) { 
+        let d = self.registers.d;
+        self.bit_i_n(2, d); 
+    }
+
+    fn bit_2_e(&mut self) { 
+        let e = self.registers.e;
+        self.bit_i_n(2, e); 
+    }
+
+    fn bit_2_h(&mut self) { 
+        let h = self.registers.h;
+        self.bit_i_n(2, h); 
+    }
+
+    fn bit_2_l(&mut self) { 
+        let l = self.registers.l;
+        self.bit_i_n(2, l); 
+    }
+
+    fn bit_2_hl(&mut self, memory: &Memory) { 
+        let hl = self.registers.get_hl();
+        self.bit_i_n(2, memory[hl]); 
+    }
+
+    fn bit_2_a(&mut self) { 
+        let a = self.registers.a;
+        self.bit_i_n(2, a); 
+    }
+
+    fn bit_3_b(&mut self) { 
+        let b = self.registers.b;
+        self.bit_i_n(3, b); 
+    }
+
+    fn bit_3_c(&mut self) { 
+        let c = self.registers.c;
+        self.bit_i_n(3, c); 
+    }
+
+    fn bit_3_d(&mut self) { 
+        let d = self.registers.d;
+        self.bit_i_n(3, d); 
+    }
+
+    fn bit_3_e(&mut self) { 
+        let e = self.registers.e;
+        self.bit_i_n(3, e); 
+    }
+
+    fn bit_3_h(&mut self) { 
+        let h = self.registers.h;
+        self.bit_i_n(3, h); 
+    }
+
+    fn bit_3_l(&mut self) { 
+        let l = self.registers.l;
+        self.bit_i_n(3, l); 
+    }
+
+    fn bit_3_hl(&mut self, memory: &Memory) { 
+        let hl = self.registers.get_hl();
+        self.bit_i_n(3, memory[hl]); 
+    }
+
+    fn bit_3_a(&mut self) { 
+        let a = self.registers.a;
+        self.bit_i_n(3, a); 
+    }
+
+    fn bit_4_b(&mut self) { 
+        let b = self.registers.b;
+        self.bit_i_n(4, b); 
+    }
+
+    fn bit_4_c(&mut self) { 
+        let c = self.registers.c;
+        self.bit_i_n(4, c); 
+    }
+
+    fn bit_4_d(&mut self) { 
+        let d = self.registers.d;
+        self.bit_i_n(4, d); 
+    }
+
+    fn bit_4_e(&mut self) { 
+        let e = self.registers.e;
+        self.bit_i_n(4, e); 
+    }
+
+    fn bit_4_h(&mut self) { 
+        let h = self.registers.h;
+        self.bit_i_n(4, h); 
+    }
+
+    fn bit_4_l(&mut self) { 
+        let l = self.registers.l;
+        self.bit_i_n(4, l); 
+    }
+
+    fn bit_4_hl(&mut self, memory: &Memory) { 
+        let hl = self.registers.get_hl();
+        self.bit_i_n(4, memory[hl]); 
+    }
+
+    fn bit_4_a(&mut self) { 
+        let a = self.registers.a;
+        self.bit_i_n(4, a); 
+    }
+
+    fn bit_5_b(&mut self) { 
+        let b = self.registers.b;
+        self.bit_i_n(5, b); 
+    }
+
+    fn bit_5_c(&mut self) { 
+        let c = self.registers.c;
+        self.bit_i_n(5, c); 
+    }
+
+    fn bit_5_d(&mut self) { 
+        let d = self.registers.d;
+        self.bit_i_n(5, d); 
+    }
+
+    fn bit_5_e(&mut self) { 
+        let e = self.registers.e;
+        self.bit_i_n(5, e); 
+    }
+
+    fn bit_5_h(&mut self) { 
+        let h = self.registers.h;
+        self.bit_i_n(5, h); 
+    }
+
+    fn bit_5_l(&mut self) { 
+        let l = self.registers.l;
+        self.bit_i_n(5, l); 
+    }
+
+    fn bit_5_hl(&mut self, memory: &Memory) { 
+        let hl = self.registers.get_hl();
+        self.bit_i_n(5, memory[hl]); 
+    }
+
+    fn bit_5_a(&mut self) { 
+        let a = self.registers.a;
+        self.bit_i_n(5, a); 
+    }
+
+    fn bit_6_b(&mut self) { 
+        let b = self.registers.b;
+        self.bit_i_n(6, b); 
+    }
+
+    fn bit_6_c(&mut self) { 
+        let c = self.registers.c;
+        self.bit_i_n(6, c); 
+    }
+
+    fn bit_6_d(&mut self) { 
+        let d = self.registers.d;
+        self.bit_i_n(6, d); 
+    }
+
+    fn bit_6_e(&mut self) { 
+        let e = self.registers.e;
+        self.bit_i_n(6, e);
+    }
+
+    fn bit_6_h(&mut self) { 
+        let h = self.registers.h;
+        self.bit_i_n(6, h); 
+    }
+
+    fn bit_6_l(&mut self) { 
+        let l = self.registers.l;
+        self.bit_i_n(6, l); 
+    }
+
+    fn bit_6_hl(&mut self, memory: &Memory) { 
+        let hl = self.registers.get_hl();
+        self.bit_i_n(6, memory[hl]); 
+    }
+
+    fn bit_6_a(&mut self) { 
+        let a = self.registers.a;
+        self.bit_i_n(6, a); 
+    }
+
+    fn bit_7_b(&mut self) { 
+        let b = self.registers.b;
+        self.bit_i_n(7, b); 
+    }
+
+    fn bit_7_c(&mut self) { 
+        let c = self.registers.c;
+        self.bit_i_n(7, c); 
+    }
+
+    fn bit_7_d(&mut self) { 
+        let d = self.registers.d;
+        self.bit_i_n(7, d);
+    }
+
+    fn bit_7_e(&mut self) { 
+        let e = self.registers.e;
+        self.bit_i_n(7, e); 
+    }
+
+    fn bit_7_h(&mut self) { 
+        let h = self.registers.h;
+        self.bit_i_n(7, h); 
+    }
+
+    fn bit_7_l(&mut self) { 
+        let l = self.registers.l;
+        self.bit_i_n(7, l); 
+    }
+
+    fn bit_7_hl(&mut self, memory: &Memory) { 
+        let hl = self.registers.get_hl();
+        self.bit_i_n(7, memory[hl]); 
+    }
+
+    fn bit_7_a(&mut self) { 
+        let a = self.registers.a;
+        self.bit_i_n(7, a); 
+    }
+    fn res_0_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.res_i_n(0, b); 
+    }
+
+    fn res_0_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.res_i_n(0, c); 
+    }
+    fn res_0_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.res_i_n(0, d); 
+    }
+    fn res_0_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.res_i_n(0, e); 
+    }
+    fn res_0_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.res_i_n(0, h); 
+    }
+    fn res_0_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.res_i_n(0, l); 
+    }
+    fn res_0_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.res_i_n(0, memory[hl]);
+    }
+
+    fn res_0_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.res_i_n(0, a); 
+    }
+
+    fn res_1_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.res_i_n(1, b); 
+    }
+
+    fn res_1_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.res_i_n(1, c); 
+    }
+
+    fn res_1_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.res_i_n(1, d); 
+    }
+
+    fn res_1_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.res_i_n(1, e); 
+    }
+
+    fn res_1_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.res_i_n(1, h); 
+    }
+
+    fn res_1_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.res_i_n(1, l); 
+    }
+
+    fn res_1_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.res_i_n(1, memory[hl]);
+    }
+
+    fn res_1_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.res_i_n(1, a); 
+    }
+
+    fn res_2_b(&mut self) {
+        let b = self.registers.b;
+        self.registers.b = self.res_i_n(2, b); 
+    }
+
+    fn res_2_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.res_i_n(2, c); 
+    }
+
+    fn res_2_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.res_i_n(2, d); 
+    }
+
+    fn res_2_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.res_i_n(2, e); 
+    }
+
+    fn res_2_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.res_i_n(2, h); 
+    }
+
+    fn res_2_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.res_i_n(2, l); 
+    }
+
+    fn res_2_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.res_i_n(2, memory[hl]);
+    }
+
+    fn res_2_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.res_i_n(2, a); 
+    }
+
+    fn res_3_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.res_i_n(3, b); 
+    }
+
+    fn res_3_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.res_i_n(3, c); 
+    }
+
+    fn res_3_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.res_i_n(3, d); 
+    }
+
+    fn res_3_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.res_i_n(3, e); 
+    }
+
+    fn res_3_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.res_i_n(3, h); 
+    }
+
+    fn res_3_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.res_i_n(3, l); 
+    }
+
+    fn res_3_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.res_i_n(3, memory[hl]);
+    }
+
+    fn res_3_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.res_i_n(3, a); 
+    }
+
+    fn res_4_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.res_i_n(4, b); 
+    }
+
+    fn res_4_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.res_i_n(4, c); 
+    }
+
+    fn res_4_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.res_i_n(4, d); 
+    }
+
+    fn res_4_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.res_i_n(4, e); 
+    }
+
+    fn res_4_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.res_i_n(4, h); 
+    }
+
+    fn res_4_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.res_i_n(4, l); 
+    }
+
+    fn res_4_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.res_i_n(4, memory[hl]);
+    }
+
+    fn res_4_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.res_i_n(4, a); 
+    }
+
+    fn res_5_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.res_i_n(5, b); 
+    }
+
+    fn res_5_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.res_i_n(5, c); 
+    }
+
+    fn res_5_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.res_i_n(5, d); 
+    }
+
+    fn res_5_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.res_i_n(5, e); 
+    }
+
+    fn res_5_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.res_i_n(5, h); 
+    }
+
+    fn res_5_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.res_i_n(5, l); 
+    }
+
+    fn res_5_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.res_i_n(5, memory[hl]);
+    }
+
+    fn res_5_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.res_i_n(5, a); 
+    }
+
+    fn res_6_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.res_i_n(6, b); 
+    }
+
+    fn res_6_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.res_i_n(6, c); 
+    }
+
+    fn res_6_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.res_i_n(6, d); 
+    }
+
+    fn res_6_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.res_i_n(6, e); 
+    }
+
+    fn res_6_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.res_i_n(6, h); 
+    }
+
+    fn res_6_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.res_i_n(6, l); 
+    }
+
+    fn res_6_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.res_i_n(6, memory[hl]);
+    }
+
+    fn res_6_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.res_i_n(6, a); 
+    }
+
+    fn res_7_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.res_i_n(7, b); 
+    }
+
+    fn res_7_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.res_i_n(7, c); 
+    }
+
+    fn res_7_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.res_i_n(7, d); 
+    }
+
+    fn res_7_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.res_i_n(7, e); 
+    }
+
+    fn res_7_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.res_i_n(7, h); 
+    }
+
+    fn res_7_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.res_i_n(7, l); 
+    }
+
+    fn res_7_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.res_i_n(6, memory[hl]);
+    }
+
+    fn res_7_a(&mut self) { 
+        let a = self.registers.a;
+        self.res_i_n(7, a); 
+    }
+
+    fn set_0_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.set_i_n(0, b); 
+    }
+
+    fn set_0_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.set_i_n(0, c); 
+    }
+
+    fn set_0_d(&mut self) {
+        let d = self.registers.d;
+        self.registers.d = self.set_i_n(0, d);
+    }
+
+    fn set_0_e(&mut self) {
+        let e = self.registers.e;
+        self.registers.e = self.set_i_n(0, e); 
+    }
+
+    fn set_0_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.set_i_n(0, h); 
+    }
+
+    fn set_0_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.set_i_n(0, l); 
+    }
+
+    fn set_0_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.set_i_n(0, memory[hl]);
+    }
+
+    fn set_0_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.set_i_n(0, a); 
+    }
+
+    fn set_1_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.set_i_n(0, b); 
+    }
+
+    fn set_1_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.set_i_n(0, c); 
+    }
+
+    fn set_1_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.set_i_n(0, d);
+    }
+
+    fn set_1_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.set_i_n(0, e); 
+    }
+
+    fn set_1_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.set_i_n(0, h); 
+    }
+
+    fn set_1_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.set_i_n(0, l); 
+    }
+
+    fn set_1_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.set_i_n(1, memory[hl]);
+    }
+
+    fn set_1_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.set_i_n(1, a); 
+    }
+
+    fn set_2_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.set_i_n(2, b); 
+    }
+
+    fn set_2_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.set_i_n(2, c); 
+    }
+
+    fn set_2_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.set_i_n(2, d); 
+    }
+
+    fn set_2_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.set_i_n(2, e); 
+    }
+
+    fn set_2_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.set_i_n(2, h); 
+    }
+
+    fn set_2_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.set_i_n(2, l); 
+    }
+
+    fn set_2_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.set_i_n(2, memory[hl]);
+    }
+
+    fn set_2_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.set_i_n(2, a); 
+    }
+
+    fn set_3_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.set_i_n(3, b); 
+    }
+
+    fn set_3_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.set_i_n(3, c); 
+    }
+
+    fn set_3_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.set_i_n(3, d); 
+    }
+
+    fn set_3_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.set_i_n(3, e); 
+    }
+
+    fn set_3_h(&mut self) {
+        let h = self.registers.h;
+        self.registers.h = self.set_i_n(3, h);
+    }
+
+    fn set_3_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.set_i_n(3, l); 
+    }
+
+    fn set_3_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.set_i_n(3, memory[hl]);
+    }
+
+    fn set_3_a(&mut self) {
+        let a = self.registers.a;
+        self.registers.a = self.set_i_n(3, a); 
+    }
+
+    fn set_4_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.set_i_n(4, b); 
+    }
+
+    fn set_4_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.set_i_n(4, c);
+    }
+
+    fn set_4_d(&mut self) {
+        let d = self.registers.d;
+        self.registers.d = self.set_i_n(4, d); 
+    }
+
+    fn set_4_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.set_i_n(4, e); 
+    }
+
+    fn set_4_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.set_i_n(4, h);
+    }
+
+    fn set_4_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.set_i_n(4, l); 
+    }
+
+    fn set_4_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.set_i_n(4, memory[hl]);
+    }
+
+    fn set_4_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.set_i_n(3, a); 
+    }
+
+    fn set_5_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.set_i_n(5, b); 
+    }
+
+    fn set_5_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.set_i_n(5, c); 
+    }
+
+    fn set_5_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.set_i_n(5, d); 
+    }
+
+    fn set_5_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.set_i_n(5, e); 
+    }
+
+    fn set_5_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.set_i_n(5, h); 
+    }
+
+    fn set_5_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.set_i_n(5, l); 
+    }
+
+    fn set_5_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.set_i_n(5, memory[hl]);
+    }
+
+    fn set_5_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.set_i_n(5, a); 
+    }
+
+    fn set_6_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.set_i_n(6, b); 
+    }
+
+    fn set_6_c(&mut self) { 
+        let c = self.registers.c;
+        self.registers.c = self.set_i_n(6, c); 
+    }
+
+    fn set_6_d(&mut self) { 
+        let d = self.registers.d;
+        self.registers.d = self.set_i_n(6, d); 
+    }
+
+    fn set_6_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.set_i_n(6, e); 
+    }
+
+    fn set_6_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.set_i_n(6, h); 
+    }
+
+    fn set_6_l(&mut self) {
+        let l = self.registers.l;
+        self.registers.l = self.set_i_n(6, l); 
+    }
+
+    fn set_6_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.set_i_n(6, memory[hl]);
+    }
+
+    fn set_6_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.set_i_n(6, a); 
+    }
+
+    fn set_7_b(&mut self) { 
+        let b = self.registers.b;
+        self.registers.b = self.set_i_n(7, b); 
+    }
+
+    fn set_7_c(&mut self) {
+        let c = self.registers.c; 
+        self.registers.c = self.set_i_n(7, c); 
+    }
+
+    fn set_7_d(&mut self) {
+        let d = self.registers.d;
+        self.registers.d = self.set_i_n(7, d); 
+    }
+
+    fn set_7_e(&mut self) { 
+        let e = self.registers.e;
+        self.registers.e = self.set_i_n(7, e);
+    }
+
+    fn set_7_h(&mut self) { 
+        let h = self.registers.h;
+        self.registers.h = self.set_i_n(7, h); 
+    }
+
+    fn set_7_l(&mut self) { 
+        let l = self.registers.l;
+        self.registers.l = self.set_i_n(7, l); 
+    }
+
+    fn set_7_hl(&mut self, memory: &mut Memory) {
+        let hl = self.registers.get_hl();
+        memory[hl] = self.set_i_n(7, memory[hl]);
+    }
+
+    fn set_7_a(&mut self) { 
+        let a = self.registers.a;
+        self.registers.a = self.set_i_n(6, a); 
+    }
 
     //interrupts
 
-    pub fn rst_40(&mut self, memory: &mut Memory) { self.rst_n(0x40, memory); }
-    pub fn rst_48(&mut self, memory: &mut Memory) { self.rst_n(0x48, memory); }
-    pub fn rst_50(&mut self, memory: &mut Memory) { self.rst_n(0x50, memory); }
-    pub fn rst_58(&mut self, memory: &mut Memory) { self.rst_n(0x58, memory); }
-    pub fn rst_60(&mut self, memory: &mut Memory) { self.rst_n(0x60, memory); }
+    pub fn rst_40(&mut self, memory: &mut Memory) { 
+        self.rst_n(0x40, memory); 
+    }
+    
+    pub fn rst_48(&mut self, memory: &mut Memory) { 
+        self.rst_n(0x48, memory); 
+    }
+    
+    pub fn rst_50(&mut self, memory: &mut Memory) { 
+        self.rst_n(0x50, memory); 
+    }
+    
+    pub fn rst_58(&mut self, memory: &mut Memory) { 
+        self.rst_n(0x58, memory); 
+    }
+    
+    pub fn rst_60(&mut self, memory: &mut Memory) { 
+        self.rst_n(0x60, memory); 
+    }
 
     //helpers
 
@@ -3147,6 +3214,7 @@ mod tests {
 
     use cpu::registers::flag::Flag;
     use cpu::Cpu;
+    use mmu::Memory;
 
     #[test]
     fn test_inc_nn() {
@@ -3379,5 +3447,143 @@ mod tests {
 
         assert_eq!(n, 0b01111111);
         assert_eq!(cpu.registers.f, Flag::FULL_CARRY);
+    }
+
+    #[test]
+    fn test_swap_n() {
+        let mut cpu = Cpu::new();
+        cpu.registers.f |= Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY;
+
+        let n = cpu.swap_n(0b11110000);
+
+        assert_eq!(n, 0b00001111);
+        assert!(cpu.registers.f.is_empty());
+    }
+
+    #[test]
+    fn test_add_sp_e() {
+        let mut cpu = Cpu::new();
+        cpu.registers.sp = 0xFFF0;
+
+        let d = 0b11111111;
+
+        cpu.add_sp_d(d);
+
+        assert_eq!(cpu.registers.f, Flag::HALF_CARRY | Flag::FULL_CARRY);
+        assert_eq!(cpu.registers.sp, 0xFFEF);
+    }
+
+    #[test]
+    fn test_and_a_n() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xFF;
+        cpu.registers.f |= Flag::FULL_CARRY | Flag::NEGATIVE;
+
+        cpu.and_n(0);
+
+        assert_eq!(cpu.registers.a, 0);
+        assert_eq!(cpu.registers.f, Flag::ZERO | Flag::HALF_CARRY);
+    }
+
+    #[test]
+    fn test_or_a_n() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0;
+        cpu.registers.f |= Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY;
+
+        cpu.or_n(0xFF);
+
+        assert_eq!(cpu.registers.a, 0xFF);
+        assert!(cpu.registers.f.is_empty());
+    }
+
+    #[test]
+    fn test_xor_a_n() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0b11110000;
+        cpu.registers.f |= Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY;
+
+        cpu.xor_n(0xFF);
+
+        assert_eq!(cpu.registers.a, 0b00001111);
+        assert!(cpu.registers.f.is_empty());
+    }
+
+    #[test]
+    fn test_cp_a_n() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xFF;
+
+        cpu.cp_n(0xFF);
+
+        assert_eq!(cpu.registers.f, Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY);
+    }
+
+    #[test]
+    fn test_call_nn() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        cpu.registers.pc = 0xAAAA;
+        cpu.registers.sp = 0xFF00;
+
+        cpu.call_nn(0xBBBB, &mut memory);
+
+        assert_eq!(cpu.registers.pc, 0xBBBB);
+        assert_eq!(cpu.registers.sp, 0xFEFE);
+        assert_eq!(memory.read_word(cpu.registers.sp), 0xAAAA);
+    }
+
+    #[test]
+    fn test_ret() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        cpu.registers.pc = 0xAAAA;
+        cpu.registers.sp = 0xFF00;
+
+        cpu.call_nn(0xBBBB, &mut memory);
+        cpu.ret(&memory);
+
+        assert_eq!(cpu.registers.pc, 0xAAAA);
+        assert_eq!(cpu.registers.sp, 0xFF00);
+    }
+
+    #[test] 
+    fn test_push_nn() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        cpu.registers.sp = 0xFF00;
+
+        cpu.push_nn(0xFFFF, &mut memory);
+
+        assert_eq!(memory.read_word(cpu.registers.sp), 0xFFFF);
+        assert_eq!(cpu.registers.sp, 0xFEFE);
+    }
+
+    #[test]
+    fn test_pop_nn() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        cpu.registers.sp = 0xFEFE;
+        cpu.push_nn(0xFFFF, &mut memory);
+
+        let word = cpu.pop(&memory);
+
+        assert_eq!(word, 0xFFFF);
+        assert_eq!(cpu.registers.sp, 0xFEFE);
+    }
+
+    #[test]
+    fn test_jp_nn() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_jr_nn() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_opcode_0x00() {
+        unimplemented!();
     }
 }

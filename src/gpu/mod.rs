@@ -1,10 +1,10 @@
 mod registers;
 mod mode;
 
-use gpu::mode::Mode;
+use self::mode::Mode;
 use mmu::Memory;
 use mmu::interrupt::Interrupt;
-use emulator::traits::Drawer;
+use emulator::traits::Io;
 
 const SCAN_LINE_INDEX: u16 = 3;
 
@@ -23,7 +23,7 @@ impl GPU {
         }
     }
 
-    pub fn step<T: Drawer>(&mut self, steps: u32, memory: &mut Memory, drawer: &T) {
+    pub fn step<T: Io>(&mut self, steps: u32, memory: &mut Memory, drawer: &T) {
         self.cycles += steps;
         match self.mode {
             Mode::HBlank => self.h_blank(memory, drawer),
@@ -33,7 +33,7 @@ impl GPU {
         }
     }
 
-    fn h_blank<T: Drawer>(&mut self, memory: &mut Memory, drawer: &T) {
+    fn h_blank<T: Io>(&mut self, memory: &mut Memory, drawer: &T) {
         if self.cycles >= 204 {
             self.cycles = 0;
 

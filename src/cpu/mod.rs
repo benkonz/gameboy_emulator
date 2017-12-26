@@ -1,7 +1,7 @@
 mod registers;
 
-use cpu::registers::Registers;
-use cpu::registers::flag::Flag;
+use self::registers::Registers;
+use self::registers::flag::Flag;
 use mmu::Memory;
 use std::u8;
 
@@ -3585,5 +3585,10 @@ mod tests {
     #[test]
     fn test_opcode_0x00() {
         unimplemented!();
+    }
+
+    #[test]
+    fn test_opcode_0x01() {
+
     }
 }

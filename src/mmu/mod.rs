@@ -1,6 +1,6 @@
 pub mod interrupt;
 
-use mmu::interrupt::Interrupt;
+use self::interrupt::Interrupt;
 use std::fs::File;
 use std::io::prelude::Read;
 use std::ops::{Index, IndexMut};

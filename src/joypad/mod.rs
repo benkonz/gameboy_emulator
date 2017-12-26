@@ -21,7 +21,5 @@ impl Joypad {
         }
     }
 
-//    pub fn from_memory(memory: &Memory) -> Joypad {}
-
     pub fn save_to_memory(&self, memory: &mut Memory) {}
 }

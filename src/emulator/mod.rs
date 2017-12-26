@@ -31,13 +31,9 @@ impl Emulator {
         self.handle_interrupts();
     }
 
-    fn handle_input<T: Io>(&mut self, controller: &T) {
+    fn handle_input<T: Io>(&mut self, controller: &mut T) {
         controller.update_joypad(&mut self.joypad);
         self.joypad.save_to_memory(&mut self.memory);
-    }
-
-    fn use_direction_keys(&self) -> bool {
-        false
     }
 
     fn handle_interrupts(&mut self) {

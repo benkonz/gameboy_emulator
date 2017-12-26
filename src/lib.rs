@@ -4,5 +4,5 @@ extern crate bitflags;
 mod cpu;
 mod mmu;
 mod gpu;
-mod joypad;
+pub mod joypad;
 pub mod emulator;

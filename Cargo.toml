@@ -1,6 +1,6 @@
 [package]
 name = "gameboy_core"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ben Konz <bkonz@unomaha.edu>"]
 license = "Apache-2.0"
 repository = "https://github.com/bkonzUNOmaha/gameboy_core"

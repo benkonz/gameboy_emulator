@@ -17,24 +17,39 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub fn get_af(&self) -> u16 { ((self.f.bits() as u16) << 8) | (self.a as u16) }
+    pub fn get_af(&self) -> u16 {
+        ((self.a as u16) << 8) | (self.f.bits() as u16)
+    }
+
     pub fn set_af(&mut self, af: u16) {
-        self.a = af as u8;
-        self.f = flag::Flag::from_bits_truncate((af >> 8) as u8);
+        self.a = (af >> 8) as u8;
+        self.f = flag::Flag::from_bits_truncate(af as u8);
     }
-    pub fn get_bc(&self) -> u16 { ((self.c as u16) << 8) | (self.b as u16) }
+
+    pub fn get_bc(&self) -> u16 {
+        ((self.b as u16) << 8) | (self.c as u16)
+    }
+
     pub fn set_bc(&mut self, bc: u16) {
-        self.b = bc as u8;
-        self.c = (bc >> 8) as u8;
+        self.c = bc as u8;
+        self.b = (bc >> 8) as u8;
     }
-    pub fn get_de(&self) -> u16 { ((self.e as u16) << 8) | (self.d as u16) }
+
+    pub fn get_de(&self) -> u16 {
+        ((self.d as u16) << 8) | (self.e as u16)
+    }
+
     pub fn set_de(&mut self, de: u16) {
-        self.d = de as u8;
-        self.e = (de >> 8) as u8;
+        self.e = de as u8;
+        self.d = (de >> 8) as u8;
     }
-    pub fn get_hl(&self) -> u16 { ((self.l as u16) << 8) | (self.h as u16) }
+
+    pub fn get_hl(&self) -> u16 {
+        ((self.h as u16) << 8) | (self.l as u16)
+    }
+
     pub fn set_hl(&mut self, hl: u16) {
-        self.h = hl as u8;
-        self.l = (hl >> 8) as u8;
+        self.l = hl as u8;
+        self.h = (hl >> 8) as u8;
     }
 }

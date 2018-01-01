@@ -1,4 +1,6 @@
 target/
 .idea/
+.vs/
+.vscode/
 gameboy_core.iml
 Cargo.lock

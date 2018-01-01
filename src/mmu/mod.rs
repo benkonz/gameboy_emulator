@@ -1,32 +1,73 @@
 pub mod interrupt;
 
 use self::interrupt::Interrupt;
-use std::fs::File;
-use std::io::prelude::Read;
-use std::ops::{Index, IndexMut};
 
 static BIOS: &'static [u8] = include_bytes!("bios.gb");
 
 pub struct Memory {
-    pub memory: [u8; 0x10000]
+    rom_banks: Vec<[u8; 0x4000]>,
+    eram_banks: Vec<[u8; 0x2000]>,
+    wram_banks: Vec<[u8; 0x1000]>,
+    vram_banks: Vec<[u8; 0x2000]>,
+    high_ram: [u8; 0x200],
+    in_bios: bool,
+    selected_rom_bank: usize,
+    selected_eram_bank: usize,
+    selected_wram_bank: usize,
+    selected_vram_bank: usize,
 }
 
 impl Memory {
     pub fn new() -> Memory {
-        Memory { memory: [0; 0x10000] }
+        Memory {
+            rom_banks: vec![[0; 0x4000]; 2],
+            vram_banks: vec![[0; 0x2000]],
+            eram_banks: vec![[0; 0x2000]],
+            wram_banks: vec![[0; 0x1000]; 2],
+            high_ram: [0; 0x200],
+            in_bios: true,
+            selected_rom_bank: 1,
+            selected_vram_bank: 0,
+            selected_eram_bank: 0,
+            selected_wram_bank: 1,
+        }
     }
 
     pub fn read_byte(&self, index: u16) -> u8 {
-        self.memory[index as usize]
+        let index = index as usize;
+
+        match index {
+            0x0000 ... 0x00FF => {
+                if self.in_bios {
+                    BIOS[index]
+                } else {
+                    self.rom_banks[0][index]
+                }
+            }
+            0x0100 ... 0x3FFF => self.rom_banks[0][index],
+            0x4000 ... 0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
+            0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000],
+            0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
+            0xC000 ... 0xCFFF => self.wram_banks[0][index - 0xC000],
+            0xD000 ... 0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000],
+            0xE000 ... 0xFDFF => self.wram_banks[0][index - 0xE000],
+            0xFE00 ... 0xFFFF => self.high_ram[index - 0xFE00],
+            _ => 0
+        }
     }
 
     pub fn write_byte(&mut self, index: u16, value: u8) {
-        if index > 0x8000 {
-            self.memory[index as usize] = value;
-            if index >= 0xC000 && index < 0xDE00 {
-                self.memory[(index + 0x2000) as usize] = value;
-            }
-        }
+        let index = index as usize;
+
+        match index {
+            0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000] = value,
+            0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000] = value,
+            0xC000 ... 0xCFFF => self.wram_banks[0][index - 0xC000] = value,
+            0xD000 ... 0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000] = value,
+            0xE000 ... 0xFDFF => self.wram_banks[0][index - 0xE000] = value,
+            0xFE00 ... 0xFFFF => self.high_ram[index - 0xFE00] = value,
+            _ => {}
+        };
     }
 
     pub fn read_word(&self, index: u16) -> u16 {
@@ -55,26 +96,30 @@ impl Memory {
         }
     }
 
+
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
         //TODO: update address 0xFF0F with the new interrupt
     }
 
-    pub fn load_rom(&mut self, rom_file: &mut File) {
-        rom_file.read(&mut self.memory);
+    pub fn load_rom(&mut self, rom: &[u8]) {
+        self.rom_banks[0].copy_from_slice(&rom[..0x4000]);
+        self.rom_banks[1].copy_from_slice(&rom[0x4000..0x8000]);
+
+        let mut i = 0x8000;
+        while i < rom.len() {
+            let mut bank = [0u8; 0x4000];
+            if i + 0x4000 >= rom.len() {
+                bank[..rom.len() - i].copy_from_slice(&rom[i..]);
+            } else {
+                bank.copy_from_slice(&rom[i..i + 0x4000]);
+            }
+            self.rom_banks.push(bank);
+            i += 0x4000;
+        }
     }
-}
 
-impl Index<u16> for Memory {
-    type Output = u8;
-
-    fn index(&self, index: u16) -> &Self::Output {
-        &self.memory[index as usize]
-    }
-}
-
-impl IndexMut<u16> for Memory {
-    fn index_mut(&mut self, index: u16) -> &mut Self::Output {
-        &mut self.memory[index as usize]
+    pub fn unmap_bios(&mut self) {
+        self.in_bios = false;
     }
 }
 
@@ -100,6 +145,8 @@ mod tests {
     #[test]
     fn test_read_only() {
         let mut memory = Memory::new();
+        memory.unmap_bios();
+
         memory.write_byte(0, 1);
         memory.write_byte(0x3FFF, 1);
         assert_eq!(memory.read_byte(0), 0);
@@ -112,5 +159,54 @@ mod tests {
         memory.write_byte(0xC000, 1);
         assert_eq!(memory.read_byte(0xC000), 1);
         assert_eq!(memory.read_byte(0xE000), 1);
+    }
+
+    #[test]
+    fn test_load_rom() {
+        let mut memory = Memory::new();
+        let mut rom = [0u8; 0xE000];
+        for (i, item) in rom.iter_mut().enumerate() {
+            match i {
+                0x0000 ... 0x3FFF => *item = 0u8,
+                0x4000 ... 0x7FFF => *item = 1u8,
+                0x8000 ... 0xBFFF => *item = 2u8,
+                0xC000 ... 0xE000 => *item = 3u8,
+                _ => {}
+            };
+        }
+
+        memory.load_rom(&rom);
+
+        assert_eq!(memory.rom_banks.len(), 4);
+
+        for (i, bank) in memory.rom_banks.iter().enumerate() {
+            match i {
+                0 => {
+                    for byte in bank.iter() {
+                        assert_eq!(*byte, 0);
+                    }
+                }
+                1 => {
+                    for byte in bank.iter() {
+                        assert_eq!(*byte, 1);
+                    }
+                }
+                2 => {
+                    for byte in bank.iter() {
+                        assert_eq!(*byte, 2);
+                    }
+                }
+                3 => {
+                    for (i, byte) in bank.iter().enumerate() {
+                        if i < 0x2000 {
+                            assert_eq!(*byte, 3);
+                        } else {
+                            assert_eq!(*byte, 0);
+                        }
+                    }
+                }
+                _ => {}
+            };
+        }
     }
 }

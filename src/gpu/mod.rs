@@ -37,7 +37,7 @@ impl GPU {
         if self.cycles >= 204 {
             self.cycles = 0;
 
-            memory[SCAN_LINE_INDEX] += 1;
+            self.increment_scanline(memory);
 
             if memory.read_byte(SCAN_LINE_INDEX) == 143 {
                 self.mode = Mode::OAM;
@@ -58,11 +58,11 @@ impl GPU {
         if self.cycles >= 456 {
             self.cycles = 0;
 
-            memory[SCAN_LINE_INDEX] += 1;
+            self.increment_scanline(memory);
 
             if self.cycles > 153 {
                 self.mode = Mode::HBlank;
-                memory[SCAN_LINE_INDEX] = 0;
+                memory.write_byte(SCAN_LINE_INDEX, 0);
             }
         }       
     }
@@ -73,6 +73,12 @@ impl GPU {
             self.mode = Mode::HBlank;
             self.render_scan();
         }
+    }
+
+    fn increment_scanline(&self, memory: &mut Memory) {
+        let mut scanline = memory.read_byte(SCAN_LINE_INDEX);
+        scanline += 1;
+        memory.write_byte(SCAN_LINE_INDEX, scanline);
     }
 
     fn render_scan(&self) {

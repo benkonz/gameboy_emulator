@@ -1,52 +1,19 @@
 mod registers;
+mod alu;
+mod function;
+mod stack;
 
 use self::registers::Registers;
 use self::registers::flag::Flag;
 use mmu::Memory;
 use std::u8;
 
-const CYCLES_TABLE: [u8; 0x100] = [
-    2, 6, 4, 4, 2, 2, 4, 4, 10, 4, 4, 4, 2, 2, 4, 4, // 0x0_
-    2, 6, 4, 4, 2, 2, 4, 4, 4, 4, 4, 4, 2, 2, 4, 4, // 0x1_
-    0, 6, 4, 4, 2, 2, 4, 2, 0, 4, 4, 4, 2, 2, 4, 2, // 0x2_
-    4, 6, 4, 4, 6, 6, 6, 2, 0, 4, 4, 4, 2, 2, 4, 2, // 0x3_
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0x4_
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0x5_
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0x6_
-    4, 4, 4, 4, 4, 4, 2, 4, 2, 2, 2, 2, 2, 2, 4, 2, // 0x7_
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0x8_
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0x9_
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0xa_
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // 0xb_
-    0, 6, 0, 6, 0, 8, 4, 8, 0, 2, 0, 0, 0, 6, 4, 8, // 0xc_
-    0, 6, 0, 0, 0, 8, 4, 8, 0, 8, 0, 0, 0, 0, 4, 8, // 0xd_
-    6, 6, 4, 0, 0, 8, 4, 8, 8, 2, 8, 0, 0, 0, 4, 8, // 0xe_
-    6, 6, 4, 2, 0, 8, 4, 8, 6, 4, 8, 2, 0, 0, 4, 8 // 0xf_
-];
-
-const EXTENDED_CYCLES_TABLE: [u8; 0x100] = [
-    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, // 0x0_
-    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, // 0x1_
-    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, // 0x2_
-    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, // 0x3_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0x4_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0x5_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0x6_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0x7_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0x8_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0x9_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0xa_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0xb_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0xc_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0xd_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, // 0xe_
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8 // 0xf_
-];
-
 pub struct Cpu {
     registers: Registers,
     pub stopped: bool,
     interrupt_enabled: bool,
+    pub cycles: u64,
+    instruction_cycle: u8,
 }
 
 impl Cpu {
@@ -55,6 +22,8 @@ impl Cpu {
             registers: Default::default(),
             stopped: false,
             interrupt_enabled: true,
+            cycles: 0,
+            instruction_cycle: 0,
         }
     }
 
@@ -353,7 +322,7 @@ impl Cpu {
             0xCA => {
                 let nn = self.get_nn(memory);
                 self.jp_z_nn(nn);
-            },
+            }
             0xCB => {
                 let n = self.get_n(memory);
                 self.ext_ops(n, memory);
@@ -470,197 +439,242 @@ impl Cpu {
             _ => {}
         }
 
-        self.registers.cycles += CYCLES_TABLE[opcode as usize] as u16;
+//        self.cycles += self.instruction_cycle;
 
-        CYCLES_TABLE[opcode as usize] as u8
+        self.instruction_cycle
     }
 
     //opcodes
 
-    fn nop(&self) {}
+    fn nop(&mut self) {
+        self.instruction_cycle = 1;
+    }
 
     fn ld_bc_nn(&mut self, nn: u16) {
         self.registers.set_bc(nn);
+        self.instruction_cycle = 3;
     }
 
-    fn ld_bc_a(&self, memory: &mut Memory) {
+    fn ld_bc_a(&mut self, memory: &mut Memory) {
         let bc = self.registers.get_bc();
         memory.write_byte(bc, self.registers.a);
+        self.instruction_cycle = 2;
     }
 
     fn inc_bc(&mut self) {
         let mut bc = self.registers.get_bc();
-        bc = self.inc_nn(bc);
+        bc = alu::inc_nn(bc);
         self.registers.set_bc(bc);
+        self.instruction_cycle = 2;
     }
 
     fn inc_b(&mut self) {
         let b = self.registers.b;
-        self.registers.b = self.inc_n(b);
+        self.registers.b = alu::inc_n(b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn dec_b(&mut self) {
         let b = self.registers.b;
-        self.registers.b = self.dec_n(b);
+        self.registers.b = alu::dec_n(b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn ld_b_n(&mut self, n: u8) {
         self.registers.b = n;
+        self.instruction_cycle = 2;
     }
 
     fn rlc_a(&mut self) {
         let a = self.registers.a;
-        self.registers.a = self.rlc_n(a);
+        self.registers.a = alu::rrc_a(a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
-    fn ld_nn_sp(&self, nn: u16, memory: &mut Memory) {
+    fn ld_nn_sp(&mut self, nn: u16, memory: &mut Memory) {
         memory.write_word(nn, self.registers.sp);
+        self.instruction_cycle = 5;
     }
 
     fn add_hl_bc(&mut self) {
-        let bc = self.registers.get_bc();
-        self.add_hl_ss(bc);
+        let hl = self.registers.get_hl();
+        let mut bc = self.registers.get_bc();
+        bc = alu::add_hl_nn(hl, bc, &mut self.registers.f);
+        self.registers.set_bc(bc);
+        self.instruction_cycle = 2;
     }
 
     fn ld_a_bc(&mut self, memory: &Memory) {
         self.registers.a = memory.read_byte(self.registers.get_bc());
+        self.instruction_cycle = 2;
     }
 
     fn dec_bc(&mut self) {
         let mut bc = self.registers.get_bc();
-        bc = self.dec_nn(bc);
+        bc = alu::dec_nn(bc);
         self.registers.set_bc(bc);
+        self.instruction_cycle = 2;
     }
     fn inc_c(&mut self) {
         let c = self.registers.c;
-        self.registers.c = self.inc_n(c);
+        self.registers.c = alu::inc_n(c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
     fn dec_c(&mut self) {
         let c = self.registers.c;
-        self.registers.c = self.dec_n(c);
+        self.registers.c = alu::dec_n(c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn ld_c_n(&mut self, n: u8) {
         self.registers.c = n;
+        self.instruction_cycle = 2;
     }
 
     fn rrc_a(&mut self) {
         let a = self.registers.a;
-        self.registers.a = self.rrc_n(a);
+        self.registers.a = alu::rrc_a(a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn stop(&mut self) {
         self.stopped = true;
+        self.instruction_cycle = 1;
     }
 
     fn ld_de_nn(&mut self, nn: u16) {
         self.registers.set_de(nn);
+        self.instruction_cycle = 3;
     }
 
-    fn ld_de_a(&self, memory: &mut Memory) {
+    fn ld_de_a(&mut self, memory: &mut Memory) {
         let de = self.registers.get_de();
         memory.write_byte(de, self.registers.a);
+        self.instruction_cycle = 2;
     }
 
     fn inc_de(&mut self) {
         let mut de = self.registers.get_de();
-        de = self.inc_nn(de);
+        de = alu::dec_nn(de);
         self.registers.set_de(de);
+        self.instruction_cycle = 2;
     }
 
     fn inc_d(&mut self) {
         let d = self.registers.d;
-        self.registers.d = self.inc_n(d);
+        self.registers.d = alu::inc_n(d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn dec_d(&mut self) {
         let d = self.registers.d;
-        self.registers.d = self.dec_n(d);
+        self.registers.d = alu::dec_n(d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn ld_d_n(&mut self, n: u8) {
         self.registers.d = n;
+        self.instruction_cycle = 2;
     }
 
     fn rl_a(&mut self) {
         let a = self.registers.a;
-        self.registers.a = self.rl_n(a);
-        self.registers.f.remove(Flag::ZERO);
+        self.registers.a = alu::rl_n(a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn jr_n(&mut self, n: u8) {
         let n = n as i8 as u16;
         self.registers.pc = self.registers.pc.wrapping_add(n);
+        self.instruction_cycle = 3;
     }
 
     fn add_hl_de(&mut self) {
-        let de = self.registers.get_de();
-        self.add_hl_ss(de);
+        let hl = self.registers.get_hl();
+        let mut de = self.registers.get_de();
+        de = alu::add_hl_nn(hl, de, &mut self.registers.f);
+        self.registers.set_de(de);
+        self.instruction_cycle = 2;
     }
 
     fn ld_a_de(&mut self, memory: &Memory) {
         self.registers.a = memory.read_byte(self.registers.get_de());
+        self.instruction_cycle = 2;
     }
 
     fn dec_de(&mut self) {
         let mut de = self.registers.get_de();
-        de = self.dec_nn(de);
+        de = alu::dec_nn(de);
         self.registers.set_de(de);
+        self.instruction_cycle = 2;
     }
 
     fn inc_e(&mut self) {
         let e = self.registers.e;
-        self.registers.e = self.inc_n(e);
+        self.registers.e = alu::inc_n(e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn dec_e(&mut self) {
         let e = self.registers.e;
-        self.registers.e = self.dec_n(e);
+        self.registers.e = alu::dec_n(e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn ld_e_n(&mut self, n: u8) {
         self.registers.e = n;
+        self.instruction_cycle = 2;
     }
 
     fn rr_a(&mut self) {
         let a = self.registers.a;
-        self.registers.a = self.rr_n(a);
-        self.registers.f.remove(Flag::ZERO);
+        self.registers.a = alu::rr_a(a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn jr_nz_n(&mut self, n: u8) {
-        let cc = !self.registers.f.contains(Flag::ZERO);
-        self.jr_cc_n(cc, n);
+        if !self.registers.f.contains(Flag::ZERO) {
+            self.registers.pc = self.registers.pc.wrapping_add(n as i8 as u16);
+            self.instruction_cycle = 3;
+        } else {
+            self.instruction_cycle = 2;
+        }
     }
 
     fn ld_hl_nn(&mut self, nn: u16) {
         self.registers.set_hl(nn);
+        self.instruction_cycle = 3;
     }
 
     fn ldi_hl_a(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.a);
         self.registers.set_hl(hl.wrapping_sub(1));
+        self.instruction_cycle = 2;
     }
 
     fn inc_hl(&mut self) {
         let mut hl = self.registers.get_hl();
-        hl = self.inc_nn(hl);
+        hl = alu::inc_nn(hl);
         self.registers.set_hl(hl);
+        self.instruction_cycle = 2;
     }
 
     fn inc_h(&mut self) {
         let h = self.registers.h;
-        self.registers.h = self.inc_n(h);
+        self.registers.h = alu::inc_n(h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn dec_h(&mut self) {
         let h = self.registers.h;
-        self.registers.h = self.dec_n(h);
+        self.registers.h = alu::dec_n(h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn ld_h_n(&mut self, n: u8) {
         self.registers.h = n;
+        self.instruction_cycle = 2;
     }
 
     fn daa(&mut self) {
@@ -679,248 +693,324 @@ impl Cpu {
 
         self.registers.f.set(Flag::ZERO, self.registers.a == 0);
         self.registers.f.remove(Flag::HALF_CARRY);
+
+        self.instruction_cycle = 1;
     }
 
     fn jr_z_n(&mut self, n: u8) {
-        let cc = self.registers.f.contains(Flag::ZERO);
-        self.jr_cc_n(cc, n);
+        if self.registers.f.contains(Flag::ZERO) {
+            self.registers.pc = self.registers.pc.wrapping_add(n as i8 as u16);
+            self.instruction_cycle = 3;
+        } else {
+            self.instruction_cycle = 2;
+        }
     }
 
     fn add_hl_hl(&mut self) {
-        let hl = self.registers.get_hl();
-        self.add_hl_ss(hl);
+        let mut hl = self.registers.get_hl();
+        hl = alu::add_hl_nn(hl, hl, &mut self.registers.f);
+        self.registers.set_hl(hl);
+        self.instruction_cycle = 2;
     }
 
     fn ldi_a_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.a = memory.read_byte(hl);
         self.registers.set_hl(hl.wrapping_add(1));
+        self.instruction_cycle = 2;
     }
 
     fn dec_hl(&mut self) {
         let mut hl = self.registers.get_hl();
-        hl = self.dec_nn(hl);
+        hl = alu::dec_nn(hl);
         self.registers.set_hl(hl);
+        self.instruction_cycle = 2;
     }
 
     fn inc_l(&mut self) {
         let l = self.registers.l;
-        self.registers.l = self.inc_n(l);
+        self.registers.l = alu::inc_n(l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn dec_l(&mut self) {
         let l = self.registers.l;
-        self.registers.l = self.dec_n(l);
+        self.registers.l = alu::dec_n(l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn ld_l_n(&mut self, n: u8) {
         self.registers.l = n;
+        self.instruction_cycle = 2;
     }
 
     fn cpl(&mut self) {
         self.registers.a = !self.registers.a;
         self.registers.f.insert(Flag::HALF_CARRY | Flag::NEGATIVE);
+        self.instruction_cycle = 1;
     }
 
     fn jr_nc_n(&mut self, n: u8) {
-        let cc = !self.registers.f.contains(Flag::FULL_CARRY);
-        self.jr_cc_n(cc, n);
+        if !self.registers.f.contains(Flag::FULL_CARRY) {
+            self.registers.pc = self.registers.pc.wrapping_add(n as i8 as u16);
+            self.instruction_cycle = 3;
+        } else {
+            self.instruction_cycle = 2;
+        }
     }
 
     fn ld_sp_nn(&mut self, nn: u16) {
         self.registers.sp = nn;
+        self.instruction_cycle = 3;
     }
 
     fn ldd_hl_a(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.a);
         self.registers.set_hl(hl.wrapping_sub(1));
+        self.instruction_cycle = 2;
     }
 
     fn inc_sp(&mut self) {
-        self.registers.sp = self.inc_nn(self.registers.sp);
+        self.registers.sp = alu::inc_nn(self.registers.sp);
+        self.instruction_cycle = 2;
     }
 
     fn inc_hl_ref(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.inc_n(hl);
+        hl = alu::inc_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 3;
     }
 
     fn dec_hl_ref(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.dec_n(hl);
+        hl = alu::dec_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 3;
     }
 
-    fn ld_hl_n(&self, n: u8, memory: &mut Memory) {
+    fn ld_hl_n(&mut self, n: u8, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, n);
+        self.instruction_cycle = 3;
     }
 
     fn scf(&mut self) {
         self.registers.f.insert(Flag::FULL_CARRY);
+        self.instruction_cycle = 1;
     }
 
     fn jr_c_n(&mut self, n: u8) {
-        self.registers.c = n;
+        if self.registers.f.contains(Flag::FULL_CARRY) {
+            self.registers.pc = self.registers.pc.wrapping_add(n as i8 as u16);
+            self.instruction_cycle = 3;
+        } else {
+            self.instruction_cycle = 2;
+        }
     }
 
     fn add_hl_sp(&mut self) {
+        let hl = self.registers.get_hl();
         let sp = self.registers.sp;
-        self.add_hl_ss(sp);
+        self.registers.sp = alu::add_hl_nn(sp, hl, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn ldd_a_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.a = memory.read_byte(hl);
         self.registers.set_hl(hl - 1);
+        self.instruction_cycle = 2;
     }
 
     fn dec_sp(&mut self) {
         let sp = self.registers.sp;
-        self.registers.sp = self.dec_nn(sp);
+        self.registers.sp = alu::dec_nn(sp);
+        self.instruction_cycle = 2;
     }
 
     fn inc_a(&mut self) {
         let a = self.registers.a;
-        self.registers.a = self.inc_n(a);
+        self.registers.a = alu::inc_n(a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn dec_a(&mut self) {
         let a = self.registers.a;
-        self.registers.a = self.dec_n(a);
+        self.registers.a = alu::dec_n(a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn ld_a_n(&mut self, n: u8) {
         self.registers.a = n;
+        self.instruction_cycle = 2;
     }
 
     fn ccf(&mut self) {
         self.registers.f.toggle(Flag::FULL_CARRY);
+        self.instruction_cycle = 1;
     }
 
     fn ld_b_b(&mut self) {
         self.registers.b = self.registers.b;
+        self.instruction_cycle = 1;
     }
     fn ld_b_c(&mut self) {
         self.registers.b = self.registers.c;
+        self.instruction_cycle = 1;
     }
     fn ld_b_d(&mut self) {
         self.registers.b = self.registers.d;
+        self.instruction_cycle = 1;
     }
     fn ld_b_e(&mut self) {
         self.registers.b = self.registers.e;
+        self.instruction_cycle = 1;
     }
     fn ld_b_h(&mut self) {
         self.registers.b = self.registers.h;
+        self.instruction_cycle = 1;
     }
     fn ld_b_l(&mut self) {
         self.registers.b = self.registers.l;
+        self.instruction_cycle = 1;
     }
     fn ld_b_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.b = memory.read_byte(hl);
+        self.instruction_cycle = 2;
     }
     fn ld_b_a(&mut self) {
         self.registers.b = self.registers.a;
+        self.instruction_cycle = 1;
     }
 
     fn ld_c_b(&mut self) {
         self.registers.c = self.registers.b;
+        self.instruction_cycle = 1;
     }
     fn ld_c_c(&mut self) {
         self.registers.c = self.registers.c;
+        self.instruction_cycle = 1;
     }
     fn ld_c_d(&mut self) {
         self.registers.c = self.registers.d;
+        self.instruction_cycle = 1;
     }
     fn ld_c_e(&mut self) {
         self.registers.c = self.registers.e;
+        self.instruction_cycle = 1;
     }
     fn ld_c_h(&mut self) {
         self.registers.c = self.registers.h;
+        self.instruction_cycle = 1;
     }
     fn ld_c_l(&mut self) {
         self.registers.c = self.registers.l;
+        self.instruction_cycle = 1;
     }
     fn ld_c_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.c = memory.read_byte(hl);
+        self.instruction_cycle = 2;
     }
     fn ld_c_a(&mut self) {
         self.registers.c = self.registers.a;
+        self.instruction_cycle = 1;
     }
 
     fn ld_d_b(&mut self) {
         self.registers.d = self.registers.b;
+        self.instruction_cycle = 1;
     }
     fn ld_d_c(&mut self) {
         self.registers.d = self.registers.c;
+        self.instruction_cycle = 1;
     }
     fn ld_d_d(&mut self) {
         self.registers.d = self.registers.d;
+        self.instruction_cycle = 1;
     }
     fn ld_d_e(&mut self) {
         self.registers.d = self.registers.e;
+        self.instruction_cycle = 1;
     }
     fn ld_d_h(&mut self) {
         self.registers.d = self.registers.h;
+        self.instruction_cycle = 1;
     }
     fn ld_d_l(&mut self) {
         self.registers.d = self.registers.l;
+        self.instruction_cycle = 1;
     }
     fn ld_d_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.d = memory.read_byte(hl);
+        self.instruction_cycle = 2;
     }
     fn ld_d_a(&mut self) {
         self.registers.d = self.registers.a;
+        self.instruction_cycle = 1;
     }
 
     fn ld_e_b(&mut self) {
         self.registers.e = self.registers.b;
+        self.instruction_cycle = 1;
     }
     fn ld_e_c(&mut self) {
         self.registers.e = self.registers.c;
+        self.instruction_cycle = 1;
     }
     fn ld_e_d(&mut self) {
         self.registers.e = self.registers.d;
+        self.instruction_cycle = 1;
     }
     fn ld_e_e(&mut self) {
         self.registers.e = self.registers.e;
+        self.instruction_cycle = 1;
     }
     fn ld_e_h(&mut self) {
         self.registers.e = self.registers.h;
+        self.instruction_cycle = 1;
     }
     fn ld_e_l(&mut self) {
         self.registers.e = self.registers.l;
+        self.instruction_cycle = 1;
     }
     fn ld_e_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.e = memory.read_byte(hl);
+        self.instruction_cycle = 2;
     }
     fn ld_e_a(&mut self) {
         self.registers.e = self.registers.a;
+        self.instruction_cycle = 1;
     }
 
     fn ld_h_b(&mut self) {
         self.registers.h = self.registers.b;
+        self.instruction_cycle = 1;
     }
     fn ld_h_c(&mut self) {
         self.registers.h = self.registers.c;
+        self.instruction_cycle = 1;
     }
     fn ld_h_d(&mut self) {
         self.registers.h = self.registers.d;
+        self.instruction_cycle = 1;
     }
     fn ld_h_e(&mut self) {
         self.registers.h = self.registers.e;
+        self.instruction_cycle = 1;
     }
     fn ld_h_h(&mut self) {
         self.registers.h = self.registers.h;
+        self.instruction_cycle = 1;
     }
     fn ld_h_l(&mut self) {
         self.registers.h = self.registers.l;
+        self.instruction_cycle = 1;
     }
     fn ld_h_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
@@ -928,57 +1018,72 @@ impl Cpu {
     }
     fn ld_h_a(&mut self) {
         self.registers.h = self.registers.a;
+        self.instruction_cycle = 1;
     }
 
     fn ld_l_b(&mut self) {
         self.registers.l = self.registers.b;
+        self.instruction_cycle = 1;
     }
     fn ld_l_c(&mut self) {
         self.registers.l = self.registers.c;
+        self.instruction_cycle = 1;
     }
     fn ld_l_d(&mut self) {
         self.registers.l = self.registers.d;
+        self.instruction_cycle = 1;
     }
     fn ld_l_e(&mut self) {
         self.registers.l = self.registers.e;
+        self.instruction_cycle = 1;
     }
     fn ld_l_h(&mut self) {
         self.registers.l = self.registers.h;
+        self.instruction_cycle = 1;
     }
     fn ld_l_l(&mut self) {
         self.registers.l = self.registers.l;
+        self.instruction_cycle = 1;
     }
     fn ld_l_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.l = memory.read_byte(hl);
+        self.instruction_cycle = 2;
     }
     fn ld_l_a(&mut self) {
         self.registers.l = self.registers.a;
+        self.instruction_cycle = 1;
     }
 
-    fn ld_hl_b(&self, memory: &mut Memory) {
+    fn ld_hl_b(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.b);
+        self.instruction_cycle = 2;
     }
-    fn ld_hl_c(&self, memory: &mut Memory) {
+    fn ld_hl_c(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.c);
+        self.instruction_cycle = 2;
     }
-    fn ld_hl_d(&self, memory: &mut Memory) {
+    fn ld_hl_d(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.d);
+        self.instruction_cycle = 2;
     }
-    fn ld_hl_e(&self, memory: &mut Memory) {
+    fn ld_hl_e(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.e);
+        self.instruction_cycle = 2;
     }
-    fn ld_hl_h(&self, memory: &mut Memory) {
+    fn ld_hl_h(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.h);
+        self.instruction_cycle = 2;
     }
-    fn ld_hl_l(&self, memory: &mut Memory) {
+    fn ld_hl_l(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.l);
+        self.instruction_cycle = 2;
     }
 
     fn halt(&self) {}
@@ -986,410 +1091,452 @@ impl Cpu {
     fn ld_hl_a(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.a);
+        self.instruction_cycle = 2;
     }
 
     fn ld_a_b(&mut self) {
         self.registers.a = self.registers.b;
+        self.instruction_cycle = 1;
     }
+
     fn ld_a_c(&mut self) {
         self.registers.a = self.registers.c;
+        self.instruction_cycle = 1;
     }
+
     fn ld_a_d(&mut self) {
         self.registers.a = self.registers.d;
+        self.instruction_cycle = 1;
     }
+
     fn ld_a_e(&mut self) {
         self.registers.a = self.registers.e;
+        self.instruction_cycle = 1;
     }
+
     fn ld_a_h(&mut self) {
         self.registers.a = self.registers.h;
+        self.instruction_cycle = 1;
     }
+
     fn ld_a_l(&mut self) {
         self.registers.a = self.registers.l;
+        self.instruction_cycle = 1;
     }
+
     fn ld_a_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.a = memory.read_byte(hl);
+        self.instruction_cycle = 2;
     }
+
     fn ld_a_a(&mut self) {
         self.registers.a = self.registers.a;
+        self.instruction_cycle = 1;
     }
 
     fn add_a_b(&mut self) {
-        let b = self.registers.b;
-        self.add_a_n(b);
+        self.registers.a = alu::add_a_n(self.registers.a, self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn add_a_c(&mut self) {
-        let c = self.registers.c;
-        self.add_a_n(c);
+        self.registers.a = alu::add_a_n(self.registers.a, self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn add_a_d(&mut self) {
-        let d = self.registers.d;
-        self.add_a_n(d);
+        self.registers.a = alu::add_a_n(self.registers.a, self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn add_a_e(&mut self) {
-        let e = self.registers.e;
-        self.add_a_n(e);
+        self.registers.a = alu::add_a_n(self.registers.a, self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn add_a_h(&mut self) {
-        let h = self.registers.h;
-        self.add_a_n(h);
+        self.registers.a = alu::add_a_n(self.registers.a, self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn add_a_l(&mut self) {
-        let l = self.registers.l;
-        self.add_a_n(l);
+        self.registers.a = alu::add_a_n(self.registers.a, self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn add_a_hl(&mut self, memory: &Memory) {
         let hl = memory.read_byte(self.registers.get_hl());
-        self.add_a_n(hl);
+        self.registers.a = alu::add_a_n(self.registers.a, hl, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn add_a_a(&mut self) {
-        let a = self.registers.a;
-        self.add_a_n(a);
+        self.registers.a = alu::add_a_n(self.registers.a, self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn adc_a_b(&mut self) {
-        let b = self.registers.b;
-        self.adc_a_n(b);
+        self.registers.a = alu::adc_a_n(self.registers.a, self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn adc_a_c(&mut self) {
-        let c = self.registers.c;
-        self.adc_a_n(c);
+        self.registers.a = alu::adc_a_n(self.registers.a, self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn adc_a_d(&mut self) {
-        let d = self.registers.d;
-        self.adc_a_n(d);
+        self.registers.a = alu::adc_a_n(self.registers.a, self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn adc_a_e(&mut self) {
-        let e = self.registers.e;
-        self.adc_a_n(e);
+        self.registers.a = alu::adc_a_n(self.registers.a, self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn adc_a_h(&mut self) {
-        let h = self.registers.h;
-        self.adc_a_n(h);
+        self.registers.a = alu::adc_a_n(self.registers.a, self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn adc_a_l(&mut self) {
-        let l = self.registers.l;
-        self.adc_a_n(l);
+        self.registers.a = alu::adc_a_n(self.registers.a, self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn adc_a_hl(&mut self, memory: &Memory) {
         let hl = memory.read_byte(self.registers.get_hl());
-        self.adc_a_n(hl);
+        self.registers.a = alu::adc_a_n(self.registers.a, hl, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn adc_a_a(&mut self) {
-        let a = self.registers.a;
-        self.adc_a_n(a);
+        self.registers.a = alu::adc_a_n(self.registers.a, self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sub_a_b(&mut self) {
-        let b = self.registers.b;
-        self.sub_a_n(b);
+        self.registers.a = alu::sub_a_n(self.registers.a, self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sub_a_c(&mut self) {
-        let c = self.registers.c;
-        self.sub_a_n(c);
+        self.registers.a = alu::sub_a_n(self.registers.a, self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sub_a_d(&mut self) {
-        let d = self.registers.d;
-        self.sub_a_n(d);
+        self.registers.a = alu::sub_a_n(self.registers.a, self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sub_a_e(&mut self) {
-        let e = self.registers.e;
-        self.sub_a_n(e);
+        self.registers.a = alu::sub_a_n(self.registers.a, self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sub_a_h(&mut self) {
-        let h = self.registers.h;
-        self.sub_a_n(h);
+        self.registers.a = alu::sub_a_n(self.registers.a, self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sub_a_l(&mut self) {
-        let l = self.registers.l;
-        self.sub_a_n(l);
+        self.registers.a = alu::sub_a_n(self.registers.a, self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sub_a_hl(&mut self, memory: &Memory) {
         let hl = memory.read_byte(self.registers.get_hl());
-        self.sub_a_n(hl);
+        self.registers.a = alu::sub_a_n(self.registers.a, hl, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
     fn sub_a_a(&mut self) {
-        let a = self.registers.a;
-        self.sub_a_n(a);
+        self.registers.a = alu::sub_a_n(self.registers.a, self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sbc_a_b(&mut self) {
-        let b = self.registers.b;
-        self.sbc_a_n(b);
+        self.registers.a = alu::sbc_a_n(self.registers.a, self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sbc_a_c(&mut self) {
-        let c = self.registers.c;
-        self.sbc_a_n(c);
+        self.registers.a = alu::sbc_a_n(self.registers.a, self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sbc_a_d(&mut self) {
-        let d = self.registers.d;
-        self.sbc_a_n(d);
+        self.registers.a = alu::sbc_a_n(self.registers.a, self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sbc_a_e(&mut self) {
-        let e = self.registers.e;
-        self.sbc_a_n(e);
+        self.registers.a = alu::sbc_a_n(self.registers.a, self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sbc_a_h(&mut self) {
-        let h = self.registers.h;
-        self.sbc_a_n(h);
+        self.registers.a = alu::sbc_a_n(self.registers.a, self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sbc_a_l(&mut self) {
-        let l = self.registers.l;
-        self.sbc_a_n(l);
+        self.registers.a = alu::sbc_a_n(self.registers.a, self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn sbc_a_hl(&mut self, memory: &Memory) {
         let hl = memory.read_byte(self.registers.get_hl());
-        self.sbc_a_n(hl);
+        self.registers.a = alu::sbc_a_n(self.registers.a, hl, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sbc_a_a(&mut self) {
-        let a = self.registers.a;
-        self.sbc_a_n(a);
+        self.registers.a = alu::sbc_a_n(self.registers.a, self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn and_b(&mut self) {
-        let b = self.registers.b;
-        self.and_n(b);
+        self.registers.a = alu::and_a_n(self.registers.a, self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn and_c(&mut self) {
-        let c = self.registers.c;
-        self.and_n(c);
+        self.registers.a = alu::and_a_n(self.registers.a, self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn and_d(&mut self) {
-        let d = self.registers.d;
-        self.and_n(d);
+        self.registers.a = alu::and_a_n(self.registers.a, self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn and_e(&mut self) {
-        let e = self.registers.e;
-        self.and_n(e);
+        self.registers.a = alu::and_a_n(self.registers.a, self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn and_h(&mut self) {
-        let h = self.registers.h;
-        self.and_n(h);
+        self.registers.a = alu::and_a_n(self.registers.a, self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn and_l(&mut self) {
-        let l = self.registers.l;
-        self.and_n(l);
+        self.registers.a = alu::and_a_n(self.registers.a, self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn and_hl(&mut self, memory: &Memory) {
         let hl = memory.read_byte(self.registers.get_hl());
-        self.and_n(hl);
+        self.registers.a = alu::and_a_n(self.registers.a, hl, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn and_a(&mut self) {
-        let a = self.registers.a;
-        self.and_n(a);
+        self.registers.a = alu::and_a_n(self.registers.a, self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn xor_b(&mut self) {
-        let b = self.registers.b;
-        self.xor_n(b);
+        self.registers.a = alu::xor_a_n(self.registers.a, self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn xor_c(&mut self) {
-        let c = self.registers.c;
-        self.xor_n(c);
+        self.registers.a = alu::xor_a_n(self.registers.a, self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn xor_d(&mut self) {
-        let d = self.registers.d;
-        self.xor_n(d);
+        self.registers.a = alu::xor_a_n(self.registers.a, self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn xor_e(&mut self) {
-        let e = self.registers.e;
-        self.xor_n(e);
+        self.registers.a = alu::xor_a_n(self.registers.a, self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn xor_h(&mut self) {
-        let h = self.registers.h;
-        self.xor_n(h);
+        self.registers.a = alu::xor_a_n(self.registers.a, self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn xor_l(&mut self) {
-        let l = self.registers.l;
-        self.xor_n(l);
+        self.registers.a = alu::xor_a_n(self.registers.a, self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn xor_hl(&mut self, memory: &Memory) {
         let hl = memory.read_byte(self.registers.get_hl());
-        self.xor_n(hl);
+        self.registers.a = alu::xor_a_n(self.registers.a, hl, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn xor_a(&mut self) {
-        let a = self.registers.a;
-        self.xor_n(a);
+        self.registers.a = alu::xor_a_n(self.registers.a, self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn or_b(&mut self) {
-        let b = self.registers.b;
-        self.or_n(b);
+        self.registers.a = alu::or_a_n(self.registers.a, self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn or_c(&mut self) {
-        let c = self.registers.c;
-        self.or_n(c);
+        self.registers.a = alu::or_a_n(self.registers.a, self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn or_d(&mut self) {
-        let d = self.registers.d;
-        self.or_n(d);
+        self.registers.a = alu::or_a_n(self.registers.a, self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn or_e(&mut self) {
-        let e = self.registers.e;
-        self.or_n(e);
+        self.registers.a = alu::or_a_n(self.registers.a, self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn or_h(&mut self) {
-        let h = self.registers.h;
-        self.or_n(h);
+        self.registers.a = alu::or_a_n(self.registers.a, self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn or_l(&mut self) {
-        let l = self.registers.l;
-        self.or_n(l);
+        self.registers.a = alu::or_a_n(self.registers.a, self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn or_hl(&mut self, memory: &Memory) {
         let hl = memory.read_byte(self.registers.get_hl());
-        self.xor_n(hl);
+        self.registers.a = alu::or_a_n(self.registers.a, hl, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn or_a(&mut self) {
-        let a = self.registers.a;
-        self.xor_n(a);
+        self.registers.a = alu::or_a_n(self.registers.a, self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn cp_b(&mut self) {
-        let b = self.registers.b;
-        self.cp_n(b);
+        alu::cp_a_n(self.registers.a, self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn cp_c(&mut self) {
-        let c = self.registers.c;
-        self.cp_n(c);
+        alu::cp_a_n(self.registers.a, self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn cp_d(&mut self) {
-        let d = self.registers.d;
-        self.cp_n(d);
+        alu::cp_a_n(self.registers.a, self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn cp_e(&mut self) {
-        let e = self.registers.e;
-        self.cp_n(e);
+        alu::cp_a_n(self.registers.a, self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn cp_h(&mut self) {
-        let h = self.registers.h;
-        self.cp_n(h);
+        alu::cp_a_n(self.registers.a, self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn cp_l(&mut self) {
-        let l = self.registers.l;
-        self.cp_n(l);
+        alu::cp_a_n(self.registers.a, self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn cp_hl(&mut self, memory: &Memory) {
         let hl = memory.read_byte(self.registers.get_hl());
-        self.cp_n(hl);
+        alu::cp_a_n(self.registers.a, hl, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn cp_a(&mut self) {
-        let a = self.registers.a;
-        self.cp_n(a);
+        alu::cp_a_n(self.registers.a, self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn ret_nz(&mut self, memory: &Memory) {
-        let cc = !self.registers.f.contains(Flag::ZERO);
-        self.ret_cc(cc, memory);
+        if !self.registers.f.contains(Flag::ZERO) {
+            function::ret(&mut self.registers, memory);
+            self.instruction_cycle = 3;
+        } else {
+            self.instruction_cycle = 1;
+        }
     }
 
     fn pop_bc(&mut self, memory: &Memory) {
-        let bc = self.pop(memory);
+        let bc = stack::pop(&mut self.registers.sp, memory);
         self.registers.set_bc(bc);
+        self.instruction_cycle = 3;
     }
 
     fn jp_nz_nn(&mut self, nn: u16) {
-        let cc = !self.registers.f.contains(Flag::ZERO);
-        self.jp_cc_nn(cc, nn);
+        if !self.registers.f.contains(Flag::ZERO) {
+            self.registers.pc = nn;
+            self.instruction_cycle = 4;
+        } else {
+            self.instruction_cycle = 3;
+        }
     }
 
     fn jp_nn(&mut self, nn: u16) {
         self.registers.pc = nn;
+        self.instruction_cycle = 4;
     }
 
     fn call_nz_nn(&mut self, memory: &mut Memory, nn: u16) {
-        let cc = !self.registers.f.contains(Flag::ZERO);
-        self.call_cc_nn(cc, nn, memory);
+        if !self.registers.f.contains(Flag::ZERO) {
+            function::call_nn(&mut self.registers, nn, memory);
+            self.instruction_cycle = 5;
+        } else {
+            self.instruction_cycle = 3;
+        }
     }
 
     fn push_bc(&mut self, memory: &mut Memory) {
         let bc = self.registers.get_bc();
-        self.push_nn(bc, memory);
+        stack::push(&mut self.registers.sp, bc, memory);
+        self.instruction_cycle = 3;
     }
 
     fn add_a_n(&mut self, n: u8) {
-        let half_carry = (((self.registers.a) & 0xF) + (n & 0xF)) & 0x10 == 0x10;
-        let full_carry = ((self.registers.a as u16) + (n as u16)) & 0x100 == 0x100;
-
-        self.registers.a = self.registers.a.wrapping_add(n);
-
-        self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers.f.remove(Flag::NEGATIVE);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.set(Flag::FULL_CARRY, full_carry);
+        self.registers.a = alu::add_a_n(self.registers.a, n, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rst_0(&mut self, memory: &mut Memory) {
-        self.rst_n(0x0, memory);
+        function::call_nn(&mut self.registers, 0x0, memory);
+        self.instruction_cycle = 3;
     }
 
     fn ret_z(&mut self, memory: &Memory) {
-        let cc = self.registers.f.contains(Flag::ZERO);
-        self.ret_cc(cc, memory);
+        if self.registers.f.contains(Flag::ZERO) {
+            function::ret(&mut self.registers, memory);
+            self.instruction_cycle = 3;
+        } else {
+            self.instruction_cycle = 1;
+        }
     }
 
     fn ret(&mut self, memory: &Memory) {
-        self.registers.pc = self.pop(memory);
+        function::ret(&mut self.registers, memory);
+        self.instruction_cycle = 3;
     }
 
     fn jp_z_nn(&mut self, nn: u16) {
-        let cc = self.registers.f.contains(Flag::ZERO);
-        self.jp_cc_nn(cc, nn);
+        if self.registers.f.contains(Flag::ZERO) {
+            self.registers.pc = nn;
+            self.instruction_cycle = 4;
+        } else {
+            self.instruction_cycle = 3;
+        }
     }
 
     fn ext_ops(&mut self, opcode: u8, memory: &mut Memory) {
@@ -1656,52 +1803,51 @@ impl Cpu {
     }
 
     fn call_z_nn(&mut self, nn: u16, memory: &mut Memory) {
-        let cc = self.registers.f.contains(Flag::ZERO);
-        self.call_cc_nn(cc, nn, memory);
+        if self.registers.f.contains(Flag::ZERO) {
+            function::call_nn(&mut self.registers, nn, memory);
+            self.instruction_cycle = 5;
+        } else {
+            self.instruction_cycle = 3;
+        }
     }
 
     fn call_nn(&mut self, nn: u16, memory: &mut Memory) {
-        let pc = self.registers.pc;
-        self.push_nn(pc, memory);
-        self.registers.pc = nn;
+        function::call_nn(&mut self.registers, nn, memory);
+        self.instruction_cycle = 5;
     }
 
     fn adc_a_n(&mut self, n: u8) {
-        let carry = if self.registers.f.contains(Flag::FULL_CARRY) {
-            1
-        } else {
-            0
-        };
-
-        let half_carry = ((self.registers.a & 0xF) + (n & 0xF) + (carry & 0xF)) & 0x10 == 0x10;
-        let full_carry = ((self.registers.a as u16) + (n as u16) + (carry as u16)) & 0x100 == 0x100;
-
-        self.registers.a = self.registers.a.wrapping_add(n);
-        self.registers.a = self.registers.a.wrapping_add(carry);
-
-        self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers.f.set(Flag::FULL_CARRY, full_carry);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.remove(Flag::NEGATIVE);
+        self.registers.a = alu::adc_a_n(self.registers.a, n, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rst_8(&mut self, memory: &mut Memory) {
-        self.rst_n(0x8, memory);
+        function::call_nn(&mut self.registers, 0x08, memory);
+        self.instruction_cycle = 3;
     }
 
     fn ret_nc(&mut self, memory: &Memory) {
-        let cc = !self.registers.f.contains(Flag::FULL_CARRY);
-        self.ret_cc(cc, memory);
+        if !self.registers.f.contains(Flag::FULL_CARRY) {
+            function::ret(&mut self.registers, memory);
+            self.instruction_cycle = 3;
+        } else {
+            self.instruction_cycle = 1;
+        }
     }
 
     fn pop_de(&mut self, memory: &Memory) {
-        let hl = self.pop(memory);
-        self.registers.set_hl(hl);
+        let de = stack::pop(&mut self.registers.sp, memory);
+        self.registers.set_de(de);
+        self.instruction_cycle = 3;
     }
 
     fn jp_nc_nn(&mut self, nn: u16) {
-        let cc = !self.registers.f.contains(Flag::FULL_CARRY);
-        self.jp_cc_nn(cc, nn);
+        if !self.registers.f.contains(Flag::FULL_CARRY) {
+            self.registers.pc = nn;
+            self.instruction_cycle = 4;
+        } else {
+            self.instruction_cycle = 3;
+        }
     }
 
     fn undefined(&mut self) {
@@ -1709,2120 +1855,1550 @@ impl Cpu {
     }
 
     fn call_nc_nn(&mut self, nn: u16, memory: &mut Memory) {
-        let cc = !self.registers.f.contains(Flag::FULL_CARRY);
-        self.call_cc_nn(cc, nn, memory);
+        if !self.registers.f.contains(Flag::FULL_CARRY) {
+            function::call_nn(&mut self.registers, nn, memory);
+            self.instruction_cycle = 5;
+        } else {
+            self.instruction_cycle = 3;
+        }
     }
 
     fn push_de(&mut self, memory: &mut Memory) {
         let de = self.registers.get_de();
-        self.push_nn(de, memory);
+        stack::push(&mut self.registers.sp, de, memory);
+        self.instruction_cycle = 4;
     }
 
     fn sub_a_n(&mut self, n: u8) {
-        let n = !n + 1;
-
-        let half_carry = (((self.registers.a & 0xF) + (n & 0xF)) & 0x10) == 0x10;
-        let full_carry = ((self.registers.a as u16) + (n as u16)) & 0x100 == 0x100;
-
-        self.registers.a = self.registers.a.wrapping_add(n);
-
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.set(Flag::FULL_CARRY, full_carry);
-        self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers.f.insert(Flag::NEGATIVE);
+        self.registers.a = alu::adc_a_n(self.registers.a, n, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rst_10(&mut self, memory: &mut Memory) {
-        self.rst_n(0x10, memory);
+        function::call_nn(&mut self.registers, 0x10, memory);
+        self.instruction_cycle = 3;
     }
 
     fn ret_c(&mut self, memory: &Memory) {
-        let cc = self.registers.f.contains(Flag::FULL_CARRY);
-        self.ret_cc(cc, memory);
+        if self.registers.f.contains(Flag::FULL_CARRY) {
+            function::ret(&mut self.registers, memory);
+            self.instruction_cycle = 3;
+        } else {
+            self.instruction_cycle = 1;
+        }
     }
 
     fn ret_i(&mut self, memory: &Memory) {
         self.ret(memory);
-        self.registers.ime = true;
+        self.interrupt_enabled = true;
+        self.instruction_cycle = 3;
     }
 
     fn jp_c_nn(&mut self, nn: u16) {
-        let cc = self.registers.f.contains(Flag::FULL_CARRY);
-        self.jp_cc_nn(cc, nn);
+        if self.registers.f.contains(Flag::FULL_CARRY) {
+            self.registers.pc = nn;
+            self.instruction_cycle = 4;
+        } else {
+            self.instruction_cycle = 3;
+        }
     }
 
     fn call_c_nn(&mut self, nn: u16, memory: &mut Memory) {
-        let cc = self.registers.f.contains(Flag::FULL_CARRY);
-        self.call_cc_nn(cc, nn, memory);
+        if self.registers.f.contains(Flag::FULL_CARRY) {
+            function::call_nn(&mut self.registers, nn, memory);
+            self.instruction_cycle = 5;
+        } else {
+            self.instruction_cycle = 3;
+        }
     }
 
     fn sbc_a_n(&mut self, n: u8) {
-        let carry = if self.registers.f.contains(Flag::FULL_CARRY) {
-            !1 + 1
-        } else {
-            0
-        };
-
-        let n = !n + 1;
-
-        let half_carry = ((self.registers.a & 0xF) + (n & 0xF) + (carry & 0xF)) & 0x10 == 0x10;
-        let full_carry = ((self.registers.a as u16) + (n as u16) + (carry as u16)) & 0x100 == 0x100;
-
-        self.registers.a = self.registers.a.wrapping_add(n);
-        self.registers.a = self.registers.a.wrapping_add(carry);
-
-        self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers.f.set(Flag::FULL_CARRY, full_carry);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.insert(Flag::NEGATIVE);
+        self.registers.a = alu::sbc_a_n(self.registers.a, n, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rst_18(&mut self, memory: &mut Memory) {
-        self.rst_n(0x18, memory);
+        function::call_nn(&mut self.registers, 0x18, memory);
+        self.instruction_cycle = 3;
     }
 
-    fn ldh_n_a(&self, n: u8, memory: &mut Memory) {
+    fn ldh_n_a(&mut self, n: u8, memory: &mut Memory) {
         let index = 0xFF00 + (n as u16);
         memory.write_byte(index, self.registers.a);
+        self.instruction_cycle = 3;
     }
 
     fn pop_hl(&mut self, memory: &Memory) {
-        let hl = self.pop(memory);
+        let hl = stack::pop(&mut self.registers.sp, memory);
         self.registers.set_hl(hl);
+        self.instruction_cycle = 3;
     }
 
-    fn ldh_c_a(&self, memory: &mut Memory) {
-        let index = 0xFF00 + (self.registers.f.contains(Flag::FULL_CARRY) as u16);
+    fn ldh_c_a(&mut self, memory: &mut Memory) {
+        let index = 0xFF00 + (self.registers.c as u16);
         memory.write_byte(index, self.registers.a);
+        self.instruction_cycle = 2;
     }
 
     fn push_hl(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
-        self.push_nn(hl, memory);
+        stack::push(&mut self.registers.sp, hl, memory);
+        self.instruction_cycle = 4;
     }
 
     fn and_n(&mut self, n: u8) {
-        self.registers.a &= n;
-
-        self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers.f.insert(Flag::HALF_CARRY);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::FULL_CARRY);
+        self.registers.a = alu::and_a_n(self.registers.a, n, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rst_20(&mut self, memory: &mut Memory) {
-        self.rst_n(0x20, memory);
+        function::call_nn(&mut self.registers, 0x20, memory);
+        self.instruction_cycle = 3;
     }
 
     fn add_sp_d(&mut self, d: u8) {
-        let d = d as i8 as u16;
-
-        let half_carry = ((self.registers.sp & 0x3FFF) + (d & 0x3FFF)) & 0x4000 == 0x4000;
-        let full_carry = ((self.registers.sp as u32) + (d as u32)) & 0x10000 == 0x10000;
-
-        self.registers.sp = self.registers.sp.wrapping_add(d);
-
-        self.registers.f.remove(Flag::ZERO | Flag::NEGATIVE);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.set(Flag::FULL_CARRY, full_carry);
+        self.registers.sp = alu::add_sp_e(self.registers.sp, d, &mut self.registers.f);
+        self.instruction_cycle = 4;
     }
 
     fn jp_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.pc = memory.read_word(hl);
+        self.instruction_cycle = 1;
     }
 
-    fn ld_nn_a(&self, nn: u16, memory: &mut Memory) {
+    fn ld_nn_a(&mut self, nn: u16, memory: &mut Memory) {
         memory.write_byte(nn, self.registers.a);
+        self.instruction_cycle = 4;
     }
 
     fn xor_n(&mut self, n: u8) {
-        self.registers.a ^= n;
-
-        self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers
-            .f
-            .remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY);
+        self.registers.a = alu::xor_a_n(self.registers.a, n, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rst_28(&mut self, memory: &mut Memory) {
-        self.rst_n(0x28, memory);
+        function::call_nn(&mut self.registers, 0x28, memory);
+        self.instruction_cycle = 3;
     }
 
     fn ldh_a_n(&mut self, n: u8, memory: &Memory) {
         self.registers.a = memory.read_byte(0xFF00 + (n as u16));
+        self.instruction_cycle = 3;
     }
 
     fn pop_af(&mut self, memory: &Memory) {
-        let af = self.pop(memory);
+        let af = stack::pop(&mut self.registers.sp, memory);
         self.registers.set_af(af);
+        self.instruction_cycle = 3;
     }
 
     fn di(&mut self) {
-        self.registers.ime = false;
+        self.interrupt_enabled = false;
+        self.instruction_cycle = 1;
     }
 
     fn push_af(&mut self, memory: &mut Memory) {
         let af = self.registers.get_af();
-        self.push_nn(af, memory);
+        stack::push(&mut self.registers.sp, af, memory);
+        self.instruction_cycle = 3;
     }
 
     fn or_n(&mut self, n: u8) {
-        self.registers.a |= n;
-
-        self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers
-            .f
-            .remove(Flag::NEGATIVE | Flag::FULL_CARRY | Flag::HALF_CARRY);
+        self.registers.a = alu::or_a_n(self.registers.a, n, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rst_30(&mut self, memory: &mut Memory) {
-        self.rst_n(0x30, memory);
+        function::call_nn(&mut self.registers, 0x30, memory);
+        self.instruction_cycle = 3;
     }
 
     fn ldhl_sp_d(&mut self, d: u8, memory: &Memory) {
-        let d = d as i8 as u16;
-
-        let half_carry = ((self.registers.sp & 0x3FFF) + (d & 0x3FFF)) & 0x4000 == 0x4000;
-        let full_carry = ((self.registers.sp as u32) + (d as u32)) & 0x10000 == 0x10000;
-
-        let hl = memory.read_word(self.registers.sp + d);
+        let sp = alu::add_sp_e(self.registers.sp, d, &mut self.registers.f);
+        let hl = memory.read_word(sp);
         self.registers.set_hl(hl);
-
-        self.registers.f.remove(Flag::ZERO | Flag::NEGATIVE);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.set(Flag::FULL_CARRY, full_carry);
+        self.instruction_cycle = 3;
     }
 
     fn ld_sp_hl(&mut self) {
         self.registers.sp = self.registers.get_hl();
+        self.instruction_cycle = 1;
     }
 
     fn ld_a_nn(&mut self, nn: u16, memory: &Memory) {
         self.registers.a = memory.read_byte(nn);
+        self.instruction_cycle = 4;
     }
 
     fn ei(&mut self) {
-        self.registers.ime = true;
+        self.interrupt_enabled = true;
+        self.instruction_cycle = 1;
     }
 
     fn cp_n(&mut self, n: u8) {
-        let n = !n + 1;
+        alu::cp_a_n(self.registers.a, n, &mut self.registers.f);
+        self.instruction_cycle = 2;
 
-        let half_carry = (((self.registers.a & 0xF) + (n & 0xF)) & 0x10) == 0x10;
-        let overflow = ((self.registers.a as u16) + (n as u16)) & 0x100 == 0x100;
-
-        let result = self.registers.a.wrapping_add(n);
-
-        self.registers.f.set(Flag::FULL_CARRY, overflow);
-        self.registers.f.set(Flag::ZERO, result == 0);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.insert(Flag::NEGATIVE);
+        println!("compared {:X} with {:X}", self.registers.a, n);
     }
 
     fn rst_38(&mut self, memory: &mut Memory) {
-        self.rst_n(0x38, memory);
+        function::call_nn(&mut self.registers, 0x38, memory);
+        self.instruction_cycle = 3;
     }
 
     //extended opcodes
 
     fn rlc_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.rlc_n(b);
+        self.registers.b = alu::rlc_n(self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rlc_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.rlc_n(c);
+        self.registers.c = alu::rlc_n(self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rlc_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.rlc_n(d);
+        self.registers.d = alu::rlc_n(self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rlc_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.rlc_n(e);
+        self.registers.e = alu::rlc_n(self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rlc_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.rlc_n(h);
+        self.registers.h = alu::rlc_n(self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rlc_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.rlc_n(l);
+        self.registers.l = alu::rlc_n(self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rlc_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.rlc_n(hl);
+        hl = alu::rlc_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn rrc_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.rrc_n(b);
+        self.registers.b = alu::rrc_n(self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rrc_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.rrc_n(c);
+        self.registers.c = alu::rrc_n(self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rrc_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.rrc_n(d);
+        self.registers.d = alu::rrc_n(self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rrc_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.rrc_n(e);
+        self.registers.e = alu::rrc_n(self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rrc_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.rrc_n(h);
+        self.registers.h = alu::rrc_n(self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rrc_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.rrc_n(l);
+        self.registers.l = alu::rrc_n(self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rrc_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.rrc_n(hl);
+        hl = alu::rrc_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn rl_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.rl_n(b);
+        self.registers.b = alu::rl_n(self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rl_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.rl_n(c);
+        self.registers.c = alu::rl_n(self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rl_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.rl_n(d);
+        self.registers.d = alu::rl_n(self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rl_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.rl_n(e);
+        self.registers.e = alu::rl_n(self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rl_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.rl_n(h);
+        self.registers.h = alu::rl_n(self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rl_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.rl_n(l);
+        self.registers.l = alu::rl_n(self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rl_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.rl_n(hl);
+        hl = alu::rl_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn rr_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.rr_n(b);
+        self.registers.b = alu::rr_n(self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rr_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.rr_n(c);
+        self.registers.c = alu::rr_n(self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rr_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.rr_n(d);
+        self.registers.d = alu::rr_n(self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rr_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.rr_n(e);
+        self.registers.e = alu::rr_n(self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rr_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.rr_n(h);
+        self.registers.h = alu::rr_n(self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rr_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.rr_n(l);
+        self.registers.l = alu::rr_n(self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn rr_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.rr_n(hl);
+        hl = alu::rr_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn sla_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.sla_n(b);
+        self.registers.b = alu::sla_n(self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sla_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.sla_n(c);
+        self.registers.c = alu::sla_n(self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sla_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.sla_n(d);
+        self.registers.d = alu::sla_n(self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sla_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.sla_n(e);
+        self.registers.e = alu::sla_n(self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sla_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.sla_n(h);
+        self.registers.h = alu::sla_n(self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sla_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.sla_n(l);
+        self.registers.l = alu::sla_n(self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sla_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.sla_n(hl);
+        hl = alu::sla_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn sla_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.sla_n(a);
+        self.registers.a = alu::sla_n(self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sra_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.sla_n(b);
+        self.registers.b = alu::sra_n(self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sra_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.sra_n(c);
+        self.registers.c = alu::sra_n(self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sra_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.sra_n(d);
+        self.registers.d = alu::sra_n(self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sra_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.sra_n(e);
+        self.registers.e = alu::sra_n(self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sra_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.sra_n(h);
+        self.registers.h = alu::sra_n(self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sra_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.sra_n(l);
+        self.registers.l = alu::sra_n(self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn sra_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.sra_n(hl);
+        hl = alu::sra_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn sra_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.sra_n(a);
+        self.registers.a = alu::sra_n(self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn swap_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.swap_n(b);
+        self.registers.b = alu::swap_n(self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn swap_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.swap_n(c);
+        self.registers.c = alu::swap_n(self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn swap_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.swap_n(d);
+        self.registers.h = alu::swap_n(self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn swap_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.swap_n(e);
+        self.registers.e = alu::swap_n(self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn swap_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.swap_n(h);
+        self.registers.h = alu::swap_n(self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn swap_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.swap_n(l);
+        self.registers.l = alu::swap_n(self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn swap_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.swap_n(hl);
+        hl = alu::swap_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 2;
     }
 
     fn swap_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.swap_n(a);
+        self.registers.a = alu::swap_n(self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 1;
     }
 
     fn srl_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.srl_n(b);
+        self.registers.b = alu::srl_n(self.registers.b, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn srl_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.srl_n(c);
+        self.registers.c = alu::srl_n(self.registers.c, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn srl_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.srl_n(d);
+        self.registers.d = alu::srl_n(self.registers.d, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn srl_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.srl_n(e);
+        self.registers.e = alu::srl_n(self.registers.e, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn srl_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.srl_n(h);
+        self.registers.h = alu::srl_n(self.registers.h, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn srl_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.srl_n(l);
+        self.registers.l = alu::srl_n(self.registers.l, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn srl_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.srl_n(hl);
+        hl = alu::srl_n(hl, &mut self.registers.f);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn srl_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.srl_n(a);
+        self.registers.a = alu::srl_n(self.registers.a, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_0_b(&mut self) {
-        let b = self.registers.b;
-        self.bit_i_n(0, b);
+        alu::bit_n_i(self.registers.b, 0, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_0_c(&mut self) {
-        let c = self.registers.c;
-        self.bit_i_n(0, c);
+        alu::bit_n_i(self.registers.c, 0, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_0_d(&mut self) {
-        let d = self.registers.d;
-        self.bit_i_n(0, d);
+        alu::bit_n_i(self.registers.d, 0, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_0_e(&mut self) {
-        let e = self.registers.e;
-        self.bit_i_n(0, e);
+        alu::bit_n_i(self.registers.e, 0, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_0_h(&mut self) {
-        let h = self.registers.h;
-        self.bit_i_n(0, h);
+        alu::bit_n_i(self.registers.h, 0, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_0_l(&mut self) {
-        let l = self.registers.l;
-        self.bit_i_n(0, l);
+        alu::bit_n_i(self.registers.l, 0, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_0_hl(&mut self, memory: &Memory) {
-        let hl = self.registers.get_hl();
-        self.bit_i_n(0, memory.read_byte(hl));
+        let hl = memory.read_byte(self.registers.get_hl());
+        alu::bit_n_i(hl, 0, &mut self.registers.f);
+        self.instruction_cycle = 3;
     }
 
     fn bit_0_a(&mut self) {
-        let a = self.registers.a;
-        self.bit_i_n(0, a);
+        alu::bit_n_i(self.registers.a, 0, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_1_b(&mut self) {
-        let b = self.registers.b;
-        self.bit_i_n(1, b);
+        alu::bit_n_i(self.registers.b, 1, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_1_c(&mut self) {
-        let c = self.registers.c;
-        self.bit_i_n(1, c);
+        alu::bit_n_i(self.registers.c, 1, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_1_d(&mut self) {
-        let d = self.registers.d;
-        self.bit_i_n(1, d);
+        alu::bit_n_i(self.registers.d, 1, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_1_e(&mut self) {
-        let e = self.registers.e;
-        self.bit_i_n(1, e);
+        alu::bit_n_i(self.registers.e, 1, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_1_h(&mut self) {
-        let h = self.registers.h;
-        self.bit_i_n(1, h);
+        alu::bit_n_i(self.registers.h, 1, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_1_l(&mut self) {
-        let l = self.registers.l;
-        self.bit_i_n(1, l);
+        alu::bit_n_i(self.registers.l, 1, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_1_hl(&mut self, memory: &Memory) {
-        let hl = self.registers.get_hl();
-        self.bit_i_n(1, memory.read_byte(hl));
+        let hl = memory.read_byte(self.registers.get_hl());
+        alu::bit_n_i(hl, 0, &mut self.registers.f);
+        self.instruction_cycle = 3;
     }
 
     fn bit_1_a(&mut self) {
-        let a = self.registers.a;
-        self.bit_i_n(1, a);
+        alu::bit_n_i(self.registers.a, 1, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_2_b(&mut self) {
-        let b = self.registers.b;
-        self.bit_i_n(2, b);
+        alu::bit_n_i(self.registers.b, 2, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_2_c(&mut self) {
-        let c = self.registers.c;
-        self.bit_i_n(2, c);
+        alu::bit_n_i(self.registers.c, 2, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_2_d(&mut self) {
-        let d = self.registers.d;
-        self.bit_i_n(2, d);
+        alu::bit_n_i(self.registers.d, 2, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_2_e(&mut self) {
-        let e = self.registers.e;
-        self.bit_i_n(2, e);
+        alu::bit_n_i(self.registers.e, 2, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_2_h(&mut self) {
-        let h = self.registers.h;
-        self.bit_i_n(2, h);
+        alu::bit_n_i(self.registers.h, 2, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_2_l(&mut self) {
-        let l = self.registers.l;
-        self.bit_i_n(2, l);
+        alu::bit_n_i(self.registers.l, 2, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_2_hl(&mut self, memory: &Memory) {
-        let hl = self.registers.get_hl();
-        self.bit_i_n(2, memory.read_byte(hl));
+        let hl = memory.read_byte(self.registers.get_hl());
+        alu::bit_n_i(hl, 2, &mut self.registers.f);
+        self.instruction_cycle = 3;
     }
 
     fn bit_2_a(&mut self) {
-        let a = self.registers.a;
-        self.bit_i_n(2, a);
+        alu::bit_n_i(self.registers.a, 2, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_3_b(&mut self) {
-        let b = self.registers.b;
-        self.bit_i_n(3, b);
+        alu::bit_n_i(self.registers.b, 3, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_3_c(&mut self) {
-        let c = self.registers.c;
-        self.bit_i_n(3, c);
+        alu::bit_n_i(self.registers.c, 3, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_3_d(&mut self) {
-        let d = self.registers.d;
-        self.bit_i_n(3, d);
+        alu::bit_n_i(self.registers.d, 3, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_3_e(&mut self) {
-        let e = self.registers.e;
-        self.bit_i_n(3, e);
+        alu::bit_n_i(self.registers.e, 3, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_3_h(&mut self) {
-        let h = self.registers.h;
-        self.bit_i_n(3, h);
+        alu::bit_n_i(self.registers.h, 3, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_3_l(&mut self) {
-        let l = self.registers.l;
-        self.bit_i_n(3, l);
+        alu::bit_n_i(self.registers.l, 3, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_3_hl(&mut self, memory: &Memory) {
-        let hl = self.registers.get_hl();
-        self.bit_i_n(3, memory.read_byte(hl));
+        let hl = memory.read_byte(self.registers.get_hl());
+        alu::bit_n_i(hl, 3, &mut self.registers.f);
+        self.instruction_cycle = 3;
     }
 
     fn bit_3_a(&mut self) {
-        let a = self.registers.a;
-        self.bit_i_n(3, a);
+        alu::bit_n_i(self.registers.a, 3, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_4_b(&mut self) {
-        let b = self.registers.b;
-        self.bit_i_n(4, b);
+        alu::bit_n_i(self.registers.b, 4, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_4_c(&mut self) {
-        let c = self.registers.c;
-        self.bit_i_n(4, c);
+        alu::bit_n_i(self.registers.c, 4, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_4_d(&mut self) {
-        let d = self.registers.d;
-        self.bit_i_n(4, d);
+        alu::bit_n_i(self.registers.d, 4, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_4_e(&mut self) {
-        let e = self.registers.e;
-        self.bit_i_n(4, e);
+        alu::bit_n_i(self.registers.e, 4, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_4_h(&mut self) {
-        let h = self.registers.h;
-        self.bit_i_n(4, h);
+        alu::bit_n_i(self.registers.h, 4, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_4_l(&mut self) {
-        let l = self.registers.l;
-        self.bit_i_n(4, l);
+        alu::bit_n_i(self.registers.l, 4, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_4_hl(&mut self, memory: &Memory) {
-        let hl = self.registers.get_hl();
-        self.bit_i_n(4, memory.read_byte(hl));
+        let hl = memory.read_byte(self.registers.get_hl());
+        alu::bit_n_i(hl, 4, &mut self.registers.f);
+        self.instruction_cycle = 3;
     }
 
     fn bit_4_a(&mut self) {
-        let a = self.registers.a;
-        self.bit_i_n(4, a);
+        alu::bit_n_i(self.registers.a, 4, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_5_b(&mut self) {
-        let b = self.registers.b;
-        self.bit_i_n(5, b);
+        alu::bit_n_i(self.registers.b, 5, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_5_c(&mut self) {
-        let c = self.registers.c;
-        self.bit_i_n(5, c);
+        alu::bit_n_i(self.registers.c, 5, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_5_d(&mut self) {
-        let d = self.registers.d;
-        self.bit_i_n(5, d);
+        alu::bit_n_i(self.registers.d, 5, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_5_e(&mut self) {
-        let e = self.registers.e;
-        self.bit_i_n(5, e);
+        alu::bit_n_i(self.registers.e, 5, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_5_h(&mut self) {
-        let h = self.registers.h;
-        self.bit_i_n(5, h);
+        alu::bit_n_i(self.registers.h, 5, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_5_l(&mut self) {
-        let l = self.registers.l;
-        self.bit_i_n(5, l);
+        alu::bit_n_i(self.registers.l, 5, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_5_hl(&mut self, memory: &Memory) {
-        let hl = self.registers.get_hl();
-        self.bit_i_n(5, memory.read_byte(hl));
+        let hl = memory.read_byte(self.registers.get_hl());
+        alu::bit_n_i(hl, 5, &mut self.registers.f);
+        self.instruction_cycle = 3;
     }
 
     fn bit_5_a(&mut self) {
-        let a = self.registers.a;
-        self.bit_i_n(5, a);
+        alu::bit_n_i(self.registers.a, 5, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_6_b(&mut self) {
-        let b = self.registers.b;
-        self.bit_i_n(6, b);
+        alu::bit_n_i(self.registers.b, 6, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_6_c(&mut self) {
-        let c = self.registers.c;
-        self.bit_i_n(6, c);
+        alu::bit_n_i(self.registers.c, 6, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_6_d(&mut self) {
-        let d = self.registers.d;
-        self.bit_i_n(6, d);
+        alu::bit_n_i(self.registers.d, 6, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_6_e(&mut self) {
-        let e = self.registers.e;
-        self.bit_i_n(6, e);
+        alu::bit_n_i(self.registers.e, 6, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_6_h(&mut self) {
-        let h = self.registers.h;
-        self.bit_i_n(6, h);
+        alu::bit_n_i(self.registers.h, 6, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_6_l(&mut self) {
-        let l = self.registers.l;
-        self.bit_i_n(6, l);
+        alu::bit_n_i(self.registers.l, 6, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_6_hl(&mut self, memory: &Memory) {
-        let hl = self.registers.get_hl();
-        self.bit_i_n(6, memory.read_byte(hl));
+        let hl = memory.read_byte(self.registers.get_hl());
+        alu::bit_n_i(hl, 6, &mut self.registers.f);
+        self.instruction_cycle = 3;
     }
 
     fn bit_6_a(&mut self) {
-        let a = self.registers.a;
-        self.bit_i_n(6, a);
+        alu::bit_n_i(self.registers.a, 6, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_7_b(&mut self) {
-        let b = self.registers.b;
-        self.bit_i_n(7, b);
+        alu::bit_n_i(self.registers.b, 7, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_7_c(&mut self) {
-        let c = self.registers.c;
-        self.bit_i_n(7, c);
+        alu::bit_n_i(self.registers.c, 7, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_7_d(&mut self) {
-        let d = self.registers.d;
-        self.bit_i_n(7, d);
+        alu::bit_n_i(self.registers.d, 7, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_7_e(&mut self) {
-        let e = self.registers.e;
-        self.bit_i_n(7, e);
+        alu::bit_n_i(self.registers.e, 7, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_7_h(&mut self) {
-        let h = self.registers.h;
-        println!("THIS IS H: {:X}", h);
-        self.bit_i_n(7, h);
+        alu::bit_n_i(self.registers.h, 7, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_7_l(&mut self) {
-        let l = self.registers.l;
-        self.bit_i_n(7, l);
+        alu::bit_n_i(self.registers.l, 7, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
 
     fn bit_7_hl(&mut self, memory: &Memory) {
-        let hl = self.registers.get_hl();
-        self.bit_i_n(7, memory.read_byte(hl));
+        let hl = memory.read_byte(self.registers.get_hl());
+        alu::bit_n_i(hl, 7, &mut self.registers.f);
+        self.instruction_cycle = 3;
     }
 
     fn bit_7_a(&mut self) {
-        let a = self.registers.a;
-        self.bit_i_n(7, a);
+        alu::bit_n_i(self.registers.a, 7, &mut self.registers.f);
+        self.instruction_cycle = 2;
     }
+
     fn res_0_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.res_i_n(0, b);
+        self.registers.b = alu::res_n_i(self.registers.b, 0);
+        self.instruction_cycle = 2;
     }
 
     fn res_0_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.res_i_n(0, c);
+        self.registers.c = alu::res_n_i(self.registers.c, 0);
+        self.instruction_cycle = 2;
     }
+
     fn res_0_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.res_i_n(0, d);
+        self.registers.d = alu::res_n_i(self.registers.d, 0);
+        self.instruction_cycle = 2;
     }
+
     fn res_0_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.res_i_n(0, e);
+        self.registers.e = alu::res_n_i(self.registers.e, 0);
+        self.instruction_cycle = 2;
     }
+
     fn res_0_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.res_i_n(0, h);
+        self.registers.h = alu::res_n_i(self.registers.h, 0);
+        self.instruction_cycle = 2;
     }
+
     fn res_0_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.res_i_n(0, l);
+        self.registers.l = alu::res_n_i(self.registers.l, 0);
+        self.instruction_cycle = 2;
     }
+
     fn res_0_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.res_i_n(0, hl);
+        hl = alu::res_n_i(hl, 0);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn res_0_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.res_i_n(0, a);
+        self.registers.a = alu::res_n_i(self.registers.a, 0);
+        self.instruction_cycle = 2;
     }
 
     fn res_1_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.res_i_n(1, b);
+        self.registers.b = alu::res_n_i(self.registers.b, 1);
+        self.instruction_cycle = 2;
     }
 
     fn res_1_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.res_i_n(1, c);
+        self.registers.c = alu::res_n_i(self.registers.c, 1);
+        self.instruction_cycle = 2;
     }
 
     fn res_1_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.res_i_n(1, d);
+        self.registers.d = alu::res_n_i(self.registers.d, 1);
+        self.instruction_cycle = 2;
     }
 
     fn res_1_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.res_i_n(1, e);
+        self.registers.e = alu::res_n_i(self.registers.e, 1);
+        self.instruction_cycle = 2;
     }
 
     fn res_1_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.res_i_n(1, h);
+        self.registers.h = alu::res_n_i(self.registers.h, 1);
+        self.instruction_cycle = 2;
     }
 
     fn res_1_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.res_i_n(1, l);
+        self.registers.l = alu::res_n_i(self.registers.l, 1);
+        self.instruction_cycle = 2;
     }
 
     fn res_1_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.res_i_n(1, hl);
+        hl = alu::res_n_i(hl, 1);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn res_1_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.res_i_n(1, a);
+        self.registers.a = alu::res_n_i(self.registers.a, 1);
+        self.instruction_cycle = 2;
     }
 
     fn res_2_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.res_i_n(2, b);
+        self.registers.b = alu::res_n_i(self.registers.b, 2);
+        self.instruction_cycle = 2;
     }
 
     fn res_2_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.res_i_n(2, c);
+        self.registers.c = alu::res_n_i(self.registers.c, 2);
+        self.instruction_cycle = 2;
     }
 
     fn res_2_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.res_i_n(2, d);
+        self.registers.d = alu::res_n_i(self.registers.d, 2);
+        self.instruction_cycle = 2;
     }
 
     fn res_2_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.res_i_n(2, e);
+        self.registers.e = alu::res_n_i(self.registers.e, 2);
+        self.instruction_cycle = 2;
     }
 
     fn res_2_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.res_i_n(2, h);
+        self.registers.h = alu::res_n_i(self.registers.h, 2);
+        self.instruction_cycle = 2;
     }
 
     fn res_2_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.res_i_n(2, l);
+        self.registers.l = alu::res_n_i(self.registers.l, 2);
+        self.instruction_cycle = 2;
     }
 
     fn res_2_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.res_i_n(2, hl);
+        hl = alu::res_n_i(hl, 2);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn res_2_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.res_i_n(2, a);
+        self.registers.a = alu::res_n_i(self.registers.a, 2);
+        self.instruction_cycle = 2;
     }
 
     fn res_3_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.res_i_n(3, b);
+        self.registers.b = alu::res_n_i(self.registers.b, 3);
+        self.instruction_cycle = 2;
     }
 
     fn res_3_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.res_i_n(3, c);
+        self.registers.c = alu::res_n_i(self.registers.c, 3);
+        self.instruction_cycle = 2;
     }
 
     fn res_3_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.res_i_n(3, d);
+        self.registers.d = alu::res_n_i(self.registers.d, 3);
+        self.instruction_cycle = 2;
     }
 
     fn res_3_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.res_i_n(3, e);
+        self.registers.e = alu::res_n_i(self.registers.e, 3);
+        self.instruction_cycle = 2;
     }
 
     fn res_3_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.res_i_n(3, h);
+        self.registers.h = alu::res_n_i(self.registers.h, 3);
+        self.instruction_cycle = 2;
     }
 
     fn res_3_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.res_i_n(3, l);
+        self.registers.l = alu::res_n_i(self.registers.l, 3);
+        self.instruction_cycle = 2;
     }
 
     fn res_3_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.res_i_n(3, hl);
+        hl = alu::res_n_i(hl, 3);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn res_3_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.res_i_n(3, a);
+        self.registers.a = alu::res_n_i(self.registers.a, 3);
+        self.instruction_cycle = 2;
     }
 
     fn res_4_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.res_i_n(4, b);
+        self.registers.b = alu::res_n_i(self.registers.b, 4);
+        self.instruction_cycle = 2;
     }
 
     fn res_4_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.res_i_n(4, c);
+        self.registers.c = alu::res_n_i(self.registers.c, 4);
+        self.instruction_cycle = 2;
     }
 
     fn res_4_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.res_i_n(4, d);
+        self.registers.d = alu::res_n_i(self.registers.d, 4);
+        self.instruction_cycle = 2;
     }
 
     fn res_4_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.res_i_n(4, e);
+        self.registers.e = alu::res_n_i(self.registers.e, 4);
+        self.instruction_cycle = 2;
     }
 
     fn res_4_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.res_i_n(4, h);
+        self.registers.h = alu::res_n_i(self.registers.h, 4);
+        self.instruction_cycle = 2;
     }
 
     fn res_4_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.res_i_n(4, l);
+        self.registers.l = alu::res_n_i(self.registers.l, 4);
+        self.instruction_cycle = 2;
     }
 
     fn res_4_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.res_i_n(4, hl);
+        hl = alu::res_n_i(hl, 4);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn res_4_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.res_i_n(4, a);
+        self.registers.a = alu::res_n_i(self.registers.a, 4);
+        self.instruction_cycle = 2;
     }
 
     fn res_5_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.res_i_n(5, b);
+        self.registers.b = alu::res_n_i(self.registers.b, 5);
+        self.instruction_cycle = 2;
     }
 
     fn res_5_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.res_i_n(5, c);
+        self.registers.c = alu::res_n_i(self.registers.c, 5);
+        self.instruction_cycle = 2;
     }
 
     fn res_5_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.res_i_n(5, d);
+        self.registers.d = alu::res_n_i(self.registers.d, 5);
+        self.instruction_cycle = 2;
     }
 
     fn res_5_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.res_i_n(5, e);
+        self.registers.e = alu::res_n_i(self.registers.e, 5);
+        self.instruction_cycle = 2;
     }
 
     fn res_5_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.res_i_n(5, h);
+        self.registers.h = alu::res_n_i(self.registers.h, 5);
+        self.instruction_cycle = 2;
     }
 
     fn res_5_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.res_i_n(5, l);
+        self.registers.l = alu::res_n_i(self.registers.l, 5);
+        self.instruction_cycle = 2;
     }
 
     fn res_5_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.res_i_n(5, hl);
+        hl = alu::res_n_i(hl, 5);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn res_5_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.res_i_n(5, a);
+        self.registers.a = alu::res_n_i(self.registers.a, 5);
+        self.instruction_cycle = 2;
     }
 
     fn res_6_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.res_i_n(6, b);
+        self.registers.b = alu::res_n_i(self.registers.b, 6);
+        self.instruction_cycle = 2;
     }
 
     fn res_6_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.res_i_n(6, c);
+        self.registers.c = alu::res_n_i(self.registers.c, 6);
+        self.instruction_cycle = 2;
     }
 
     fn res_6_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.res_i_n(6, d);
+        self.registers.d = alu::res_n_i(self.registers.d, 6);
+        self.instruction_cycle = 2;
     }
 
     fn res_6_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.res_i_n(6, e);
+        self.registers.e = alu::res_n_i(self.registers.e, 6);
+        self.instruction_cycle = 2;
     }
 
     fn res_6_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.res_i_n(6, h);
+        self.registers.h = alu::res_n_i(self.registers.h, 6);
+        self.instruction_cycle = 2;
     }
 
     fn res_6_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.res_i_n(6, l);
+        self.registers.l = alu::res_n_i(self.registers.l, 6);
+        self.instruction_cycle = 2;
     }
 
     fn res_6_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.res_i_n(6, hl);
+        hl = alu::res_n_i(hl, 6);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn res_6_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.res_i_n(6, a);
+        self.registers.a = alu::res_n_i(self.registers.a, 6);
+        self.instruction_cycle = 2;
     }
 
     fn res_7_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.res_i_n(7, b);
+        self.registers.b = alu::res_n_i(self.registers.b, 7);
+        self.instruction_cycle = 2;
     }
 
     fn res_7_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.res_i_n(7, c);
+        self.registers.c = alu::res_n_i(self.registers.c, 7);
+        self.instruction_cycle = 2;
     }
 
     fn res_7_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.res_i_n(7, d);
+        self.registers.d = alu::res_n_i(self.registers.d, 7);
+        self.instruction_cycle = 2;
     }
 
     fn res_7_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.res_i_n(7, e);
+        self.registers.e = alu::res_n_i(self.registers.e, 7);
+        self.instruction_cycle = 2;
     }
 
     fn res_7_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.res_i_n(7, h);
+        self.registers.h = alu::res_n_i(self.registers.h, 7);
+        self.instruction_cycle = 2;
     }
 
     fn res_7_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.res_i_n(7, l);
+        self.registers.l = alu::res_n_i(self.registers.l, 7);
+        self.instruction_cycle = 2;
     }
 
     fn res_7_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.res_i_n(6, hl);
+        hl = alu::res_n_i(hl, 7);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn res_7_a(&mut self) {
-        let a = self.registers.a;
-        self.res_i_n(7, a);
+        self.registers.a = alu::res_n_i(self.registers.a, 7);
+        self.instruction_cycle = 2;
     }
 
     fn set_0_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.set_i_n(0, b);
+        self.registers.b = alu::set_n_i(self.registers.b, 0);
+        self.instruction_cycle = 2;
     }
 
     fn set_0_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.set_i_n(0, c);
+        self.registers.c = alu::set_n_i(self.registers.c, 0);
+        self.instruction_cycle = 2;
     }
 
     fn set_0_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.set_i_n(0, d);
+        self.registers.d = alu::set_n_i(self.registers.d, 0);
+        self.instruction_cycle = 2;
     }
 
     fn set_0_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.set_i_n(0, e);
+        self.registers.e = alu::set_n_i(self.registers.e, 0);
+        self.instruction_cycle = 2;
     }
 
     fn set_0_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.set_i_n(0, h);
+        self.registers.h = alu::set_n_i(self.registers.h, 0);
+        self.instruction_cycle = 2;
     }
 
     fn set_0_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.set_i_n(0, l);
+        self.registers.l = alu::set_n_i(self.registers.l, 0);
+        self.instruction_cycle = 2;
     }
 
     fn set_0_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.set_i_n(0, hl);
+        hl = alu::set_n_i(hl, 0);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn set_0_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.set_i_n(0, a);
+        self.registers.a = alu::set_n_i(self.registers.a, 0);
+        self.instruction_cycle = 2;
     }
 
     fn set_1_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.set_i_n(0, b);
+        self.registers.b = alu::set_n_i(self.registers.b, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_1_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.set_i_n(0, c);
+        self.registers.c = alu::set_n_i(self.registers.c, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_1_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.set_i_n(0, d);
+        self.registers.d = alu::set_n_i(self.registers.d, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_1_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.set_i_n(0, e);
+        self.registers.e = alu::set_n_i(self.registers.e, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_1_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.set_i_n(0, h);
+        self.registers.h = alu::set_n_i(self.registers.h, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_1_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.set_i_n(0, l);
+        self.registers.l = alu::set_n_i(self.registers.l, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_1_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.set_i_n(1, hl);
+        hl = alu::set_n_i(hl, 1);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn set_1_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.set_i_n(1, a);
+        self.registers.a = alu::set_n_i(self.registers.a, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_2_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.set_i_n(2, b);
+        self.registers.b = alu::set_n_i(self.registers.b, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_2_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.set_i_n(2, c);
+        self.registers.c = alu::set_n_i(self.registers.c, 1);
+        self.instruction_cycle = 2;
     }
 
     fn set_2_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.set_i_n(2, d);
+        self.registers.d = alu::set_n_i(self.registers.d, 2);
+        self.instruction_cycle = 2;
     }
 
     fn set_2_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.set_i_n(2, e);
+        self.registers.e = alu::set_n_i(self.registers.e, 2);
+        self.instruction_cycle = 2;
     }
 
     fn set_2_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.set_i_n(2, h);
+        self.registers.h = alu::set_n_i(self.registers.h, 2);
+        self.instruction_cycle = 2;
     }
 
     fn set_2_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.set_i_n(2, l);
+        self.registers.l = alu::set_n_i(self.registers.l, 2);
+        self.instruction_cycle = 2;
     }
 
     fn set_2_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.set_i_n(2, hl);
+        hl = alu::set_n_i(hl, 2);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn set_2_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.set_i_n(2, a);
+        self.registers.a = alu::set_n_i(self.registers.a, 2);
+        self.instruction_cycle = 2;
     }
 
     fn set_3_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.set_i_n(3, b);
+        self.registers.b = alu::set_n_i(self.registers.b, 3);
+        self.instruction_cycle = 2;
     }
 
     fn set_3_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.set_i_n(3, c);
+        self.registers.c = alu::set_n_i(self.registers.c, 3);
+        self.instruction_cycle = 2;
     }
 
     fn set_3_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.set_i_n(3, d);
+        self.registers.d = alu::set_n_i(self.registers.d, 3);
+        self.instruction_cycle = 2;
     }
 
     fn set_3_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.set_i_n(3, e);
+        self.registers.e = alu::set_n_i(self.registers.e, 3);
+        self.instruction_cycle = 2;
     }
 
     fn set_3_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.set_i_n(3, h);
+        self.registers.h = alu::set_n_i(self.registers.h, 3);
+        self.instruction_cycle = 2;
     }
 
     fn set_3_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.set_i_n(3, l);
+        self.registers.l = alu::set_n_i(self.registers.l, 3);
+        self.instruction_cycle = 2;
     }
 
     fn set_3_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.set_i_n(3, hl);
+        hl = alu::set_n_i(hl, 3);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn set_3_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.set_i_n(3, a);
+        self.registers.a = alu::set_n_i(self.registers.a, 3);
+        self.instruction_cycle = 2;
     }
 
     fn set_4_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.set_i_n(4, b);
+        self.registers.b = alu::set_n_i(self.registers.b, 4);
+        self.instruction_cycle = 2;
     }
 
     fn set_4_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.set_i_n(4, c);
+        self.registers.c = alu::set_n_i(self.registers.c, 4);
+        self.instruction_cycle = 2;
     }
 
     fn set_4_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.set_i_n(4, d);
+        self.registers.d = alu::set_n_i(self.registers.d, 4);
+        self.instruction_cycle = 2;
     }
 
     fn set_4_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.set_i_n(4, e);
+        self.registers.e = alu::set_n_i(self.registers.e, 4);
+        self.instruction_cycle = 2;
     }
 
     fn set_4_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.set_i_n(4, h);
+        self.registers.h = alu::set_n_i(self.registers.h, 4);
+        self.instruction_cycle = 2;
     }
 
     fn set_4_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.set_i_n(4, l);
+        self.registers.l = alu::set_n_i(self.registers.l, 4);
+        self.instruction_cycle = 2;
     }
 
     fn set_4_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.set_i_n(4, hl);
+        hl = alu::set_n_i(hl, 4);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn set_4_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.set_i_n(3, a);
+        self.registers.a = alu::set_n_i(self.registers.a, 4);
+        self.instruction_cycle = 2;
     }
 
     fn set_5_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.set_i_n(5, b);
+        self.registers.b = alu::set_n_i(self.registers.b, 5);
+        self.instruction_cycle = 2;
     }
 
     fn set_5_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.set_i_n(5, c);
+        self.registers.c = alu::set_n_i(self.registers.c, 5);
+        self.instruction_cycle = 2;
     }
 
     fn set_5_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.set_i_n(5, d);
+        self.registers.d = alu::set_n_i(self.registers.d, 5);
+        self.instruction_cycle = 2;
     }
 
     fn set_5_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.set_i_n(5, e);
+        self.registers.e = alu::set_n_i(self.registers.e, 5);
+        self.instruction_cycle = 2;
     }
 
     fn set_5_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.set_i_n(5, h);
+        self.registers.h = alu::set_n_i(self.registers.h, 5);
+        self.instruction_cycle = 2;
     }
 
     fn set_5_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.set_i_n(5, l);
+        self.registers.l = alu::set_n_i(self.registers.l, 5);
+        self.instruction_cycle = 2;
     }
 
     fn set_5_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.set_i_n(5, hl);
+        hl = alu::set_n_i(hl, 5);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn set_5_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.set_i_n(5, a);
+        self.registers.a = alu::set_n_i(self.registers.a, 5);
+        self.instruction_cycle = 2;
     }
 
     fn set_6_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.set_i_n(6, b);
+        self.registers.b = alu::set_n_i(self.registers.b, 6);
+        self.instruction_cycle = 2;
     }
 
     fn set_6_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.set_i_n(6, c);
+        self.registers.c = alu::set_n_i(self.registers.c, 6);
+        self.instruction_cycle = 2;
     }
 
     fn set_6_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.set_i_n(6, d);
+        self.registers.d = alu::set_n_i(self.registers.d, 6);
+        self.instruction_cycle = 2;
     }
 
     fn set_6_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.set_i_n(6, e);
+        self.registers.e = alu::set_n_i(self.registers.e, 6);
+        self.instruction_cycle = 2;
     }
 
     fn set_6_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.set_i_n(6, h);
+        self.registers.h = alu::set_n_i(self.registers.h, 6);
+        self.instruction_cycle = 2;
     }
 
     fn set_6_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.set_i_n(6, l);
+        self.registers.l = alu::set_n_i(self.registers.l, 6);
+        self.instruction_cycle = 2;
     }
 
     fn set_6_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.set_i_n(6, hl);
+        hl = alu::set_n_i(hl, 6);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn set_6_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.set_i_n(6, a);
+        self.registers.a = alu::set_n_i(self.registers.a, 6);
+        self.instruction_cycle = 2;
     }
 
     fn set_7_b(&mut self) {
-        let b = self.registers.b;
-        self.registers.b = self.set_i_n(7, b);
+        self.registers.b = alu::set_n_i(self.registers.b, 7);
+        self.instruction_cycle = 2;
     }
 
     fn set_7_c(&mut self) {
-        let c = self.registers.c;
-        self.registers.c = self.set_i_n(7, c);
+        self.registers.c = alu::set_n_i(self.registers.c, 7);
+        self.instruction_cycle = 2;
     }
 
     fn set_7_d(&mut self) {
-        let d = self.registers.d;
-        self.registers.d = self.set_i_n(7, d);
+        self.registers.d = alu::set_n_i(self.registers.d, 7);
+        self.instruction_cycle = 2;
     }
 
     fn set_7_e(&mut self) {
-        let e = self.registers.e;
-        self.registers.e = self.set_i_n(7, e);
+        self.registers.e = alu::set_n_i(self.registers.e, 7);
+        self.instruction_cycle = 2;
     }
 
     fn set_7_h(&mut self) {
-        let h = self.registers.h;
-        self.registers.h = self.set_i_n(7, h);
+        self.registers.h = alu::set_n_i(self.registers.h, 7);
+        self.instruction_cycle = 2;
     }
 
     fn set_7_l(&mut self) {
-        let l = self.registers.l;
-        self.registers.l = self.set_i_n(7, l);
+        self.registers.l = alu::set_n_i(self.registers.l, 7);
+        self.instruction_cycle = 2;
     }
 
     fn set_7_hl(&mut self, memory: &mut Memory) {
         let mut hl = memory.read_byte(self.registers.get_hl());
-        hl = self.set_i_n(7, hl);
+        hl = alu::set_n_i(hl, 7);
         memory.write_byte(self.registers.get_hl(), hl);
+        self.instruction_cycle = 4;
     }
 
     fn set_7_a(&mut self) {
-        let a = self.registers.a;
-        self.registers.a = self.set_i_n(6, a);
+        self.registers.a = alu::set_n_i(self.registers.a, 7);
+        self.instruction_cycle = 2;
     }
 
     //interrupts
 
     pub fn rst_40(&mut self, memory: &mut Memory) {
-        self.rst_n(0x40, memory);
+        function::call_nn(&mut self.registers, 0x40, memory);
+        self.instruction_cycle = 3;
     }
 
     pub fn rst_48(&mut self, memory: &mut Memory) {
-        self.rst_n(0x48, memory);
+        function::call_nn(&mut self.registers, 0x48, memory);
+        self.instruction_cycle = 3;
     }
 
     pub fn rst_50(&mut self, memory: &mut Memory) {
-        self.rst_n(0x50, memory);
+        function::call_nn(&mut self.registers, 0x50, memory);
+        self.instruction_cycle = 3;
     }
 
     pub fn rst_58(&mut self, memory: &mut Memory) {
-        self.rst_n(0x58, memory);
+        function::call_nn(&mut self.registers, 0x58, memory);
+        self.instruction_cycle = 3;
     }
 
     pub fn rst_60(&mut self, memory: &mut Memory) {
-        self.rst_n(0x60, memory);
-    }
-
-    //helpers
-
-    fn rst_n(&mut self, n: u8, memory: &mut Memory) {
-        let pc = self.registers.pc;
-        self.push_nn(pc, memory);
-        self.registers.pc = n as u16;
-    }
-
-    fn dec_n(&mut self, n: u8) -> u8 {
-        // convert 1 into a 2's complement signed value
-        // then add it to n, checking for the half carry
-        let half_carry = ((n & 0xF) + (0xF)) & 0x10 == 0x10;
-
-        let n = n.wrapping_sub(1);
-
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.insert(Flag::NEGATIVE);
-
-        n
-    }
-
-    fn add_hl_ss(&mut self, ss: u16) {
-        let mut hl = self.registers.get_hl();
-
-        let half_carry = (((hl & 0x3FFF) + (ss & 0x3FFF)) & 0x4000) == 0x4000;
-        let full_carry = ((hl as u32) + (ss as u32) & 0x10000) == 0x10000;
-
-        hl = hl.wrapping_add(ss);
-
-        self.registers.f.remove(Flag::NEGATIVE);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.set(Flag::FULL_CARRY, full_carry);
-
-        self.registers.set_hl(hl);
-    }
-
-    fn inc_n(&mut self, n: u8) -> u8 {
-        let half_carry = (((n & 0xF) + 1) & 0x10) == 0x10;
-
-        let n = n.wrapping_add(1);
-
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.remove(Flag::NEGATIVE);
-
-        n
-    }
-
-    fn bit_i_n(&mut self, i: u8, n: u8) {
-        self.registers.f.insert(Flag::HALF_CARRY);
-        self.registers.f.remove(Flag::NEGATIVE);
-        self.registers.f.set(Flag::ZERO, n & (1 << i) == 0);
-    }
-
-    fn res_i_n(&mut self, i: u8, n: u8) -> u8 {
-        n & !((1 << i) as u8)
-    }
-
-    fn set_i_n(&mut self, i: u8, n: u8) -> u8 {
-        n | (1 << i)
-    }
-
-    fn rlc_n(&mut self, n: u8) -> u8 {
-        let left_bit = (n & 0x80) == 0x80;
-
-        let n = n.rotate_left(1);
-
-        self.registers.f.set(Flag::FULL_CARRY, left_bit);
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY);
-
-        n
-    }
-
-    fn rrc_n(&mut self, n: u8) -> u8 {
-        let right_bit = (n & 0x1) == 1;
-        let n = n.rotate_right(1);
-
-        self.registers.f.set(Flag::FULL_CARRY, right_bit);
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY);
-
-        n
-    }
-
-    fn rr_n(&mut self, n: u8) -> u8 {
-        let right_bit = (n & 0x1) == 1;
-        let mut n = n >> 1;
-
-        n |= (self.registers.f.contains(Flag::FULL_CARRY) as u8) << 7;
-
-        self.registers.f.set(Flag::FULL_CARRY, right_bit);
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY);
-
-        n
-    }
-
-    fn rl_n(&mut self, n: u8) -> u8 {
-        let left_bit = (n & 0x80) == 0x80;
-        let mut n = n << 1;
-        n |= self.registers.f.contains(Flag::FULL_CARRY) as u8;
-
-        self.registers.f.set(Flag::FULL_CARRY, left_bit);
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY);
-
-        n
-    }
-
-    fn sla_n(&mut self, n: u8) -> u8 {
-        let left_bit = (n & 0x80) == 0x80;
-        let n = n << 1;
-
-        self.registers.f.set(Flag::FULL_CARRY, left_bit);
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY);
-
-        n
-    }
-
-    fn sra_n(&mut self, n: u8) -> u8 {
-        let left = n & 0x80;
-        let right_bit = (n & 0x1) == 1;
-
-        let mut n = n >> 1;
-        n |= left;
-
-        self.registers.f.set(Flag::FULL_CARRY, right_bit);
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY);
-
-        n
-    }
-
-    fn jr_cc_n(&mut self, cc: bool, n: u8) {
-        if cc {
-            self.jr_n(n);
-        }
-    }
-
-    fn jp_cc_nn(&mut self, cc: bool, nn: u16) {
-        if cc {
-            self.jp_nn(nn);
-        }
-    }
-
-    fn inc_nn(&self, nn: u16) -> u16 {
-        nn + 1
-    }
-
-    fn dec_nn(&self, nn: u16) -> u16 {
-        nn - 1
-    }
-
-    fn call_cc_nn(&mut self, cc: bool, nn: u16, memory: &mut Memory) {
-        if cc {
-            self.call_nn(nn, memory);
-        }
-    }
-
-    fn ret_cc(&mut self, cc: bool, memory: &Memory) {
-        if cc {
-            self.ret(memory);
-        }
-    }
-
-    fn pop(&mut self, memory: &Memory) -> u16 {
-        let word = memory.read_word(self.registers.sp);
-        self.registers.sp += 2;
-
-        word
-    }
-
-    fn push_nn(&mut self, nn: u16, memory: &mut Memory) {
-        self.registers.sp -= 2;
-        memory.write_word(self.registers.sp, nn);
-    }
-
-    fn swap_n(&mut self, n: u8) -> u8 {
-        let high = n & 0xF0;
-        let low = n & 0xF;
-
-        let n = (low << 4) | (high >> 4);
-
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers
-            .f
-            .remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY);
-
-        n
-    }
-
-    fn srl_n(&mut self, n: u8) -> u8 {
-        let first = n & 1 == 1;
-        let n = n >> 1;
-
-        self.registers.f.set(Flag::FULL_CARRY, first);
-        self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.remove(Flag::HALF_CARRY | Flag::NEGATIVE);
-
-        n
+        function::call_nn(&mut self.registers, 0x60, memory);
+        self.instruction_cycle = 3;
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use cpu::registers::flag::Flag;
-    use cpu::Cpu;
-    use mmu::Memory;
-
-    #[test]
-    fn test_inc_nn() {
-        let cpu = Cpu::new();
-        let mut n = 1;
-
-        n = cpu.inc_nn(n);
-
-        assert_eq!(n, 2);
-    }
-
-    #[test]
-    fn test_dec_nn() {
-        let cpu = Cpu::new();
-        let mut n = 1;
-
-        n = cpu.dec_nn(n);
-
-        assert_eq!(n, 0);
-    }
-
-    #[test]
-    fn test_inc_n() {
-        // cause an 8 bit overflow, triggering a zero
-        // and half carry flag
-        let mut cpu = Cpu::new();
-        let mut n = 0xFF;
-
-        n = cpu.inc_n(n);
-
-        assert_eq!(n, 0);
-        assert_eq!(cpu.registers.f, Flag::ZERO | Flag::HALF_CARRY);
-    }
-
-    #[test]
-    fn test_dec_n() {
-        let mut cpu = Cpu::new();
-        let mut n = 1;
-
-        n = cpu.dec_n(n);
-
-        assert_eq!(n, 0);
-        assert_eq!(
-            cpu.registers.f,
-            Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY
-        );
-    }
-
-    #[test]
-    fn test_add_a_n() {
-        let mut cpu = Cpu::new();
-        let n = 0xF1;
-        cpu.registers.a = 0xF;
-
-        cpu.add_a_n(n);
-
-        assert_eq!(cpu.registers.a, 0);
-        assert_eq!(
-            cpu.registers.f,
-            Flag::ZERO | Flag::HALF_CARRY | Flag::FULL_CARRY
-        );
-    }
-
-    #[test]
-    fn test_sub_a_n() {
-        let mut cpu = Cpu::new();
-        let n = 0xF;
-        cpu.registers.a = 0xF;
-
-        cpu.sub_a_n(n);
-
-        assert_eq!(cpu.registers.a, 0);
-        assert_eq!(
-            cpu.registers.f,
-            Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY
-        );
-    }
-
-    #[test]
-    fn test_adc_a_n() {
-        let mut cpu = Cpu::new();
-        let n = 0xF0;
-        cpu.registers.a = 0xF;
-        cpu.registers.f |= Flag::FULL_CARRY;
-
-        cpu.adc_a_n(n);
-
-        assert_eq!(cpu.registers.a, 0);
-        assert_eq!(
-            cpu.registers.f,
-            Flag::ZERO | Flag::HALF_CARRY | Flag::FULL_CARRY
-        );
-    }
-
-    #[test]
-    fn test_sbc_a_n() {
-        let mut cpu = Cpu::new();
-        let n = 0xE;
-        cpu.registers.a = 0xF;
-        cpu.registers.f |= Flag::FULL_CARRY;
-
-        cpu.sbc_a_n(n);
-
-        assert_eq!(cpu.registers.a, 0);
-        assert_eq!(cpu.registers.f, Flag::ZERO | Flag::NEGATIVE);
-    }
-
-    #[test]
-    fn test_add_hl_ss() {
-        let mut cpu = Cpu::new();
-        let ss = 0x7F7F;
-        cpu.registers.set_hl(0x7F7F);
-
-        cpu.add_hl_ss(ss);
-
-        assert_eq!(cpu.registers.get_hl(), 0xFEFE);
-        assert_eq!(cpu.registers.f, Flag::HALF_CARRY);
-    }
-
-    #[test]
-    fn test_bit_i_n() {
-        let mut cpu = Cpu::new();
-
-        cpu.bit_i_n(0, 1);
-
-        assert_eq!(cpu.registers.f, Flag::HALF_CARRY);
-    }
-
-    #[test]
-    fn test_set_i_n() {
-        let mut cpu = Cpu::new();
-
-        let n = cpu.set_i_n(0, 0);
-
-        assert_eq!(n, 1);
-    }
-
-    #[test]
-    fn test_res_i_n() {
-        let mut cpu = Cpu::new();
-
-        let n = cpu.res_i_n(0, 1);
-
-        assert_eq!(n, 0);
-    }
-
-    #[test]
-    fn test_rlc_a() {
-        let mut cpu = Cpu::new();
-        cpu.registers.a = 0b00000000;
-        cpu.registers.f |= Flag::ZERO | Flag::HALF_CARRY | Flag::NEGATIVE | Flag::FULL_CARRY;
-
-        cpu.rlc_a();
-
-        assert_eq!(cpu.registers.a, 0);
-        assert_eq!(cpu.registers.f, Flag::ZERO);
-    }
-
-    #[test]
-    fn test_rlc_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.a = 0b10101010;
-        cpu.registers.f |= Flag::ZERO | Flag::FULL_CARRY | Flag::HALF_CARRY | Flag::NEGATIVE;
-
-        cpu.rlc_a();
-
-        assert_eq!(cpu.registers.a, 0b01010101);
-        assert_eq!(cpu.registers.f, Flag::FULL_CARRY);
-    }
-
-    #[test]
-    fn test_rrc_a() {
-        let mut cpu = Cpu::new();
-        cpu.registers.a = 0b10101010;
-        cpu.registers.f |= Flag::ZERO | Flag::FULL_CARRY | Flag::HALF_CARRY | Flag::NEGATIVE;
-
-        cpu.rrc_a();
-
-        assert_eq!(cpu.registers.a, 0b01010101);
-        assert!(cpu.registers.f.is_empty());
-    }
-
-    #[test]
-    fn test_rrc_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.f |= Flag::FULL_CARRY;
-
-        let n = cpu.rrc_n(0);
-
-        assert_eq!(n, 0);
-        assert_eq!(cpu.registers.f, Flag::ZERO);
-    }
-
-    #[test]
-    fn test_rl_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.f |= Flag::FULL_CARRY;
-
-        let n = cpu.rl_n(0b00101010);
-
-        assert_eq!(n, 0b01010101);
-        assert!(cpu.registers.f.is_empty());
-    }
-
-    #[test]
-    fn test_rr_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.f |= Flag::FULL_CARRY;
-
-        let n = cpu.rr_n(0b10101010);
-
-        assert_eq!(n, 0b11010101);
-        assert!(cpu.registers.f.is_empty());
-    }
-
-    #[test]
-    fn test_sla_n() {
-        let mut cpu = Cpu::new();
-
-        let n = cpu.sla_n(0b10000000);
-
-        assert_eq!(n, 0);
-        assert_eq!(cpu.registers.f, Flag::FULL_CARRY | Flag::ZERO);
-    }
-
-    #[test]
-    fn test_sra_n() {
-        let mut cpu = Cpu::new();
-
-        let n = cpu.sra_n(0b10011001);
-
-        assert_eq!(n, 0b11001100);
-        assert_eq!(cpu.registers.f, Flag::FULL_CARRY);
-    }
-
-    #[test]
-    fn test_srl_n() {
-        let mut cpu = Cpu::new();
-
-        let n = cpu.srl_n(0b11111111);
-
-        assert_eq!(n, 0b01111111);
-        assert_eq!(cpu.registers.f, Flag::FULL_CARRY);
-    }
-
-    #[test]
-    fn test_swap_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.f |= Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY;
-
-        let n = cpu.swap_n(0b11110000);
-
-        assert_eq!(n, 0b00001111);
-        assert!(cpu.registers.f.is_empty());
-    }
-
-    #[test]
-    fn test_add_sp_e() {
-        let mut cpu = Cpu::new();
-        cpu.registers.sp = 0xFFF0;
-
-        let d = 0b11111111;
-
-        cpu.add_sp_d(d);
-
-        assert_eq!(cpu.registers.f, Flag::HALF_CARRY | Flag::FULL_CARRY);
-        assert_eq!(cpu.registers.sp, 0xFFEF);
-    }
-
-    #[test]
-    fn test_and_a_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.a = 0xFF;
-        cpu.registers.f |= Flag::FULL_CARRY | Flag::NEGATIVE;
-
-        cpu.and_n(0);
-
-        assert_eq!(cpu.registers.a, 0);
-        assert_eq!(cpu.registers.f, Flag::ZERO | Flag::HALF_CARRY);
-    }
-
-    #[test]
-    fn test_or_a_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.a = 0;
-        cpu.registers.f |= Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY;
-
-        cpu.or_n(0xFF);
-
-        assert_eq!(cpu.registers.a, 0xFF);
-        assert!(cpu.registers.f.is_empty());
-    }
-
-    #[test]
-    fn test_xor_a_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.a = 0b11110000;
-        cpu.registers.f |= Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY;
-
-        cpu.xor_n(0xFF);
-
-        assert_eq!(cpu.registers.a, 0b00001111);
-        assert!(cpu.registers.f.is_empty());
-    }
-
-    #[test]
-    fn test_cp_a_n() {
-        let mut cpu = Cpu::new();
-        cpu.registers.a = 0xFF;
-
-        cpu.cp_n(0xFF);
-
-        assert_eq!(
-            cpu.registers.f,
-            Flag::ZERO | Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY
-        );
-    }
-
-    #[test]
-    fn test_call_nn() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-        cpu.registers.pc = 0xAAAA;
-        cpu.registers.sp = 0xFF00;
-
-        cpu.call_nn(0xBBBB, &mut memory);
-
-        assert_eq!(cpu.registers.pc, 0xBBBB);
-        assert_eq!(cpu.registers.sp, 0xFEFE);
-        assert_eq!(memory.read_word(cpu.registers.sp), 0xAAAA);
-    }
-
-    #[test]
-    fn test_ret() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-        cpu.registers.pc = 0xAAAA;
-        cpu.registers.sp = 0xFF00;
-
-        cpu.call_nn(0xBBBB, &mut memory);
-        cpu.ret(&memory);
-
-        assert_eq!(cpu.registers.pc, 0xAAAA);
-        assert_eq!(cpu.registers.sp, 0xFF00);
-    }
-
-    #[test]
-    fn test_push_nn() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-        cpu.registers.sp = 0xFF00;
-
-        cpu.push_nn(0xFFFF, &mut memory);
-
-        assert_eq!(memory.read_word(cpu.registers.sp), 0xFFFF);
-        assert_eq!(cpu.registers.sp, 0xFEFE);
-    }
-
-    #[test]
-    fn test_pop_nn() {
-        let mut cpu = Cpu::new();
-        let mut memory = Memory::new();
-        cpu.registers.sp = 0xFEFE;
-        cpu.push_nn(0xFFFF, &mut memory);
-
-        let word = cpu.pop(&memory);
-
-        assert_eq!(word, 0xFFFF);
-        assert_eq!(cpu.registers.sp, 0xFEFE);
-    }
-
-    #[test]
-    fn test_jp_nn() {
-        unimplemented!();
-    }
-
-    #[test]
-    fn test_jr_nn() {
-        unimplemented!();
-    }
-
-    #[test]
-    fn test_opcode_0x00() {
-        unimplemented!();
-    }
-
-    #[test]
-    fn test_opcode_0x01() {}
+//    use cpu::Cpu;
+//    use mmu::Memory;
+//
+//    #[test]
+//    fn test_opcode_0x01() {}
 }

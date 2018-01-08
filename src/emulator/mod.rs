@@ -25,7 +25,7 @@ impl Emulator {
     }
 
     pub fn cycle<T: Io>(&mut self, io: &mut T) {
-        let cycles = self.cpu.step(&mut self.memory) as u32;
+        let cycles = self.cpu.step(&mut self.memory);
         self.gpu.step(cycles, &mut self.memory, io);
         self.handle_input(io);
         self.handle_interrupts();

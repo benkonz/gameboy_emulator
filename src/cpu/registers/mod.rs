@@ -12,8 +12,6 @@ pub struct Registers {
     pub l: u8,
     pub pc: u16,
     pub sp: u16,
-    pub ime: bool,
-    pub cycles: u16,
 }
 
 impl Registers {

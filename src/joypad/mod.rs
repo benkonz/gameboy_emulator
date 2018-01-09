@@ -8,8 +8,8 @@ use mmu::Memory;
 
 pub struct Joypad {
     use_direction_keys: bool,
-    direction_keys: DirectionKeys,
-    action_keys: ActionKeys,
+    pub direction_keys: DirectionKeys,
+    pub action_keys: ActionKeys,
 }
 
 impl Joypad {

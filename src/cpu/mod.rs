@@ -487,7 +487,7 @@ impl Cpu {
 
     fn rlc_a(&mut self) {
         let a = self.registers.a;
-        self.registers.a = alu::rrc_a(a, &mut self.registers.f);
+        self.registers.a = alu::rlc_a(a, &mut self.registers.f);
         self.instruction_cycle = 1;
     }
 

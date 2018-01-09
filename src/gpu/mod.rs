@@ -1,12 +1,17 @@
-mod registers;
 mod mode;
+mod flag;
 
 use self::mode::Mode;
+use self::flag::ControlFlag;
 use mmu::Memory;
 use mmu::interrupt::Interrupt;
 use emulator::traits::Io;
 
+const CONTROL_REGISTER_INDEX: u16 = 0xFF40;
+const SCROLL_Y_INDEX: u16 = 0xFF42;
+const SCROLL_X_INDEX: u16 = 0xFF43;
 const SCAN_LINE_INDEX: u16 = 0xFF44;
+const BACKGROUND_PALETTE_INDEX: u16 = 0xFF47;
 
 pub struct GPU {
     pub pixels: [u8; 144 * 160],
@@ -29,7 +34,7 @@ impl GPU {
             Mode::HBlank => self.h_blank(memory, drawer),
             Mode::VBlank => self.v_blank(memory),
             Mode::OAM => self.oam(),
-            Mode::VRAM => self.vram()
+            Mode::VRAM => self.vram(memory)
         }
     }
 
@@ -38,7 +43,7 @@ impl GPU {
 
             self.increment_scanline(memory);
 
-            if memory.read_byte(SCAN_LINE_INDEX) == 0x143 {
+            if memory.read_byte(SCAN_LINE_INDEX) == 143 {
 
                 self.mode = Mode::VBlank;
                 drawer.draw(&self.pixels);
@@ -67,10 +72,10 @@ impl GPU {
         }
     }
 
-    fn vram(&mut self) {
+    fn vram(&mut self, memory: &Memory) {
         if self.cycles >= 172 {
             self.mode = Mode::HBlank;
-            self.render_scan();
+            self.render_scan(memory);
             self.cycles = 0;
         }
     }
@@ -81,7 +86,29 @@ impl GPU {
         memory.write_byte(SCAN_LINE_INDEX, scanline);
     }
 
-    fn render_scan(&self) {
-        //TODO:: finish this
+    fn render_scan(&mut self, memory: &Memory) {
+        let flag = memory.read_byte(CONTROL_REGISTER_INDEX);
+        let scan_line = memory.read_byte(SCAN_LINE_INDEX);
+        let scroll_y = memory.read_byte(SCROLL_Y_INDEX);
+        let scroll_x = memory.read_byte(SCROLL_X_INDEX);
+        let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
+
+        let flag = ControlFlag::from_bits(flag).unwrap();
+        let map_offset = if flag.contains(ControlFlag::BACKGROUND) {
+            0x1C00
+        } else {
+            0x1800
+        };
+
+        let line_offset = (scan_line + scroll_y) as u16;
+
+        let map_y = line_offset / 8;
+
+        for x in 0..160 {
+            let x_offset = x + scroll_x;
+            let map_x = (x_offset / 8) as u16;
+            let tile_id = memory.read_byte(0x8000 + map_offset + (32 * map_y + map_x));
+//            let tile = tile_id * 16
+        }
     }
 }

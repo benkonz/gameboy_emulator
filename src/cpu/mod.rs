@@ -579,7 +579,7 @@ impl Cpu {
 
     fn rl_a(&mut self) {
         let a = self.registers.a;
-        self.registers.a = alu::rl_n(a, &mut self.registers.f);
+        self.registers.a = alu::rl_a(a, &mut self.registers.f);
         self.instruction_cycle = 1;
     }
 

@@ -101,7 +101,13 @@ impl Memory {
         //TODO: update address 0xFF0F with the new interrupt
     }
 
-    pub fn load_rom(&mut self, rom: &[u8]) {
+    /// loads the rom into the memory struct
+    ///
+    /// # Arguments
+    ///
+    /// * `rom` - the rom file as represented as a vector of bytes.
+    ///           Consumes the rom files, since the function makes a copy of the rom into memory
+    pub fn load_rom(&mut self, rom: Vec<u8>) {
         self.rom_banks[0].copy_from_slice(&rom[..0x4000]);
         self.rom_banks[1].copy_from_slice(&rom[0x4000..0x8000]);
 
@@ -164,7 +170,7 @@ mod tests {
     #[test]
     fn test_load_rom() {
         let mut memory = Memory::new();
-        let mut rom = [0u8; 0xE000];
+        let mut rom = vec![0; 0xE000];
         for (i, item) in rom.iter_mut().enumerate() {
             match i {
                 0x0000 ... 0x3FFF => *item = 0u8,
@@ -175,7 +181,7 @@ mod tests {
             };
         }
 
-        memory.load_rom(&rom);
+        memory.load_rom(rom);
 
         assert_eq!(memory.rom_banks.len(), 4);
 

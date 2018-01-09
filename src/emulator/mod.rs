@@ -24,6 +24,10 @@ impl Emulator {
         }
     }
 
+    pub fn load_rom(&mut self, rom: Vec<u8>) {
+        self.memory.load_rom(rom);
+    }
+
     pub fn cycle<T: Io>(&mut self, io: &mut T) {
         let cycles = self.cpu.step(&mut self.memory);
         self.gpu.step(cycles, &mut self.memory, io);

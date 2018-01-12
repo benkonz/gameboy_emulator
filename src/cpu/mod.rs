@@ -43,10 +43,10 @@ impl Cpu {
 
     pub fn step(&mut self, memory: &mut Memory) -> u8 {
         let opcode = memory.read_byte(self.registers.pc);
-        println!("{:X}", opcode);
+        println!("opcode: {:X} pc: {:X}", opcode, self.registers.pc);
         self.registers.pc += 1;
 
-        if self.registers.pc == 0x100 {
+        if self.registers.pc >= 0x100 {
             memory.unmap_bios();
         }
 
@@ -555,7 +555,7 @@ impl Cpu {
 
     fn inc_de(&mut self) {
         let mut de = self.registers.get_de();
-        de = alu::dec_nn(de);
+        de = alu::inc_nn(de);
         self.registers.set_de(de);
         self.instruction_cycle = 2;
     }
@@ -1540,7 +1540,7 @@ impl Cpu {
     }
 
     fn ext_ops(&mut self, opcode: u8, memory: &mut Memory) {
-        println!("CB OPCODE {:X}", opcode);
+//        println!("CB OPCODE {:X}", opcode);
         match opcode {
             0x00 => self.rlc_b(),
             0x01 => self.rlc_c(),
@@ -2040,7 +2040,7 @@ impl Cpu {
         alu::cp_a_n(self.registers.a, n, &mut self.registers.f);
         self.instruction_cycle = 2;
 
-        println!("compared {:X} with {:X}", self.registers.a, n);
+//        println!("compared {:X} with {:X}", self.registers.a, n);
     }
 
     fn rst_38(&mut self, memory: &mut Memory) {

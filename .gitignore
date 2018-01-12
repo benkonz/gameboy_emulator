@@ -1,6 +1,10 @@
-target/
-.idea/
-.vs/
-.vscode/
-gameboy_core.iml
+# ide files
+*.idea/
+*.vs/
+*.vscode/
+*.iml
+
+# rust files
+/target/
+**/*.rs.bk
 Cargo.lock

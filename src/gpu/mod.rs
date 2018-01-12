@@ -13,6 +13,13 @@ const SCROLL_X_INDEX: u16 = 0xFF43;
 const SCAN_LINE_INDEX: u16 = 0xFF44;
 const BACKGROUND_PALETTE_INDEX: u16 = 0xFF47;
 
+const PALETTE: [u8; 4] = [
+    0b11111111,
+    0b01001010,
+    0b00100101,
+    0b00000000
+];
+
 pub struct GPU {
     pub pixels: [u8; 144 * 160],
     cycles: u64,
@@ -94,11 +101,6 @@ impl GPU {
         let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
 
         let flag = ControlFlag::from_bits(flag).unwrap();
-        let map_offset = if flag.contains(ControlFlag::BACKGROUND) {
-            0x1C00
-        } else {
-            0x1800
-        };
 
         let line_offset = (scan_line + scroll_y) as u16;
 
@@ -107,8 +109,26 @@ impl GPU {
         for x in 0..160 {
             let x_offset = x + scroll_x;
             let map_x = (x_offset / 8) as u16;
-            let tile_id = memory.read_byte(0x8000 + map_offset + (32 * map_y + map_x));
-//            let tile = tile_id * 16
+
+            let tile = if flag.contains(ControlFlag::BACKGROUND) {
+                let tile_id = memory.read_byte(0x9C00 + (32 * map_y + map_x));
+                memory.get_tile_from_map1(tile_id)
+            } else {
+                let tile_id = memory.read_byte(0x9800 + (32 * map_y + map_x)) as i8;
+                memory.get_tile_from_map0(tile_id)
+            };
+
+            let row_num = line_offset % 8;
+            let column_num = x_offset % 8;
+
+            let high = tile[row_num as usize];
+            let low = tile[(row_num + 1) as usize];
+
+            let high_color = ((high & (1 << column_num) >= 1) as u8) << 1;
+            let low_color = (low & (1 << column_num) >= 1) as u8;
+            let color = PALETTE[(high_color + low_color) as usize];
+
+            self.pixels[(159 * (143 - scan_line as usize) + x as usize)] = color;
         }
     }
 }

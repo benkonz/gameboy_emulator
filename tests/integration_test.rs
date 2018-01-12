@@ -19,6 +19,10 @@ fn test_bios() {
     let mut emulator = Emulator::new();
     let mut io = MockIo;
 
+    let rom = include_bytes!("tetris.gb").to_vec();
+
+    emulator.load_rom(rom);
+
     loop {
         emulator.cycle(&mut io);
     }

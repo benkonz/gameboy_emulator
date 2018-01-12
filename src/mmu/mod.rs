@@ -44,7 +44,9 @@ impl Memory {
                     self.rom_banks[0][index]
                 }
             }
-            0x0100 ... 0x3FFF => self.rom_banks[0][index],
+            0x0100 ... 0x3FFF => {
+                self.rom_banks[0][index]
+            }
             0x4000 ... 0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
             0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000],
             0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
@@ -87,15 +89,27 @@ impl Memory {
         let interrupt_enable = self.read_byte(0xFFFF);
         let interrupt_flags = self.read_byte(0xFF0F);
 
-        match interrupt_enable & interrupt_flags {
-            01 => Some(Interrupt::Vblank),
-            02 => Some(Interrupt::Lcd),
-            04 => Some(Interrupt::Timer),
-            08 => Some(Interrupt::Joypad),
-            _ => None
-        }
+//        match interrupt_enable & interrupt_flags {
+//            01 => Some(Interrupt::Vblank),
+//            02 => Some(Interrupt::Lcd),
+//            04 => Some(Interrupt::Timer),
+//            08 => Some(Interrupt::Joypad),
+//            _ => None
+//        }
+
+        None
     }
 
+    pub fn get_tile_from_map0(&self, tile_id: i8) -> &[u8] {
+//        println!("tile_id is {}", tile_id as i16 + 128);
+        let index = 0x800 + (tile_id + 127) as usize * 0x10;
+        &self.vram_banks[self.selected_vram_bank][index..index + 0xF]
+    }
+
+    pub fn get_tile_from_map1(&self, tile_id: u8) -> &[u8] {
+        let index = (tile_id * 0x10) as usize;
+        &self.vram_banks[self.selected_vram_bank][index..index + 0xF]
+    }
 
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
         //TODO: update address 0xFF0F with the new interrupt

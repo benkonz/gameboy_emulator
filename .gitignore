@@ -8,3 +8,6 @@
 /target/
 **/*.rs.bk
 Cargo.lock
+
+# test files
+*.gb

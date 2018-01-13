@@ -11,7 +11,7 @@ use std::u8;
 pub struct Cpu {
     registers: Registers,
     pub stopped: bool,
-    interrupt_enabled: bool,
+    pub interrupt_enabled: bool,
     pub cycles: u64,
     instruction_cycle: u8,
 }
@@ -21,7 +21,7 @@ impl Cpu {
         Cpu {
             registers: Default::default(),
             stopped: false,
-            interrupt_enabled: true,
+            interrupt_enabled: false,
             cycles: 0,
             instruction_cycle: 0,
         }

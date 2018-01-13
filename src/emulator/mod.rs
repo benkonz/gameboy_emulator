@@ -41,12 +41,15 @@ impl Emulator {
     }
 
     fn handle_interrupts(&mut self) {
-        if let Some(interrupt) = self.memory.get_interrupt() {
-            self.process_interrupt(interrupt);
+        if self.cpu.interrupt_enabled {
+            if let Some(interrupt) = self.memory.get_interrupt() {
+                self.process_interrupt(interrupt);
+            }
         }
     }
 
     fn process_interrupt(&mut self, interrupt: Interrupt) {
+
         match interrupt {
             Interrupt::Vblank => self.cpu.rst_40(&mut self.memory),
             Interrupt::Lcd => self.cpu.rst_48(&mut self.memory),
@@ -54,5 +57,7 @@ impl Emulator {
             Interrupt::Serial => self.cpu.rst_58(&mut self.memory),
             Interrupt::Joypad => self.cpu.rst_60(&mut self.memory),
         }
+
+        self.memory.remove_interrupt(interrupt);
     }
 }

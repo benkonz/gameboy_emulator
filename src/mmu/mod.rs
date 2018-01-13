@@ -89,20 +89,20 @@ impl Memory {
         let interrupt_enable = self.read_byte(0xFFFF);
         let interrupt_flags = self.read_byte(0xFF0F);
 
-//        match interrupt_enable & interrupt_flags {
-//            01 => Some(Interrupt::Vblank),
-//            02 => Some(Interrupt::Lcd),
-//            04 => Some(Interrupt::Timer),
-//            08 => Some(Interrupt::Joypad),
-//            _ => None
-//        }
+        let iflag = interrupt_enable & interrupt_flags;
+        println!("enable: {:b} flags: {:b} iflag: {:b}", interrupt_enable, interrupt_flags, iflag);
 
-        None
+        match iflag.trailing_zeros() {
+            1 => Some(Interrupt::Vblank),
+            2 => Some(Interrupt::Lcd),
+            3 => Some(Interrupt::Timer),
+            4 => Some(Interrupt::Joypad),
+            _ => None
+        }
     }
 
     pub fn get_tile_from_map0(&self, tile_id: i8) -> &[u8] {
-//        println!("tile_id is {}", tile_id as i16 + 128);
-        let index = 0x800 + (tile_id + 127) as usize * 0x10;
+        let index = 0x800 + (tile_id as i16 + 127) as usize * 0x10;
         &self.vram_banks[self.selected_vram_bank][index..index + 0xF]
     }
 
@@ -112,7 +112,15 @@ impl Memory {
     }
 
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
-        //TODO: update address 0xFF0F with the new interrupt
+        let mut interrupt_flag = self.read_byte(0xFF0F);
+        interrupt_flag |= interrupt as u8;
+        self.write_byte(0xFF0F, interrupt_flag);
+    }
+
+    pub fn remove_interrupt(&mut self, interrupt: Interrupt) {
+        let mut interrupt_flag = self.read_byte(0xFF0F);
+        interrupt_flag &= !(interrupt as u8);
+        self.write_byte(0xFF0F, interrupt_flag);
     }
 
     /// loads the rom into the memory struct

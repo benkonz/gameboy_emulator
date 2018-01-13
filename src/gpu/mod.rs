@@ -13,12 +13,11 @@ const SCROLL_X_INDEX: u16 = 0xFF43;
 const SCAN_LINE_INDEX: u16 = 0xFF44;
 const BACKGROUND_PALETTE_INDEX: u16 = 0xFF47;
 
-const PALETTE: [u8; 4] = [
-    0b11111111,
-    0b01001010,
-    0b00100101,
-    0b00000000
-];
+const WHITE: u8 = 0b11111111;
+const LIGHT_GRAY: u8 = 0b01001010;
+const DARK_GRAY: u8 = 0b00100101;
+const BLACK: u8 = 0b00000000;
+
 
 pub struct GPU {
     pub pixels: [u8; 144 * 160],
@@ -93,12 +92,31 @@ impl GPU {
         memory.write_byte(SCAN_LINE_INDEX, scanline);
     }
 
+    fn get_palette(&self, memory: &Memory) -> [u8; 4] {
+        let order = memory.read_byte(BACKGROUND_PALETTE_INDEX);
+        let mut palette: [u8; 4] = [0; 4];
+
+        for i in 0..4 {
+            match (order >> (i * 2)) & 0b11 {
+                0b00 => palette[i] = WHITE,
+                0b01 => palette[i] = LIGHT_GRAY,
+                0b10 => palette[i] = DARK_GRAY,
+                0b11 => palette[i] = BLACK,
+                _ => {}
+            }
+        }
+
+        palette
+    }
+
     fn render_scan(&mut self, memory: &Memory) {
+        //todo: debug this code
+
         let flag = memory.read_byte(CONTROL_REGISTER_INDEX);
         let scan_line = memory.read_byte(SCAN_LINE_INDEX);
         let scroll_y = memory.read_byte(SCROLL_Y_INDEX);
         let scroll_x = memory.read_byte(SCROLL_X_INDEX);
-        let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
+        let palette = self.get_palette(memory);
 
         let flag = ControlFlag::from_bits(flag).unwrap();
 
@@ -107,8 +125,8 @@ impl GPU {
         let map_y = line_offset / 8;
 
         for x in 0..160 {
-            let x_offset = x + scroll_x;
-            let map_x = (x_offset / 8) as u16;
+            let x_offset = x + scroll_x as u16;
+            let map_x = x_offset / 8;
 
             let tile = if flag.contains(ControlFlag::BACKGROUND) {
                 let tile_id = memory.read_byte(0x9C00 + (32 * map_y + map_x));
@@ -126,9 +144,11 @@ impl GPU {
 
             let high_color = ((high & (1 << column_num) >= 1) as u8) << 1;
             let low_color = (low & (1 << column_num) >= 1) as u8;
-            let color = PALETTE[(high_color + low_color) as usize];
+            let color = palette[(high_color + low_color) as usize];
 
-            self.pixels[(159 * (143 - scan_line as usize) + x as usize)] = color;
+            println!("COLOR: {}", color);
+
+            self.pixels[(160 * (143 - scan_line as usize) + x as usize)] = color;
         }
     }
 }

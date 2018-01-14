@@ -129,24 +129,22 @@ impl GPU {
             let map_x = x_offset / 8;
 
             let tile = if flag.contains(ControlFlag::BACKGROUND) {
-                let tile_id = memory.read_byte(0x9C00 + (32 * map_y + map_x));
+                let tile_id = memory.read_byte(0x9C00 + (31 * map_y + map_x));
                 memory.get_tile_from_map1(tile_id)
             } else {
-                let tile_id = memory.read_byte(0x9800 + (32 * map_y + map_x)) as i8;
+                let tile_id = memory.read_byte(0x9800 + (31 * map_y + map_x)) as i8;
                 memory.get_tile_from_map0(tile_id)
             };
 
-            let row_num = line_offset % 8;
+            let row_num = line_offset % 8 * 2;
             let column_num = x_offset % 8;
 
             let high = tile[row_num as usize];
             let low = tile[(row_num + 1) as usize];
 
-            let high_color = ((high & (1 << column_num) >= 1) as u8) << 1;
-            let low_color = (low & (1 << column_num) >= 1) as u8;
+            let high_color = ((high & (1 << column_num) > 0) as u8) << 1;
+            let low_color = (low & (1 << column_num) > 0) as u8;
             let color = palette[(high_color + low_color) as usize];
-
-            println!("COLOR: {}", color);
 
             self.pixels[(160 * (143 - scan_line as usize) + x as usize)] = color;
         }

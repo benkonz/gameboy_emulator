@@ -38,8 +38,8 @@ impl GPU {
         self.cycles += steps as u64;
         match self.mode {
             Mode::HBlank => self.h_blank(memory, drawer),
-            Mode::VBlank => self.v_blank(memory),
-            Mode::OAM => self.oam(),
+            Mode::VBlank => self.v_blank(),
+            Mode::OAM => self.oam(memory),
             Mode::VRAM => self.vram(memory)
         }
     }
@@ -47,32 +47,34 @@ impl GPU {
     fn h_blank<T: Io>(&mut self, memory: &mut Memory, drawer: &T) {
         if self.cycles >= 204 {
 
+            self.cycles = 0;
             self.increment_scanline(memory);
 
             if memory.read_byte(SCAN_LINE_INDEX) == 143 {
-
-                self.mode = Mode::VBlank;
+                self.mode = Mode::OAM;
                 drawer.draw(&self.pixels);
                 memory.request_interrupt(Interrupt::Vblank);
+            } else {
+                self.mode = Mode::VBlank;
             }
         }
     }
 
-    fn oam(&mut self) {
+    fn v_blank(&mut self) {
         if self.cycles >= 80 {
             self.mode = Mode::VRAM;
             self.cycles = 0;
         }
     }
 
-    fn v_blank(&mut self, memory: &mut Memory) {
+    fn oam(&mut self, memory: &mut Memory) {
         if self.cycles >= 456 {
 
             self.cycles = 0;
             self.increment_scanline(memory);
 
             if memory.read_byte(SCAN_LINE_INDEX) > 153 {
-                self.mode = Mode::OAM;
+                self.mode = Mode::HBlank;
                 memory.write_byte(SCAN_LINE_INDEX, 0);
             }
         }
@@ -80,9 +82,9 @@ impl GPU {
 
     fn vram(&mut self, memory: &Memory) {
         if self.cycles >= 172 {
+            self.cycles = 0;
             self.mode = Mode::HBlank;
             self.render_scan(memory);
-            self.cycles = 0;
         }
     }
 
@@ -110,8 +112,6 @@ impl GPU {
     }
 
     fn render_scan(&mut self, memory: &Memory) {
-        //todo: debug this code
-
         let flag = memory.read_byte(CONTROL_REGISTER_INDEX);
         let scan_line = memory.read_byte(SCAN_LINE_INDEX);
         let scroll_y = memory.read_byte(SCROLL_Y_INDEX);
@@ -129,10 +129,10 @@ impl GPU {
             let map_x = x_offset / 8;
 
             let tile = if flag.contains(ControlFlag::BACKGROUND) {
-                let tile_id = memory.read_byte(0x9C00 + (31 * map_y + map_x));
+                let tile_id = memory.read_byte(0x9C00 + (32 * map_y + map_x));
                 memory.get_tile_from_map1(tile_id)
             } else {
-                let tile_id = memory.read_byte(0x9800 + (31 * map_y + map_x)) as i8;
+                let tile_id = memory.read_byte(0x9800 + (32 * map_y + map_x)) as i8;
                 memory.get_tile_from_map0(tile_id)
             };
 

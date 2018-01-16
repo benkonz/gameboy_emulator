@@ -96,17 +96,19 @@ impl GPU {
 
     fn get_palette(&self, memory: &Memory) -> [u8; 4] {
         let order = memory.read_byte(BACKGROUND_PALETTE_INDEX);
-        let mut palette: [u8; 4] = [0; 4];
+        // let mut palette: [u8; 4] = [0; 4];
 
-        for i in 0..4 {
-            match (order >> (i * 2)) & 0b11 {
-                0b00 => palette[i] = WHITE,
-                0b01 => palette[i] = LIGHT_GRAY,
-                0b10 => palette[i] = DARK_GRAY,
-                0b11 => palette[i] = BLACK,
-                _ => {}
-            }
-        }
+        // for i in 0..4 {
+        //     match (order >> (i * 2)) & 0b11 {
+        //         0b00 => palette[i] = WHITE,
+        //         0b01 => palette[i] = LIGHT_GRAY,
+        //         0b10 => palette[i] = DARK_GRAY,
+        //         0b11 => palette[i] = BLACK,
+        //         _ => {}
+        //     }
+        // }
+
+        let mut palette: [u8; 4] = [WHITE, LIGHT_GRAY, DARK_GRAY, BLACK];
 
         palette
     }

@@ -37,24 +37,22 @@ impl Memory {
         let index = index as usize;
 
         match index {
-            0x0000 ... 0x00FF => {
+            0x0000...0x00FF => {
                 if self.in_bios {
                     BIOS[index]
                 } else {
                     self.rom_banks[0][index]
                 }
             }
-            0x0100 ... 0x3FFF => {
-                self.rom_banks[0][index]
-            }
-            0x4000 ... 0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
-            0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000],
-            0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
-            0xC000 ... 0xCFFF => self.wram_banks[0][index - 0xC000],
-            0xD000 ... 0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000],
-            0xE000 ... 0xFDFF => self.wram_banks[0][index - 0xE000],
-            0xFE00 ... 0xFFFF => self.high_ram[index - 0xFE00],
-            _ => 0
+            0x0100...0x3FFF => self.rom_banks[0][index],
+            0x4000...0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
+            0x8000...0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000],
+            0xA000...0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
+            0xC000...0xCFFF => self.wram_banks[0][index - 0xC000],
+            0xD000...0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000],
+            0xE000...0xFDFF => self.wram_banks[0][index - 0xE000],
+            0xFE00...0xFFFF => self.high_ram[index - 0xFE00],
+            _ => 0,
         }
     }
 
@@ -62,12 +60,14 @@ impl Memory {
         let index = index as usize;
 
         match index {
-            0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000] = value,
-            0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000] = value,
-            0xC000 ... 0xCFFF => self.wram_banks[0][index - 0xC000] = value,
-            0xD000 ... 0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000] = value,
-            0xE000 ... 0xFDFF => self.wram_banks[0][index - 0xE000] = value,
-            0xFE00 ... 0xFFFF => self.high_ram[index - 0xFE00] = value,
+            0x8000...0x9FFF => {
+                self.vram_banks[self.selected_vram_bank][index - 0x8000] = value;
+            }
+            0xA000...0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000] = value,
+            0xC000...0xCFFF => self.wram_banks[0][index - 0xC000] = value,
+            0xD000...0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000] = value,
+            0xE000...0xFDFF => self.wram_banks[0][index - 0xE000] = value,
+            0xFE00...0xFFFF => self.high_ram[index - 0xFE00] = value,
             _ => {}
         };
     }
@@ -90,23 +90,22 @@ impl Memory {
         let interrupt_flags = self.read_byte(0xFF0F);
 
         let iflag = interrupt_enable & interrupt_flags;
-        println!("enable: {:b} flags: {:b} iflag: {:b}", interrupt_enable, interrupt_flags, iflag);
 
         match iflag.trailing_zeros() {
             1 => Some(Interrupt::Vblank),
             2 => Some(Interrupt::Lcd),
             3 => Some(Interrupt::Timer),
             4 => Some(Interrupt::Joypad),
-            _ => None
+            _ => None,
         }
     }
 
-    pub fn get_tile_from_map0(&self, tile_id: i8) -> &[u8] {
-        let index = 0x800 + (tile_id as i16 + 127) as usize * 0x10;
+    pub fn get_tile_from_map0(&self, tile_id: i8) -> &[u8; 0x10] {
+        let index = 0x800 + ((tile_id as i16 + 128) as usize) * 0x10;
         &self.vram_banks[self.selected_vram_bank][index..index + 0x10]
     }
 
-    pub fn get_tile_from_map1(&self, tile_id: u8) -> &[u8] {
+    pub fn get_tile_from_map1(&self, tile_id: u8) -> &[u8; 0x10] {
         let index = (tile_id * 0x10) as usize;
         &self.vram_banks[self.selected_vram_bank][index..index + 0x10]
     }
@@ -195,10 +194,10 @@ mod tests {
         let mut rom = vec![0; 0xE000];
         for (i, item) in rom.iter_mut().enumerate() {
             match i {
-                0x0000 ... 0x3FFF => *item = 0u8,
-                0x4000 ... 0x7FFF => *item = 1u8,
-                0x8000 ... 0xBFFF => *item = 2u8,
-                0xC000 ... 0xE000 => *item = 3u8,
+                0x0000...0x3FFF => *item = 0u8,
+                0x4000...0x7FFF => *item = 1u8,
+                0x8000...0xBFFF => *item = 2u8,
+                0xC000...0xE000 => *item = 3u8,
                 _ => {}
             };
         }
@@ -209,30 +208,22 @@ mod tests {
 
         for (i, bank) in memory.rom_banks.iter().enumerate() {
             match i {
-                0 => {
-                    for byte in bank.iter() {
+                0 => for byte in bank.iter() {
+                    assert_eq!(*byte, 0);
+                },
+                1 => for byte in bank.iter() {
+                    assert_eq!(*byte, 1);
+                },
+                2 => for byte in bank.iter() {
+                    assert_eq!(*byte, 2);
+                },
+                3 => for (i, byte) in bank.iter().enumerate() {
+                    if i < 0x2000 {
+                        assert_eq!(*byte, 3);
+                    } else {
                         assert_eq!(*byte, 0);
                     }
-                }
-                1 => {
-                    for byte in bank.iter() {
-                        assert_eq!(*byte, 1);
-                    }
-                }
-                2 => {
-                    for byte in bank.iter() {
-                        assert_eq!(*byte, 2);
-                    }
-                }
-                3 => {
-                    for (i, byte) in bank.iter().enumerate() {
-                        if i < 0x2000 {
-                            assert_eq!(*byte, 3);
-                        } else {
-                            assert_eq!(*byte, 0);
-                        }
-                    }
-                }
+                },
                 _ => {}
             };
         }

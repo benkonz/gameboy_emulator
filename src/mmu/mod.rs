@@ -100,13 +100,13 @@ impl Memory {
         }
     }
 
-    pub fn get_tile_from_map0(&self, tile_id: i8) -> &[u8] {
-        let index = 0x800 + ((tile_id as i16 + 128) as usize) * 0x10;
+    pub fn get_tile_from_map1(&self, tile_id: u8) -> &[u8] {
+        let index = (tile_id as usize * 0x10);
         &self.vram_banks[self.selected_vram_bank][index..index + 0x10]
     }
 
-    pub fn get_tile_from_map1(&self, tile_id: u8) -> &[u8] {
-        let index = (tile_id * 0x10) as usize;
+    pub fn get_tile_from_map0(&self, tile_id: i8) -> &[u8] {
+        let index = (128 + tile_id as i16) as usize * 0x10;
         &self.vram_banks[self.selected_vram_bank][index..index + 0x10]
     }
 
@@ -186,6 +186,25 @@ mod tests {
         memory.write_byte(0xC000, 1);
         assert_eq!(memory.read_byte(0xC000), 1);
         assert_eq!(memory.read_byte(0xE000), 1);
+    }
+
+    #[test]
+    fn test_get_tile_from_map_0() {
+        let mut memory = Memory::new();
+        let tile = [
+            0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00,
+            0x7F, 0x00,
+        ];
+
+        for (i, row) in tile.iter().enumerate() {
+            memory.write_byte((0x9000 + i) as u16, *row);
+        }
+
+        let actual = memory.get_tile_from_map0(0);
+
+        for i in 0..0x10 {
+            assert_eq!(tile[i], actual[i]);
+        }
     }
 
     #[test]

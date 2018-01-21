@@ -96,19 +96,19 @@ impl GPU {
 
     fn get_palette(&self, memory: &Memory) -> [u8; 4] {
         let order = memory.read_byte(BACKGROUND_PALETTE_INDEX);
-        // let mut palette: [u8; 4] = [0; 4];
+        let mut palette: [u8; 4] = [0; 4];
 
-        // for i in 0..4 {
-        //     match (order >> (i * 2)) & 0b11 {
-        //         0b00 => palette[i] = WHITE,
-        //         0b01 => palette[i] = LIGHT_GRAY,
-        //         0b10 => palette[i] = DARK_GRAY,
-        //         0b11 => palette[i] = BLACK,
-        //         _ => {}
-        //     }
-        // }
+        for i in 0..4 {
+            match (order >> (i * 2)) & 0b11 {
+                0b00 => palette[i] = WHITE,
+                0b01 => palette[i] = LIGHT_GRAY,
+                0b10 => palette[i] = DARK_GRAY,
+                0b11 => palette[i] = BLACK,
+                _ => {}
+            }
+        }
 
-        let mut palette: [u8; 4] = [WHITE, LIGHT_GRAY, DARK_GRAY, BLACK];
+        // let mut palette: [u8; 4] = [WHITE, LIGHT_GRAY, DARK_GRAY, BLACK];
 
         palette
     }
@@ -122,33 +122,51 @@ impl GPU {
 
         let flag = ControlFlag::from_bits(flag).unwrap();
 
-        let line_offset = (scan_line + scroll_y) as u16;
+        let line_offset = (scan_line + scroll_y) as usize;
 
         let map_y = line_offset / 8;
 
         for x in 0..160 {
-            let x_offset = x + scroll_x as u16;
+            let x_offset = (x + scroll_x) as usize;
             let map_x = x_offset / 8;
 
-            let tile = if flag.contains(ControlFlag::BACKGROUND) {
-                let tile_id = memory.read_byte(0x9C00 + (32 * map_y + map_x));
-                memory.get_tile_from_map1(tile_id)
+            let tile_id = if flag.contains(ControlFlag::BACKGROUND_TILE_MAP) {
+                memory.read_byte((0x9C00 + (32 * map_y + map_x)) as u16)
             } else {
-                let tile_id = memory.read_byte(0x9800 + (32 * map_y + map_x)) as i8;
-                memory.get_tile_from_map0(tile_id)
+                memory.read_byte((0x9800 + (32 * map_y + map_x)) as u16)
             };
 
-            let row_num = line_offset % 8 * 2;
+            let tile = if flag.contains(ControlFlag::BACKGROUND_TILE_SET) {
+                memory.get_tile_from_map1(tile_id)
+            } else {
+                memory.get_tile_from_map0(tile_id as i8)
+            };
+
+            let row_num = (line_offset % 8) * 2;
             let column_num = x_offset % 8;
 
-            let high = tile[row_num as usize];
-            let low = tile[(row_num + 1) as usize];
+            let high = tile[row_num];
+            let low = tile[(row_num + 1)];
 
-            let high_color = ((high & (1 << column_num) > 0) as u8) << 1;
-            let low_color = (low & (1 << column_num) > 0) as u8;
+            let high_color = ((high & (1 << column_num) != 0) as u8) << 1;
+            let low_color = (low & (1 << column_num) != 0) as u8;
             let color = palette[(high_color + low_color) as usize];
 
             self.pixels[(160 * (143 - scan_line as usize) + x as usize)] = color;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpu::GPU;
+    use mmu::Memory;
+
+    #[test]
+    fn test_render_scan() {
+        let mut memory = Memory::new();
+        let mut gpu = GPU::new();
+
+        assert_eq!(1, 1);
     }
 }

@@ -649,7 +649,7 @@ impl Cpu {
     fn ldi_hl_a(&mut self, memory: &mut Memory) {
         let hl = self.registers.get_hl();
         memory.write_byte(hl, self.registers.a);
-        self.registers.set_hl(hl.wrapping_sub(1));
+        self.registers.set_hl(hl.wrapping_add(1));
         self.instruction_cycle = 2;
     }
 

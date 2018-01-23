@@ -98,6 +98,7 @@ impl GPU {
         let order = memory.read_byte(BACKGROUND_PALETTE_INDEX);
         let mut palette: [u8; 4] = [0; 4];
 
+        // iterate through each pair of two bits in the byte
         for i in 0..4 {
             match (order >> (i * 2)) & 0b11 {
                 0b00 => palette[i] = WHITE,
@@ -107,8 +108,6 @@ impl GPU {
                 _ => {}
             }
         }
-
-        // let mut palette: [u8; 4] = [WHITE, LIGHT_GRAY, DARK_GRAY, BLACK];
 
         palette
     }
@@ -137,13 +136,13 @@ impl GPU {
             };
 
             let tile = if flag.contains(ControlFlag::BACKGROUND_TILE_SET) {
-                memory.get_tile_from_map1(tile_id)
+                memory.get_tile_from_set1(tile_id)
             } else {
-                memory.get_tile_from_map0(tile_id as i8)
+                memory.get_tile_from_set0(tile_id as i8)
             };
 
             let row_num = (line_offset % 8) * 2;
-            let column_num = x_offset % 8;
+            let column_num = 7 - x_offset % 8;
 
             let high = tile[row_num];
             let low = tile[(row_num + 1)];

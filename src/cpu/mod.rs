@@ -820,7 +820,7 @@ impl Cpu {
     fn ldd_a_hl(&mut self, memory: &Memory) {
         let hl = self.registers.get_hl();
         self.registers.a = memory.read_byte(hl);
-        self.registers.set_hl(hl - 1);
+        self.registers.set_hl(hl.wrapping_sub(1));
         self.instruction_cycle = 2;
     }
 

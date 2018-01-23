@@ -100,13 +100,13 @@ impl Memory {
         }
     }
 
-    pub fn get_tile_from_map1(&self, tile_id: u8) -> &[u8] {
-        let index = (tile_id as usize * 0x10);
+    pub fn get_tile_from_set1(&self, tile_id: u8) -> &[u8] {
+        let index = tile_id as usize * 0x10;
         &self.vram_banks[self.selected_vram_bank][index..index + 0x10]
     }
 
-    pub fn get_tile_from_map0(&self, tile_id: i8) -> &[u8] {
-        let index = (128 + tile_id as i16) as usize * 0x10;
+    pub fn get_tile_from_set0(&self, tile_id: i8) -> &[u8] {
+        let index = (0x800 + (128 + tile_id as i32) * 0x10) as usize;
         &self.vram_banks[self.selected_vram_bank][index..index + 0x10]
     }
 

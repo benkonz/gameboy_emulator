@@ -7,10 +7,10 @@ use gameboy_core::joypad::Joypad;
 struct MockIo;
 
 impl Io for MockIo {
-    fn draw(&self, pixels: &[u8; 144 * 160]) {
+    fn draw(&self, _pixels: &[u8; 144 * 160]) {
     }
 
-    fn update_joypad(&mut self, joypad: &mut Joypad) {
+    fn update_joypad(&mut self, _joypad: &mut Joypad) {
     }
 }
 

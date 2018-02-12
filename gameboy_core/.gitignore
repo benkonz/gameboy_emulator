@@ -1,0 +1,13 @@
+# ide files
+*.idea/
+*.vs/
+*.vscode/
+*.iml
+
+# rust files
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# test files
+*.gb

@@ -1,10 +1,13 @@
 [package]
-name = "gameboy_core"
-version = "0.1.14"
+name = "gameboy_emulator"
+version = "0.1.0"
 authors = ["Ben Konz <bkonz@unomaha.edu>"]
-license = "Apache-2.0"
-repository = "https://github.com/bkonzUNOmaha/gameboy_core"
-description = "core library to be used for Gameboy emulation"
 
 [dependencies]
-bitflags = "1.0"
+gameboy_opengl = { path = "gameboy_opengl" }
+
+[workspace]
+
+[lib]
+name = "gameboy_lib"
+crate-type = ["cdylib"]

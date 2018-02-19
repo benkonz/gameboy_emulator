@@ -44,396 +44,398 @@ impl Cpu {
     }
 
     pub fn step(&mut self, memory: &mut Memory) -> i32 {
-        let opcode = memory.read_byte(self.registers.pc);
-        self.registers.pc += 1;
+        if !self.halted && !self.stopped {
+            let opcode = memory.read_byte(self.registers.pc);
+            self.registers.pc += 1;
 
-        match opcode {
-            0x00 => self.nop(),
-            0x01 => {
-                let nn = self.get_nn(memory);
-                self.ld_bc_nn(nn);
+            match opcode {
+                0x00 => self.nop(),
+                0x01 => {
+                    let nn = self.get_nn(memory);
+                    self.ld_bc_nn(nn);
+                }
+                0x02 => self.ld_bc_a(memory),
+                0x03 => self.inc_bc(),
+                0x04 => self.inc_b(),
+                0x05 => self.dec_b(),
+                0x06 => {
+                    let n = self.get_n(memory);
+                    self.ld_b_n(n);
+                }
+                0x07 => self.rlc_a(),
+                0x08 => {
+                    let nn = self.get_nn(memory);
+                    self.ld_nn_sp(nn, memory);
+                }
+                0x09 => self.add_hl_bc(),
+                0x0A => self.ld_a_bc(memory),
+                0x0B => self.dec_bc(),
+                0x0C => self.inc_c(),
+                0x0D => self.dec_c(),
+                0x0E => {
+                    let n = self.get_n(memory);
+                    self.ld_c_n(n);
+                }
+                0x0F => self.rrc_a(),
+                0x10 => self.stop(),
+                0x11 => {
+                    let nn = self.get_nn(memory);
+                    self.ld_de_nn(nn);
+                }
+                0x12 => self.ld_de_a(memory),
+                0x13 => self.inc_de(),
+                0x14 => self.inc_d(),
+                0x15 => self.dec_d(),
+                0x16 => {
+                    let n = self.get_n(memory);
+                    self.ld_d_n(n);
+                }
+                0x17 => self.rl_a(),
+                0x18 => {
+                    let n = self.get_n(memory);
+                    self.jr_n(n);
+                }
+                0x19 => self.add_hl_de(),
+                0x1A => self.ld_a_de(memory),
+                0x1B => self.dec_de(),
+                0x1C => self.inc_e(),
+                0x1D => self.dec_e(),
+                0x1E => {
+                    let n = self.get_n(memory);
+                    self.ld_e_n(n);
+                }
+                0x1F => self.rr_a(),
+                0x20 => {
+                    let n = self.get_n(memory);
+                    self.jr_nz_n(n);
+                }
+                0x21 => {
+                    let nn = self.get_nn(memory);
+                    self.ld_hl_nn(nn);
+                }
+                0x22 => self.ldi_hl_a(memory),
+                0x23 => self.inc_hl(),
+                0x24 => self.inc_h(),
+                0x25 => self.dec_h(),
+                0x26 => {
+                    let n = self.get_n(memory);
+                    self.ld_h_n(n);
+                }
+                0x27 => self.daa(),
+                0x28 => {
+                    let n = self.get_n(memory);
+                    self.jr_z_n(n);
+                }
+                0x29 => self.add_hl_hl(),
+                0x2A => self.ldi_a_hl(memory),
+                0x2B => self.dec_hl(),
+                0x2C => self.inc_l(),
+                0x2D => self.dec_l(),
+                0x2E => {
+                    let n = self.get_n(memory);
+                    self.ld_l_n(n);
+                }
+                0x2F => self.cpl(),
+                0x30 => {
+                    let n = self.get_n(memory);
+                    self.jr_nc_n(n);
+                }
+                0x31 => {
+                    let nn = self.get_nn(memory);
+                    self.ld_sp_nn(nn);
+                }
+                0x32 => self.ldd_hl_a(memory),
+                0x33 => self.inc_sp(),
+                0x34 => self.inc_hl_ref(memory),
+                0x35 => self.dec_hl_ref(memory),
+                0x36 => {
+                    let n = self.get_n(memory);
+                    self.ld_hl_n(n, memory);
+                }
+                0x37 => self.scf(),
+                0x38 => {
+                    let n = self.get_n(memory);
+                    self.jr_c_n(n);
+                }
+                0x39 => self.add_hl_sp(),
+                0x3A => self.ldd_a_hl(memory),
+                0x3B => self.dec_sp(),
+                0x3C => self.inc_a(),
+                0x3D => self.dec_a(),
+                0x3E => {
+                    let n = self.get_n(memory);
+                    self.ld_a_n(n);
+                }
+                0x3F => self.ccf(),
+                0x40 => self.ld_b_b(),
+                0x41 => self.ld_b_c(),
+                0x42 => self.ld_b_d(),
+                0x43 => self.ld_b_e(),
+                0x44 => self.ld_b_h(),
+                0x45 => self.ld_b_l(),
+                0x46 => self.ld_b_hl(memory),
+                0x47 => self.ld_b_a(),
+                0x48 => self.ld_c_b(),
+                0x49 => self.ld_c_c(),
+                0x4A => self.ld_c_d(),
+                0x4B => self.ld_c_e(),
+                0x4C => self.ld_c_h(),
+                0x4D => self.ld_c_l(),
+                0x4E => self.ld_c_hl(memory),
+                0x4F => self.ld_c_a(),
+                0x50 => self.ld_d_b(),
+                0x51 => self.ld_d_c(),
+                0x52 => self.ld_d_d(),
+                0x53 => self.ld_d_e(),
+                0x54 => self.ld_d_h(),
+                0x55 => self.ld_d_l(),
+                0x56 => self.ld_d_hl(memory),
+                0x57 => self.ld_d_a(),
+                0x58 => self.ld_e_b(),
+                0x59 => self.ld_e_c(),
+                0x5A => self.ld_e_d(),
+                0x5B => self.ld_e_e(),
+                0x5C => self.ld_e_h(),
+                0x5D => self.ld_e_l(),
+                0x5E => self.ld_e_hl(memory),
+                0x5F => self.ld_e_a(),
+                0x60 => self.ld_h_b(),
+                0x61 => self.ld_h_c(),
+                0x62 => self.ld_h_d(),
+                0x63 => self.ld_h_e(),
+                0x64 => self.ld_h_h(),
+                0x65 => self.ld_h_l(),
+                0x66 => self.ld_h_hl(memory),
+                0x67 => self.ld_h_a(),
+                0x68 => self.ld_l_b(),
+                0x69 => self.ld_l_c(),
+                0x6A => self.ld_l_d(),
+                0x6B => self.ld_l_e(),
+                0x6C => self.ld_l_h(),
+                0x6D => self.ld_l_l(),
+                0x6E => self.ld_l_hl(memory),
+                0x6F => self.ld_l_a(),
+                0x70 => self.ld_hl_b(memory),
+                0x71 => self.ld_hl_c(memory),
+                0x72 => self.ld_hl_d(memory),
+                0x73 => self.ld_hl_e(memory),
+                0x74 => self.ld_hl_h(memory),
+                0x75 => self.ld_hl_l(memory),
+                0x76 => self.halt(),
+                0x77 => self.ld_hl_a(memory),
+                0x78 => self.ld_a_b(),
+                0x79 => self.ld_a_c(),
+                0x7A => self.ld_a_d(),
+                0x7B => self.ld_a_e(),
+                0x7C => self.ld_a_h(),
+                0x7D => self.ld_a_l(),
+                0x7E => self.ld_a_hl(memory),
+                0x7F => self.ld_a_a(),
+                0x80 => self.add_a_b(),
+                0x81 => self.add_a_c(),
+                0x82 => self.add_a_d(),
+                0x83 => self.add_a_e(),
+                0x84 => self.add_a_h(),
+                0x85 => self.add_a_l(),
+                0x86 => self.add_a_hl(memory),
+                0x87 => self.add_a_a(),
+                0x88 => self.adc_a_b(),
+                0x89 => self.adc_a_c(),
+                0x8A => self.adc_a_d(),
+                0x8B => self.adc_a_e(),
+                0x8C => self.adc_a_h(),
+                0x8D => self.adc_a_l(),
+                0x8E => self.adc_a_hl(memory),
+                0x8F => self.adc_a_a(),
+                0x90 => self.sub_a_b(),
+                0x91 => self.sub_a_c(),
+                0x92 => self.sub_a_d(),
+                0x93 => self.sub_a_e(),
+                0x94 => self.sub_a_h(),
+                0x95 => self.sub_a_l(),
+                0x96 => self.sub_a_hl(memory),
+                0x97 => self.sub_a_a(),
+                0x98 => self.sbc_a_b(),
+                0x99 => self.sbc_a_c(),
+                0x9A => self.sbc_a_d(),
+                0x9B => self.sbc_a_e(),
+                0x9C => self.sbc_a_h(),
+                0x9D => self.sbc_a_l(),
+                0x9E => self.sbc_a_hl(memory),
+                0x9F => self.sbc_a_a(),
+                0xA0 => self.and_b(),
+                0xA1 => self.and_c(),
+                0xA2 => self.and_d(),
+                0xA3 => self.and_e(),
+                0xA4 => self.and_h(),
+                0xA5 => self.and_l(),
+                0xA6 => self.and_hl(memory),
+                0xA7 => self.and_a(),
+                0xA8 => self.xor_b(),
+                0xA9 => self.xor_c(),
+                0xAA => self.xor_d(),
+                0xAB => self.xor_e(),
+                0xAC => self.xor_h(),
+                0xAD => self.xor_l(),
+                0xAE => self.xor_hl(memory),
+                0xAF => self.xor_a(),
+                0xB0 => self.or_b(),
+                0xB1 => self.or_c(),
+                0xB2 => self.or_d(),
+                0xB3 => self.or_e(),
+                0xB4 => self.or_h(),
+                0xB5 => self.or_l(),
+                0xB6 => self.or_hl(memory),
+                0xB7 => self.or_a(),
+                0xB8 => self.cp_b(),
+                0xB9 => self.cp_c(),
+                0xBA => self.cp_d(),
+                0xBB => self.cp_e(),
+                0xBC => self.cp_h(),
+                0xBD => self.cp_l(),
+                0xBE => self.cp_hl(memory),
+                0xBF => self.cp_a(),
+                0xC0 => self.ret_nz(memory),
+                0xC1 => self.pop_bc(memory),
+                0xC2 => {
+                    let nn = self.get_nn(memory);
+                    self.jp_nz_nn(nn);
+                }
+                0xC3 => {
+                    let nn = self.get_nn(memory);
+                    self.jp_nn(nn);
+                }
+                0xC4 => {
+                    let nn = self.get_nn(memory);
+                    self.call_nz_nn(memory, nn);
+                }
+                0xC5 => self.push_bc(memory),
+                0xC6 => {
+                    let n = self.get_n(memory);
+                    self.add_a_n(n);
+                }
+                0xC7 => self.rst_0(memory),
+                0xC8 => self.ret_z(memory),
+                0xC9 => self.ret(memory),
+                0xCA => {
+                    let nn = self.get_nn(memory);
+                    self.jp_z_nn(nn);
+                }
+                0xCB => {
+                    let n = self.get_n(memory);
+                    self.ext_ops(n, memory);
+                }
+                0xCC => {
+                    let nn = self.get_nn(memory);
+                    self.call_z_nn(nn, memory);
+                }
+                0xCD => {
+                    let nn = self.get_nn(memory);
+                    self.call_nn(nn, memory);
+                }
+                0xCE => {
+                    let n = self.get_n(memory);
+                    self.adc_a_n(n);
+                }
+                0xCF => self.rst_8(memory),
+                0xD0 => self.ret_nc(memory),
+                0xD1 => self.pop_de(memory),
+                0xD2 => {
+                    let nn = self.get_nn(memory);
+                    self.jp_nc_nn(nn);
+                }
+                0xD3 => self.undefined(),
+                0xD4 => {
+                    let nn = self.get_nn(memory);
+                    self.call_nc_nn(nn, memory);
+                }
+                0xD5 => self.push_de(memory),
+                0xD6 => {
+                    let n = self.get_n(memory);
+                    self.sub_a_n(n);
+                }
+                0xD7 => self.rst_10(memory),
+                0xD8 => self.ret_c(memory),
+                0xD9 => self.ret_i(memory),
+                0xDA => {
+                    let nn = self.get_nn(memory);
+                    self.jp_c_nn(nn);
+                }
+                0xDB => self.undefined(),
+                0xDC => {
+                    let nn = self.get_nn(memory);
+                    self.call_c_nn(nn, memory);
+                }
+                0xDD => self.undefined(),
+                0xDE => {
+                    let n = self.get_n(memory);
+                    self.sbc_a_n(n);
+                }
+                0xDF => self.rst_18(memory),
+                0xE0 => {
+                    let n = self.get_n(memory);
+                    self.ldh_n_a(n, memory);
+                }
+                0xE1 => self.pop_hl(memory),
+                0xE2 => self.ldh_c_a(memory),
+                0xE3 => self.undefined(),
+                0xE4 => self.undefined(),
+                0xE5 => self.push_hl(memory),
+                0xE6 => {
+                    let n = self.get_n(memory);
+                    self.and_n(n);
+                }
+                0xE7 => self.rst_20(memory),
+                0xE8 => {
+                    let n = self.get_n(memory);
+                    self.add_sp_d(n);
+                }
+                0xE9 => self.jp_hl(memory),
+                0xEA => {
+                    let nn = self.get_nn(memory);
+                    self.ld_nn_a(nn, memory);
+                }
+                0xEB => self.undefined(),
+                0xEC => self.undefined(),
+                0xED => self.undefined(),
+                0xEE => {
+                    let n = self.get_n(memory);
+                    self.xor_n(n);
+                }
+                0xEF => self.rst_28(memory),
+                0xF0 => {
+                    let n = self.get_n(memory);
+                    self.ldh_a_n(n, memory);
+                }
+                0xF1 => self.pop_af(memory),
+                0xF2 => self.undefined(),
+                0xF3 => self.di(),
+                0xF4 => self.undefined(),
+                0xF5 => self.push_af(memory),
+                0xF6 => {
+                    let n = self.get_n(memory);
+                    self.or_n(n);
+                }
+                0xF7 => self.rst_30(memory),
+                0xF8 => {
+                    let n = self.get_n(memory);
+                    self.ldhl_sp_d(n, memory);
+                }
+                0xF9 => self.ld_sp_hl(),
+                0xFA => {
+                    let n = self.get_nn(memory);
+                    self.ld_a_nn(n, memory);
+                }
+                0xFB => self.ei(),
+                0xFC => self.undefined(),
+                0xFD => self.undefined(),
+                0xFE => {
+                    let n = self.get_n(memory);
+                    self.cp_n(n);
+                }
+                0xFF => self.rst_38(memory),
+                _ => {}
             }
-            0x02 => self.ld_bc_a(memory),
-            0x03 => self.inc_bc(),
-            0x04 => self.inc_b(),
-            0x05 => self.dec_b(),
-            0x06 => {
-                let n = self.get_n(memory);
-                self.ld_b_n(n);
-            }
-            0x07 => self.rlc_a(),
-            0x08 => {
-                let nn = self.get_nn(memory);
-                self.ld_nn_sp(nn, memory);
-            }
-            0x09 => self.add_hl_bc(),
-            0x0A => self.ld_a_bc(memory),
-            0x0B => self.dec_bc(),
-            0x0C => self.inc_c(),
-            0x0D => self.dec_c(),
-            0x0E => {
-                let n = self.get_n(memory);
-                self.ld_c_n(n);
-            }
-            0x0F => self.rrc_a(),
-            0x10 => self.stop(),
-            0x11 => {
-                let nn = self.get_nn(memory);
-                self.ld_de_nn(nn);
-            }
-            0x12 => self.ld_de_a(memory),
-            0x13 => self.inc_de(),
-            0x14 => self.inc_d(),
-            0x15 => self.dec_d(),
-            0x16 => {
-                let n = self.get_n(memory);
-                self.ld_d_n(n);
-            }
-            0x17 => self.rl_a(),
-            0x18 => {
-                let n = self.get_n(memory);
-                self.jr_n(n);
-            }
-            0x19 => self.add_hl_de(),
-            0x1A => self.ld_a_de(memory),
-            0x1B => self.dec_de(),
-            0x1C => self.inc_e(),
-            0x1D => self.dec_e(),
-            0x1E => {
-                let n = self.get_n(memory);
-                self.ld_e_n(n);
-            }
-            0x1F => self.rr_a(),
-            0x20 => {
-                let n = self.get_n(memory);
-                self.jr_nz_n(n);
-            }
-            0x21 => {
-                let nn = self.get_nn(memory);
-                self.ld_hl_nn(nn);
-            }
-            0x22 => self.ldi_hl_a(memory),
-            0x23 => self.inc_hl(),
-            0x24 => self.inc_h(),
-            0x25 => self.dec_h(),
-            0x26 => {
-                let n = self.get_n(memory);
-                self.ld_h_n(n);
-            }
-            0x27 => self.daa(),
-            0x28 => {
-                let n = self.get_n(memory);
-                self.jr_z_n(n);
-            }
-            0x29 => self.add_hl_hl(),
-            0x2A => self.ldi_a_hl(memory),
-            0x2B => self.dec_hl(),
-            0x2C => self.inc_l(),
-            0x2D => self.dec_l(),
-            0x2E => {
-                let n = self.get_n(memory);
-                self.ld_l_n(n);
-            }
-            0x2F => self.cpl(),
-            0x30 => {
-                let n = self.get_n(memory);
-                self.jr_nc_n(n);
-            }
-            0x31 => {
-                let nn = self.get_nn(memory);
-                self.ld_sp_nn(nn);
-            }
-            0x32 => self.ldd_hl_a(memory),
-            0x33 => self.inc_sp(),
-            0x34 => self.inc_hl_ref(memory),
-            0x35 => self.dec_hl_ref(memory),
-            0x36 => {
-                let n = self.get_n(memory);
-                self.ld_hl_n(n, memory);
-            }
-            0x37 => self.scf(),
-            0x38 => {
-                let n = self.get_n(memory);
-                self.jr_c_n(n);
-            }
-            0x39 => self.add_hl_sp(),
-            0x3A => self.ldd_a_hl(memory),
-            0x3B => self.dec_sp(),
-            0x3C => self.inc_a(),
-            0x3D => self.dec_a(),
-            0x3E => {
-                let n = self.get_n(memory);
-                self.ld_a_n(n);
-            }
-            0x3F => self.ccf(),
-            0x40 => self.ld_b_b(),
-            0x41 => self.ld_b_c(),
-            0x42 => self.ld_b_d(),
-            0x43 => self.ld_b_e(),
-            0x44 => self.ld_b_h(),
-            0x45 => self.ld_b_l(),
-            0x46 => self.ld_b_hl(memory),
-            0x47 => self.ld_b_a(),
-            0x48 => self.ld_c_b(),
-            0x49 => self.ld_c_c(),
-            0x4A => self.ld_c_d(),
-            0x4B => self.ld_c_e(),
-            0x4C => self.ld_c_h(),
-            0x4D => self.ld_c_l(),
-            0x4E => self.ld_c_hl(memory),
-            0x4F => self.ld_c_a(),
-            0x50 => self.ld_d_b(),
-            0x51 => self.ld_d_c(),
-            0x52 => self.ld_d_d(),
-            0x53 => self.ld_d_e(),
-            0x54 => self.ld_d_h(),
-            0x55 => self.ld_d_l(),
-            0x56 => self.ld_d_hl(memory),
-            0x57 => self.ld_d_a(),
-            0x58 => self.ld_e_b(),
-            0x59 => self.ld_e_c(),
-            0x5A => self.ld_e_d(),
-            0x5B => self.ld_e_e(),
-            0x5C => self.ld_e_h(),
-            0x5D => self.ld_e_l(),
-            0x5E => self.ld_e_hl(memory),
-            0x5F => self.ld_e_a(),
-            0x60 => self.ld_h_b(),
-            0x61 => self.ld_h_c(),
-            0x62 => self.ld_h_d(),
-            0x63 => self.ld_h_e(),
-            0x64 => self.ld_h_h(),
-            0x65 => self.ld_h_l(),
-            0x66 => self.ld_h_hl(memory),
-            0x67 => self.ld_h_a(),
-            0x68 => self.ld_l_b(),
-            0x69 => self.ld_l_c(),
-            0x6A => self.ld_l_d(),
-            0x6B => self.ld_l_e(),
-            0x6C => self.ld_l_h(),
-            0x6D => self.ld_l_l(),
-            0x6E => self.ld_l_hl(memory),
-            0x6F => self.ld_l_a(),
-            0x70 => self.ld_hl_b(memory),
-            0x71 => self.ld_hl_c(memory),
-            0x72 => self.ld_hl_d(memory),
-            0x73 => self.ld_hl_e(memory),
-            0x74 => self.ld_hl_h(memory),
-            0x75 => self.ld_hl_l(memory),
-            0x76 => self.halt(),
-            0x77 => self.ld_hl_a(memory),
-            0x78 => self.ld_a_b(),
-            0x79 => self.ld_a_c(),
-            0x7A => self.ld_a_d(),
-            0x7B => self.ld_a_e(),
-            0x7C => self.ld_a_h(),
-            0x7D => self.ld_a_l(),
-            0x7E => self.ld_a_hl(memory),
-            0x7F => self.ld_a_a(),
-            0x80 => self.add_a_b(),
-            0x81 => self.add_a_c(),
-            0x82 => self.add_a_d(),
-            0x83 => self.add_a_e(),
-            0x84 => self.add_a_h(),
-            0x85 => self.add_a_l(),
-            0x86 => self.add_a_hl(memory),
-            0x87 => self.add_a_a(),
-            0x88 => self.adc_a_b(),
-            0x89 => self.adc_a_c(),
-            0x8A => self.adc_a_d(),
-            0x8B => self.adc_a_e(),
-            0x8C => self.adc_a_h(),
-            0x8D => self.adc_a_l(),
-            0x8E => self.adc_a_hl(memory),
-            0x8F => self.adc_a_a(),
-            0x90 => self.sub_a_b(),
-            0x91 => self.sub_a_c(),
-            0x92 => self.sub_a_d(),
-            0x93 => self.sub_a_e(),
-            0x94 => self.sub_a_h(),
-            0x95 => self.sub_a_l(),
-            0x96 => self.sub_a_hl(memory),
-            0x97 => self.sub_a_a(),
-            0x98 => self.sbc_a_b(),
-            0x99 => self.sbc_a_c(),
-            0x9A => self.sbc_a_d(),
-            0x9B => self.sbc_a_e(),
-            0x9C => self.sbc_a_h(),
-            0x9D => self.sbc_a_l(),
-            0x9E => self.sbc_a_hl(memory),
-            0x9F => self.sbc_a_a(),
-            0xA0 => self.and_b(),
-            0xA1 => self.and_c(),
-            0xA2 => self.and_d(),
-            0xA3 => self.and_e(),
-            0xA4 => self.and_h(),
-            0xA5 => self.and_l(),
-            0xA6 => self.and_hl(memory),
-            0xA7 => self.and_a(),
-            0xA8 => self.xor_b(),
-            0xA9 => self.xor_c(),
-            0xAA => self.xor_d(),
-            0xAB => self.xor_e(),
-            0xAC => self.xor_h(),
-            0xAD => self.xor_l(),
-            0xAE => self.xor_hl(memory),
-            0xAF => self.xor_a(),
-            0xB0 => self.or_b(),
-            0xB1 => self.or_c(),
-            0xB2 => self.or_d(),
-            0xB3 => self.or_e(),
-            0xB4 => self.or_h(),
-            0xB5 => self.or_l(),
-            0xB6 => self.or_hl(memory),
-            0xB7 => self.or_a(),
-            0xB8 => self.cp_b(),
-            0xB9 => self.cp_c(),
-            0xBA => self.cp_d(),
-            0xBB => self.cp_e(),
-            0xBC => self.cp_h(),
-            0xBD => self.cp_l(),
-            0xBE => self.cp_hl(memory),
-            0xBF => self.cp_a(),
-            0xC0 => self.ret_nz(memory),
-            0xC1 => self.pop_bc(memory),
-            0xC2 => {
-                let nn = self.get_nn(memory);
-                self.jp_nz_nn(nn);
-            }
-            0xC3 => {
-                let nn = self.get_nn(memory);
-                self.jp_nn(nn);
-            }
-            0xC4 => {
-                let nn = self.get_nn(memory);
-                self.call_nz_nn(memory, nn);
-            }
-            0xC5 => self.push_bc(memory),
-            0xC6 => {
-                let n = self.get_n(memory);
-                self.add_a_n(n);
-            }
-            0xC7 => self.rst_0(memory),
-            0xC8 => self.ret_z(memory),
-            0xC9 => self.ret(memory),
-            0xCA => {
-                let nn = self.get_nn(memory);
-                self.jp_z_nn(nn);
-            }
-            0xCB => {
-                let n = self.get_n(memory);
-                self.ext_ops(n, memory);
-            }
-            0xCC => {
-                let nn = self.get_nn(memory);
-                self.call_z_nn(nn, memory);
-            }
-            0xCD => {
-                let nn = self.get_nn(memory);
-                self.call_nn(nn, memory);
-            }
-            0xCE => {
-                let n = self.get_n(memory);
-                self.adc_a_n(n);
-            }
-            0xCF => self.rst_8(memory),
-            0xD0 => self.ret_nc(memory),
-            0xD1 => self.pop_de(memory),
-            0xD2 => {
-                let nn = self.get_nn(memory);
-                self.jp_nc_nn(nn);
-            }
-            0xD3 => self.undefined(),
-            0xD4 => {
-                let nn = self.get_nn(memory);
-                self.call_nc_nn(nn, memory);
-            }
-            0xD5 => self.push_de(memory),
-            0xD6 => {
-                let n = self.get_n(memory);
-                self.sub_a_n(n);
-            }
-            0xD7 => self.rst_10(memory),
-            0xD8 => self.ret_c(memory),
-            0xD9 => self.ret_i(memory),
-            0xDA => {
-                let nn = self.get_nn(memory);
-                self.jp_c_nn(nn);
-            }
-            0xDB => self.undefined(),
-            0xDC => {
-                let nn = self.get_nn(memory);
-                self.call_c_nn(nn, memory);
-            }
-            0xDD => self.undefined(),
-            0xDE => {
-                let n = self.get_n(memory);
-                self.sbc_a_n(n);
-            }
-            0xDF => self.rst_18(memory),
-            0xE0 => {
-                let n = self.get_n(memory);
-                self.ldh_n_a(n, memory);
-            }
-            0xE1 => self.pop_hl(memory),
-            0xE2 => self.ldh_c_a(memory),
-            0xE3 => self.undefined(),
-            0xE4 => self.undefined(),
-            0xE5 => self.push_hl(memory),
-            0xE6 => {
-                let n = self.get_n(memory);
-                self.and_n(n);
-            }
-            0xE7 => self.rst_20(memory),
-            0xE8 => {
-                let n = self.get_n(memory);
-                self.add_sp_d(n);
-            }
-            0xE9 => self.jp_hl(memory),
-            0xEA => {
-                let nn = self.get_nn(memory);
-                self.ld_nn_a(nn, memory);
-            }
-            0xEB => self.undefined(),
-            0xEC => self.undefined(),
-            0xED => self.undefined(),
-            0xEE => {
-                let n = self.get_n(memory);
-                self.xor_n(n);
-            }
-            0xEF => self.rst_28(memory),
-            0xF0 => {
-                let n = self.get_n(memory);
-                self.ldh_a_n(n, memory);
-            }
-            0xF1 => self.pop_af(memory),
-            0xF2 => self.undefined(),
-            0xF3 => self.di(),
-            0xF4 => self.undefined(),
-            0xF5 => self.push_af(memory),
-            0xF6 => {
-                let n = self.get_n(memory);
-                self.or_n(n);
-            }
-            0xF7 => self.rst_30(memory),
-            0xF8 => {
-                let n = self.get_n(memory);
-                self.ldhl_sp_d(n, memory);
-            }
-            0xF9 => self.ld_sp_hl(),
-            0xFA => {
-                let n = self.get_nn(memory);
-                self.ld_a_nn(n, memory);
-            }
-            0xFB => self.ei(),
-            0xFC => self.undefined(),
-            0xFD => self.undefined(),
-            0xFE => {
-                let n = self.get_n(memory);
-                self.cp_n(n);
-            }
-            0xFF => self.rst_38(memory),
-            _ => {}
         }
 
         self.instruction_cycle
@@ -1921,6 +1923,9 @@ impl Cpu {
 
     fn ldh_n_a(&mut self, n: u8, memory: &mut Memory) {
         let index = 0xFF00 + (n as u16);
+        if index == 0xFF00 {
+//            println!("updating joypad to {:08b} program counter: {:x}", self.registers.a, self.registers.pc);
+        }
         memory.write_byte(index, self.registers.a);
         self.instruction_cycle = 3;
     }
@@ -3408,13 +3413,4 @@ impl Cpu {
         function::call_nn(&mut self.registers, 0x60, memory);
         self.instruction_cycle = 3;
     }
-}
-
-#[cfg(test)]
-mod tests {
-    //    use cpu::Cpu;
-    //    use mmu::Memory;
-    //
-    //    #[test]
-    //    fn test_opcode_0x01() {}
 }

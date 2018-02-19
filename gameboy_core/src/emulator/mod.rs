@@ -6,12 +6,14 @@ use mmu::Memory;
 use mmu::interrupt::Interrupt;
 use self::traits::Io;
 use joypad::Joypad;
+use timer::Timer;
 
 pub struct Emulator {
     cpu: Cpu,
     gpu: GPU,
+    timer: Timer,
     memory: Memory,
-    joypad: Joypad,
+    joypad: Joypad
 }
 
 impl Emulator {
@@ -19,8 +21,9 @@ impl Emulator {
         Emulator {
             cpu: Cpu::new(),
             gpu: GPU::new(),
+            timer: Timer::new(),
             memory: Memory::new(),
-            joypad: Joypad::new(),
+            joypad: Joypad::new()
         }
     }
 
@@ -33,28 +36,21 @@ impl Emulator {
         let mut cycles_this_update = 0;
 
         while cycles_this_update < max_cycles {
-            let cycles = if !self.cpu.stopped && !self.cpu.halted {
-                self.cpu.step(&mut self.memory)
-            } else {
-                1
-            };
+            let cycles = self.cpu.step(&mut self.memory);
             cycles_this_update += cycles;
+            self.timer.update(cycles, &mut self.memory);
             self.gpu.step(cycles, &mut self.memory);
-            self.handle_input(io);
+            io.update_joypad(&mut self.joypad);
+            self.joypad.update(&mut self.memory);
             self.handle_interrupts();
         }
 
         &self.gpu.pixels
     }
 
-    fn handle_input<T: Io>(&mut self, controller: &mut T) {
-        controller.update_joypad(&mut self.joypad);
-        self.joypad.save_to_memory(&mut self.memory);
-    }
-
     fn handle_interrupts(&mut self) {
         if self.cpu.interrupt_enabled {
-            if let Some(interrupt) = self.memory.get_interrupt() {
+            for interrupt in self.memory.get_interrupts() {
                 self.process_interrupt(interrupt);
             }
         }

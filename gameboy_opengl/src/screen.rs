@@ -155,7 +155,7 @@ impl Screen {
 
 impl Io for Screen {
     fn update_joypad(&mut self, joypad: &mut Joypad) {
-        let mut running = true;
+        let mut running = self.is_running;
         self.events_loop.poll_events(|event| match event {
             glutin::Event::WindowEvent { event, .. } => match event {
                 WindowEvent::KeyboardInput { input, .. } => {
@@ -193,7 +193,9 @@ impl Io for Screen {
                         }
                     }
                 }
-                WindowEvent::Closed => running = false,
+                WindowEvent::Closed => {
+                    running = false;
+                },
                 _ => (),
             },
             _ => (),

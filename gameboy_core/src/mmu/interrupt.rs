@@ -1,7 +1,7 @@
 pub enum Interrupt {
-    Vblank = 00,
-    Lcd = 01,
-    Timer = 02,
-    Serial = 04,
-    Joypad = 08
+    Vblank = 1 << 0,
+    Lcd = 1 << 1,
+    Timer = 1 << 2,
+    Serial = 1 << 3,
+    Joypad = 1 << 4
 }

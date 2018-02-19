@@ -17,7 +17,9 @@ pub struct Memory {
     selected_eram_bank: usize,
     selected_wram_bank: usize,
     selected_vram_bank: usize,
+    pub divider_register: u8,
     pub scan_line: u8,
+    joypad_state: u8,
 }
 
 impl Memory {
@@ -33,7 +35,9 @@ impl Memory {
             selected_vram_bank: 0,
             selected_eram_bank: 0,
             selected_wram_bank: 1,
+            divider_register: 0,
             scan_line: 0,
+            joypad_state: 0,
         }
     }
 
@@ -41,24 +45,23 @@ impl Memory {
         let index = index as usize;
 
         match index {
-            0x0000...0x00FF => {
+            0x0000 ... 0x00FF => {
                 if self.disable_bios == 0 {
                     BIOS[index]
                 } else {
                     self.rom_banks[0][index]
                 }
             }
-            0x0100...0x3FFF => self.rom_banks[0][index],
-            0x4000...0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
-            0x8000...0x9FFF => {
-                // println!("reading address {}", index);
-                self.vram_banks[self.selected_vram_bank][index - 0x8000]
-            }
-            0xA000...0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
-            0xC000...0xCFFF => self.wram_banks[0][index - 0xC000],
-            0xD000...0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000],
+            0x0100 ... 0x3FFF => self.rom_banks[0][index],
+            0x4000 ... 0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
+            0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000],
+            0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
+            0xC000 ... 0xCFFF => self.wram_banks[0][index - 0xC000],
+            0xD000 ... 0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000],
             // 0xE000...0xFDFF => self.wram_banks[0][index - 0xE000],
-            0xFE00...0xFFFF => match index {
+            0xFE00 ... 0xFFFF => match index {
+                0xFF00 => self.get_joypad_state(),
+                0xFF04 => self.divider_register,
                 0xFF44 => self.scan_line,
                 0xFF50 => self.disable_bios,
                 _ => self.high_ram[index - 0xFE00],
@@ -67,24 +70,58 @@ impl Memory {
         }
     }
 
+    fn get_joypad_state(&self) -> u8 {
+        let joypad_control = self.high_ram[0x100];
+
+
+        if self.are_direction_keys_enabled() {
+            (joypad_control & 0xF0) | (self.joypad_state & 0x0F)
+        } else if self.are_action_keys_enabled() {
+            (joypad_control & 0xF0) | (self.joypad_state >> 4)
+        } else {
+            joypad_control
+        }
+    }
+
+    pub fn set_joypad_state(&mut self, joypad_state: u8) {
+        self.joypad_state = joypad_state;
+    }
+
+    pub fn are_action_keys_enabled(&self) -> bool {
+        let joypad_control = self.high_ram[0x100];
+        joypad_control & (1 << 5) == 0
+    }
+
+    pub fn are_direction_keys_enabled(&self) -> bool {
+        let joypad_control = self.high_ram[0x100];
+        joypad_control & (1 << 4) == 0
+    }
+
     pub fn write_byte(&mut self, index: u16, value: u8) {
         let index = index as usize;
 
         match index {
-            0x8000...0x9FFF => {
-                // println!("writing {:X} to address {:X}", value, index);
-                self.vram_banks[self.selected_vram_bank][index - 0x8000] = value;
-            }
-            0xA000...0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000] = value,
-            0xC000...0xCFFF => self.wram_banks[0][index - 0xC000] = value,
-            0xD000...0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000] = value,
-            0xFE00...0xFFFF => match index {
+            0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000] = value,
+            0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000] = value,
+            0xC000 ... 0xCFFF => self.wram_banks[0][index - 0xC000] = value,
+            0xD000 ... 0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000] = value,
+            0xFE00 ... 0xFFFF => match index {
+                0xFF04 => self.divider_register = 0,
                 0xFF44 => self.scan_line = 0,
+                0xFF46 => self.do_dma_transfer(value),
                 0xFF50 => self.disable_bios = value,
                 _ => self.high_ram[index - 0xFE00] = value,
             },
             _ => {}
         };
+    }
+
+    fn do_dma_transfer(&mut self, data: u8) {
+        let address = 100u16 * data as u16;
+        for i in 0..0xA0 {
+            let value = self.read_byte(address + i);
+            self.write_byte(0xFE00 + i, value);
+        }
     }
 
     pub fn read_word(&self, index: u16) -> u16 {
@@ -100,30 +137,34 @@ impl Memory {
         self.write_byte(index + 1, high);
     }
 
-    pub fn get_interrupt(&self) -> Option<Interrupt> {
+    pub fn get_interrupts(&self) -> Vec<Interrupt> {
         let interrupt_enable = self.read_byte(INTERRUPT_ENABLE_INDEX);
         let interrupt_flags = self.read_byte(INTERRUPT_FLAGS_INDEX);
-
         let iflag = interrupt_enable & interrupt_flags;
 
-        match iflag.trailing_zeros() {
-            1 => Some(Interrupt::Vblank),
-            2 => Some(Interrupt::Lcd),
-            3 => Some(Interrupt::Timer),
-            4 => Some(Interrupt::Joypad),
-            _ => None,
+        let mut interrupts = Vec::new();
+
+        if iflag & 1 << 0 != 0 {
+            interrupts.push(Interrupt::Vblank);
         }
+        if iflag & 1 << 1 != 0 {
+            interrupts.push(Interrupt::Lcd);
+        }
+        if iflag & 1 << 2 != 0 {
+            interrupts.push(Interrupt::Timer);
+        }
+        if iflag & 1 << 4 != 0 {
+            interrupts.push(Interrupt::Joypad);
+        }
+
+        interrupts
     }
 
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
-        let interrupt_enable = self.read_byte(INTERRUPT_ENABLE_INDEX);
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
         let interrupt = interrupt as u8;
-
-        if interrupt_enable & interrupt != 0 {
-            interrupt_flag |= interrupt;
-            self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
-        }
+        interrupt_flag |= interrupt;
+        self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
 
     pub fn remove_interrupt(&mut self, interrupt: Interrupt) {
@@ -218,10 +259,10 @@ mod tests {
         let mut rom = vec![0; 0xE000];
         for (i, item) in rom.iter_mut().enumerate() {
             match i {
-                0x0000...0x3FFF => *item = 0u8,
-                0x4000...0x7FFF => *item = 1u8,
-                0x8000...0xBFFF => *item = 2u8,
-                0xC000...0xE000 => *item = 3u8,
+                0x0000 ... 0x3FFF => *item = 0u8,
+                0x4000 ... 0x7FFF => *item = 1u8,
+                0x8000 ... 0xBFFF => *item = 2u8,
+                0xC000 ... 0xE000 => *item = 3u8,
                 _ => {}
             };
         }

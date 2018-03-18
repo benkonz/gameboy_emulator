@@ -1,0 +1,33 @@
+{
+  "name": "gameboy_emulator",
+  "version": "1.0.0",
+  "description": "A gameboy emulator",
+  "main": "index.js",
+  "scripts": {
+    "test": "test",
+    "compile": "webpack --progress",
+    "serve": "http-server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benkonz/gameboy_emulator.git"
+  },
+  "keywords": [
+    "gameboy",
+    "emulator"
+  ],
+  "author": "Ben Konz",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/benkonz/gameboy_emulator/issues"
+  },
+  "homepage": "https://github.com/benkonz/gameboy_emulator#readme",
+  "dependencies": {
+    "npm": "^5.7.1"
+  },
+  "devDependencies": {
+    "http-server": "^0.11.1",
+    "rust-wasm-loader": "^0.1.2",
+    "webpack": "^4.1.1"
+  }
+}

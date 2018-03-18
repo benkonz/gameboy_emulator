@@ -1,6 +1,11 @@
-/target/
+target/
 **/*.rs.bk
 Cargo.lock
+
 *.idea/
 *.iml
+
 *.gb
+
+node_modules/
+package-lock.json

@@ -1,0 +1,13 @@
+[package]
+name = "gameboy_opengl"
+version = "0.1.4"
+authors = ["Ben Konz <bkonz@unomaha.edu>"]
+license = "Apache-2.0"
+repository = "https://github.com/bkonzUNOmaha/gameboy_opengl"
+description = "opengl library for use in gameboy emulation with the gameboy_core library"
+
+[dependencies]
+gameboy_core = { path = "../gameboy_core" }
+glutin = "0.11"
+gl = "0.7"
+c_str_macro = "1.0"

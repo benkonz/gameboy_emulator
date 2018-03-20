@@ -1,69 +1,100 @@
 use mmu::Memory;
 use mmu::interrupt::Interrupt;
 
-const TIMER_INDEX: u16 = 0xFF05;
+const SELECTABLE_TIMER_INDEX: u16 = 0xFF05;
 const TIMER_RESET_INDEX: u16 = 0xFF06;
 const TIMER_CONTROL_INDEX: u16 = 0xFF07;
 
+struct Clock {
+    main: i32,
+    sub: i32,
+    div: i32,
+}
+
+impl Clock {
+    fn new() -> Clock {
+        Clock {
+            main: 0,
+            sub: 0,
+            div: 0,
+        }
+    }
+}
+
+struct Registers {
+    div: u8,
+    tima: u8,
+}
+
+impl Registers {
+    fn new() -> Registers {
+        Registers {
+            div: 0,
+            tima: 0,
+        }
+    }
+}
+
 pub struct Timer {
-    divide_register_counter: i32,
-    timer_counter: i32,
-    timer_max_cycles: i32
+    clock: Clock,
+    registers: Registers,
 }
 
 impl Timer {
     pub fn new() -> Timer {
         Timer {
-            divide_register_counter: 0,
-            timer_counter: 0,
-            timer_max_cycles: 1024,
+            clock: Clock::new(),
+            registers: Registers::new(),
         }
     }
 
     pub fn update(&mut self, cycles: i32, memory: &mut Memory) {
-        self.divider_register(cycles, memory);
+        self.clock.sub += cycles;
 
-        if self.is_clock_enabled(memory) {
-            self.update_clock_frequency(memory);
+        if self.clock.sub >= 4 {
+            self.clock.main += 1;
+            self.clock.sub -= 4;
 
-            self.timer_counter += cycles;
+            self.clock.div += 1;
 
-            if self.timer_counter <= 0 {
-                let mut timer = memory.read_byte(TIMER_INDEX);
-
-                if timer == 0xFF {
-                    timer = memory.read_byte(TIMER_RESET_INDEX);
-                    memory.request_interrupt(Interrupt::Timer);
-                } else {
-                    timer += 1;
-                }
-
-                memory.write_byte(TIMER_INDEX, timer);
+            if self.clock.div == 16 {
+                self.registers.div = self.registers.div.wrapping_add(1);
+                self.clock.div = 0;
+                memory.divider_register = self.registers.div;
             }
         }
+
+        self.check(memory);
     }
 
-    fn divider_register(&mut self, cycles: i32, memory: &mut Memory) {
-        self.divide_register_counter += cycles;
-        if self.divide_register_counter >= 255 {
-            self.divide_register_counter = 0;
-            memory.divider_register = memory.divider_register.wrapping_add(1);
+    fn check(&mut self, memory: &mut Memory) {
+        let tac = memory.read_byte(TIMER_CONTROL_INDEX);
+
+        let threshold = match tac & 0b11 {
+            0b00 => 64,
+            0b01 => 1,
+            0b10 => 4,
+            0b11 => 16,
+            _ => panic!()
+        };
+
+        if self.clock.main >= threshold {
+            self.step(memory);
         }
     }
 
-    fn is_clock_enabled(&self, memory: &Memory) -> bool {
-        memory.read_byte(TIMER_CONTROL_INDEX) & 2 != 0
-    }
+    fn step(&mut self, memory: &mut Memory) {
+        self.clock.main = 0;
+        let (result, overflow) = self.registers.tima.overflowing_add(1);
 
-    fn update_clock_frequency(&mut self, memory: &Memory) {
-        let timer_controller = memory.read_byte(TIMER_CONTROL_INDEX);
+        if overflow {
+            let tma = memory.read_byte(TIMER_RESET_INDEX);
+            self.registers.tima = tma;
+            memory.request_interrupt(Interrupt::Timer);
+        } else {
+            self.registers.tima = result;
+        }
 
-        self.timer_max_cycles = match timer_controller & 3 {
-            0 => 1024,
-            1 => 16,
-            2 => 64,
-            3 => 256,
-            _ => 0
-        };
+        memory.write_byte(SELECTABLE_TIMER_INDEX, self.registers.tima);
     }
 }

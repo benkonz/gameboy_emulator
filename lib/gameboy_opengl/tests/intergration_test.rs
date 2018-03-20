@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn test_tetris() {
-        let bytes = include_bytes!("drmario.gb");
+        let bytes = include_bytes!("tetris.gb");
 
         gameboy_opengl::start(bytes.to_vec());
     }

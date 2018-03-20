@@ -6,6 +6,9 @@ license = "Apache-2.0"
 repository = "https://github.com/bkonzUNOmaha/gameboy_opengl"
 description = "opengl library for use in gameboy emulation with the gameboy_core library"
 
+[[bin]]
+name = "gameboy_emulator"
+
 [dependencies]
 gameboy_core = { path = "../gameboy_core" }
 glutin = "0.11"

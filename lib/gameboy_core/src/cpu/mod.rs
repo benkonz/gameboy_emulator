@@ -1235,7 +1235,6 @@ impl Cpu {
     }
 
     fn jp_nn(&mut self, nn: u16) {
-        // TODO: try swapping the endianness of this?
         self.registers.pc = nn;
         self.instruction_cycle = 12;
     }

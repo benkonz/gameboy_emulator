@@ -1,5 +1,13 @@
 use joypad::Joypad;
 
-pub trait Io {
-    fn update_joypad(&mut self, joypad: &mut Joypad);
+pub trait Render {
+    fn render(&mut self, &[u8]);
+}
+
+pub trait Input {
+    fn get_input(&mut self) -> &mut Joypad;
+}
+
+pub trait Running {
+    fn should_run(&self) -> bool;
 }

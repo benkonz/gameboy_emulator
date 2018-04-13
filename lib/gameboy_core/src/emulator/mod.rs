@@ -1,11 +1,13 @@
 pub mod traits;
 
+use self::traits::*;
 use cpu::Cpu;
 use gpu::GPU;
-use mmu::Memory;
-use mmu::interrupt::Interrupt;
-use self::traits::Io;
 use joypad::Joypad;
+use mmu::interrupt::Interrupt;
+use mmu::Memory;
+use std::thread;
+use std::time::{Duration, SystemTime};
 use timer::Timer;
 
 pub struct Emulator {
@@ -13,7 +15,7 @@ pub struct Emulator {
     gpu: GPU,
     timer: Timer,
     memory: Memory,
-    joypad: Joypad
+    joypad: Joypad,
 }
 
 impl Emulator {
@@ -23,7 +25,7 @@ impl Emulator {
             gpu: GPU::new(),
             timer: Timer::new(),
             memory: Memory::new(),
-            joypad: Joypad::new()
+            joypad: Joypad::new(),
         }
     }
 
@@ -31,21 +33,38 @@ impl Emulator {
         self.memory.load_rom(rom);
     }
 
-    pub fn update<T: Io>(&mut self, io: &mut T) -> &[u8; 144 * 160] {
+    pub fn emulate<T: Render + Input + Running>(&mut self, system: &mut T) {
+        let frame_rate = 60f64;
+        let frame_duration = Duration::from_millis((1000f64 * (1f64 / frame_rate)) as u64);
         let max_cycles = 69905;
-        let mut cycles_this_update = 0;
 
-        while cycles_this_update < max_cycles {
-            let cycles = self.cpu.step(&mut self.memory);
-            cycles_this_update += cycles;
-            self.timer.update(cycles, &mut self.memory);
-            self.gpu.step(cycles, &mut self.memory);
-            io.update_joypad(&mut self.joypad);
-            self.joypad.update(&mut self.memory);
-            self.handle_interrupts();
+        while system.should_run() {
+            let start_time = SystemTime::now();
+
+            let mut cycles_this_update = 0;
+
+            while cycles_this_update < max_cycles {
+                let cycles = self.cpu.step(&mut self.memory);
+                cycles_this_update += cycles;
+                self.timer.update(cycles, &mut self.memory);
+                self.gpu.step(cycles, &mut self.memory);
+                system.get_input().update(&mut self.memory);
+                self.handle_interrupts();
+            }
+
+            system.render(&self.gpu.pixels);
+
+            let end_time = SystemTime::now();
+
+            let last_frame_duration = end_time.duration_since(start_time).unwrap();
+
+            if frame_duration >= last_frame_duration {
+                let sleep_duration = frame_duration - last_frame_duration;
+                thread::sleep(sleep_duration);
+            }
+
+            system.render(&self.gpu.pixels);
         }
-
-        &self.gpu.pixels
     }
 
     fn handle_interrupts(&mut self) {

@@ -1,4 +1,4 @@
-use gameboy_core::emulator::traits::Io;
+use gameboy_core::emulator::traits::*;
 use gameboy_core::joypad::Joypad;
 use gameboy_core::joypad::button::Button;
 use glutin;
@@ -6,8 +6,7 @@ use glutin::*;
 use gl;
 use gl::types::*;
 use std::os::raw::c_void;
-use std::mem;
-use std::ptr;
+use std::{mem, ptr};
 use shader::Shader;
 use std;
 
@@ -28,14 +27,16 @@ pub struct Screen {
     vbo: GLuint,
     ebo: GLuint,
     texture: GLuint,
-    pub is_running: bool,
+    is_running: bool,
+    joypad: Joypad
 }
 
 impl Screen {
     pub fn new() -> Screen {
         let events_loop = glutin::EventsLoop::new();
         let window = glutin::WindowBuilder::new();
-        let context = glutin::ContextBuilder::new();
+        let context = glutin::ContextBuilder::new()
+            .with_vsync(true);
         let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
 
         unsafe {
@@ -110,12 +111,13 @@ impl Screen {
             ebo,
             texture,
             is_running: true,
+            joypad: Joypad::new()
         }
     }
 }
 
-impl Screen {
-    pub fn draw(&self, pixels: &[u8; 144 * 160]) {
+impl Render for Screen {
+    fn render(&mut self, pixels: &[u8]) {
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
@@ -132,7 +134,7 @@ impl Screen {
                 gl::UNSIGNED_BYTE_3_3_2,
                 pixels.as_ptr() as *const c_void,
             );
-            gl::GenerateMipmap(gl::TEXTURE_2D);
+            // gl::GenerateMipmap(gl::TEXTURE_2D);
 
             gl::ActiveTexture(gl::TEXTURE0);
 
@@ -153,9 +155,11 @@ impl Screen {
     }
 }
 
-impl Io for Screen {
-    fn update_joypad(&mut self, joypad: &mut Joypad) {
+impl Input for Screen {
+    fn get_input(&mut self) -> &mut Joypad {
         let mut running = self.is_running;
+        let mut joypad = &mut self.joypad;
+
         self.events_loop.poll_events(|event| match event {
             glutin::Event::WindowEvent { event, .. } => match event {
                 WindowEvent::KeyboardInput { input, .. } => {
@@ -201,6 +205,14 @@ impl Io for Screen {
             _ => (),
         });
         self.is_running = running;
+
+        joypad
+    }
+}
+
+impl Running for Screen {
+    fn should_run(&self) -> bool {
+        self.is_running
     }
 }
 

@@ -62,8 +62,6 @@ impl Emulator {
                 let sleep_duration = frame_duration - last_frame_duration;
                 thread::sleep(sleep_duration);
             }
-
-            system.render(&self.gpu.pixels);
         }
     }
 

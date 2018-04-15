@@ -1,14 +1,15 @@
-use gameboy_core::emulator::traits::*;
-use gameboy_core::joypad::Joypad;
 use gameboy_core::joypad::button::Button;
-use glutin;
-use glutin::*;
+use gameboy_core::joypad::Joypad;
+use gameboy_core::traits::*;
+use gameboy_core::Color;
 use gl;
 use gl::types::*;
-use std::os::raw::c_void;
-use std::{mem, ptr};
+use glutin;
+use glutin::*;
 use shader::Shader;
 use std;
+use std::os::raw::c_void;
+use std::{mem, ptr};
 
 const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
 const FRAGMENT_SOURCE: &'static str = include_str!("shaders/fragment.glsl");
@@ -28,15 +29,15 @@ pub struct Screen {
     ebo: GLuint,
     texture: GLuint,
     is_running: bool,
-    joypad: Joypad
+    joypad: Joypad,
+    pixels: [u8; 144 * 160],
 }
 
 impl Screen {
     pub fn new() -> Screen {
         let events_loop = glutin::EventsLoop::new();
         let window = glutin::WindowBuilder::new();
-        let context = glutin::ContextBuilder::new()
-            .with_vsync(true);
+        let context = glutin::ContextBuilder::new().with_vsync(true);
         let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
 
         unsafe {
@@ -111,13 +112,36 @@ impl Screen {
             ebo,
             texture,
             is_running: true,
-            joypad: Joypad::new()
+            joypad: Joypad::new(),
+            pixels: [0; 144 * 160],
+        }
+    }
+}
+
+impl PixelMapper for Screen {
+    fn map_pixel(&mut self, x: u8, y: u8, color: Color) {
+        let color_byte = match color {
+            Color::White => 0b11111111,
+            Color::LightGray => 0b01001010,
+            Color::DarkGray => 0b00100101,
+            Color::Black => 0b0000000
+        };
+
+        self.pixels[160 * (143 - y as usize) + x as usize] = color_byte;
+    }
+
+    fn get_pixel(&self, x: u8, y: u8) -> Color {
+        match self.pixels[160 * (143 - y as usize) + x as usize] {
+            0b11111111 => Color::White,
+            0b01001010 => Color::LightGray,
+            0b00100101 => Color::DarkGray,
+            _ => Color::Black
         }
     }
 }
 
 impl Render for Screen {
-    fn render(&mut self, pixels: &[u8]) {
+    fn render(&mut self) {
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
@@ -132,9 +156,9 @@ impl Render for Screen {
                 0,
                 gl::RGB,
                 gl::UNSIGNED_BYTE_3_3_2,
-                pixels.as_ptr() as *const c_void,
+                self.pixels.as_ptr() as *const c_void,
             );
-            // gl::GenerateMipmap(gl::TEXTURE_2D);
+            gl::GenerateMipmap(gl::TEXTURE_2D);
 
             gl::ActiveTexture(gl::TEXTURE0);
 
@@ -158,7 +182,7 @@ impl Render for Screen {
 impl Input for Screen {
     fn get_input(&mut self) -> &mut Joypad {
         let mut running = self.is_running;
-        let mut joypad = &mut self.joypad;
+        let joypad = &mut self.joypad;
 
         self.events_loop.poll_events(|event| match event {
             glutin::Event::WindowEvent { event, .. } => match event {
@@ -199,7 +223,7 @@ impl Input for Screen {
                 }
                 WindowEvent::Closed => {
                     running = false;
-                },
+                }
                 _ => (),
             },
             _ => (),

@@ -1,12 +1,15 @@
+pub mod color;
 mod lcd_control_flag;
 mod lcd_status_flag;
 mod sprite_attributes;
 
+use self::color::Color;
 use self::lcd_control_flag::LcdControlFlag;
 use self::lcd_status_flag::LcdStatusFlag;
 use self::sprite_attributes::SpriteAttributes;
-use mmu::Memory;
 use mmu::interrupt::Interrupt;
+use mmu::Memory;
+use traits::PixelMapper;
 
 const SPRITES_START_INDEX: u16 = 0xFE00;
 const LCD_CONTROL_INDEX: u16 = 0xFF40;
@@ -20,27 +23,20 @@ const OBJECT_PALETTE_1_INDEX: u16 = 0xFF49;
 const WINDOW_Y_INDEX: u16 = 0xFF4A;
 const WINDOW_X_INDEX: u16 = 0xFF4B;
 
-const WHITE: u8 = 0b11111111;
-const LIGHT_GRAY: u8 = 0b01001010;
-const DARK_GRAY: u8 = 0b00100101;
-const BLACK: u8 = 0b00000000;
-
 pub struct GPU {
-    pub pixels: [u8; 144 * 160],
     cycles: i32,
 }
 
 impl GPU {
     pub fn new() -> GPU {
         GPU {
-            pixels: [0; 144 * 160],
             cycles: 456,
         }
     }
 
-    pub fn step(&mut self, steps: i32, memory: &mut Memory) {
-        let control_register = LcdControlFlag::from_bits(
-            memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+    pub fn step<T: PixelMapper>(&mut self, steps: i32, memory: &mut Memory, pixel_mapper: &mut T) {
+        let control_register =
+            LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
 
         self.set_lcd_status(memory);
 
@@ -57,17 +53,16 @@ impl GPU {
                 } else if memory.scan_line == 153 {
                     memory.scan_line = 0;
                 } else if memory.scan_line < 144 {
-                    self.render_scan(memory);
+                    self.render_scan(memory, pixel_mapper);
                 }
             }
         }
     }
 
     fn set_lcd_status(&mut self, memory: &mut Memory) {
-        let mut lcd_status = LcdStatusFlag::from_bits(
-            memory.read_byte(LCD_INDEX)).unwrap();
-        let control_register = LcdControlFlag::from_bits(
-            memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+        let mut lcd_status = LcdStatusFlag::from_bits(memory.read_byte(LCD_INDEX)).unwrap();
+        let control_register =
+            LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
 
         if control_register.contains(LcdControlFlag::DISPLAY) {
             let current_mode = lcd_status.bits() & 3;
@@ -109,10 +104,9 @@ impl GPU {
             self.cycles = 456;
             memory.scan_line = 0;
             lcd_status.remove(
-                LcdStatusFlag::MODE_0_INTERRUPT |
-                    LcdStatusFlag::MODE_1_INTERRUPT |
-                    LcdStatusFlag::MODE_2_INTERRUPT |
-                    LcdStatusFlag::LY_COINCIDENCE
+                LcdStatusFlag::MODE_0_INTERRUPT | LcdStatusFlag::MODE_1_INTERRUPT
+                    | LcdStatusFlag::MODE_2_INTERRUPT
+                    | LcdStatusFlag::LY_COINCIDENCE,
             );
             lcd_status.insert(LcdStatusFlag::MODE_LOW);
         }
@@ -120,16 +114,16 @@ impl GPU {
         memory.write_byte(LCD_INDEX, lcd_status.bits());
     }
 
-    fn get_palette(&self, order: u8) -> [u8; 4] {
-        let mut palette: [u8; 4] = [0; 4];
+    fn get_palette(&self, order: u8) -> [Color; 4] {
+        let mut palette: [Color; 4] = [Color::White; 4];
 
         // iterate through each pair of two bits in the byte
         for i in 0..4 {
             match (order >> (i * 2)) & 0b11 {
-                0b00 => palette[i] = WHITE,
-                0b01 => palette[i] = LIGHT_GRAY,
-                0b10 => palette[i] = DARK_GRAY,
-                0b11 => palette[i] = BLACK,
+                0b00 => palette[i] = Color::White,
+                0b01 => palette[i] = Color::LightGray,
+                0b10 => palette[i] = Color::DarkGray,
+                0b11 => palette[i] = Color::Black,
                 _ => {}
             }
         }
@@ -137,20 +131,19 @@ impl GPU {
         palette
     }
 
-    fn render_scan(&mut self, memory: &Memory) {
-        let flag = LcdControlFlag::from_bits(
-            memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+    fn render_scan<T: PixelMapper>(&mut self, memory: &Memory, pixel_mapper: &mut T) {
+        let flag = LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
 
         if flag.contains(LcdControlFlag::BACKGROUND) {
-            self.render_tiles(memory);
+            self.render_tiles(memory, pixel_mapper);
         }
 
         if flag.contains(LcdControlFlag::SPRITES) {
-            self.render_sprites(memory);
+            self.render_sprites(memory, pixel_mapper);
         }
     }
 
-    fn render_tiles(&mut self, memory: &Memory) {
+    fn render_tiles<T: PixelMapper>(&mut self, memory: &Memory, pixel_mapper: &mut T) {
         let scroll_y = memory.read_byte(SCROLL_Y_INDEX);
         let scroll_x = memory.read_byte(SCROLL_X_INDEX);
         let window_x = memory.read_byte(WINDOW_X_INDEX);
@@ -158,16 +151,15 @@ impl GPU {
         let order = memory.read_byte(BACKGROUND_PALETTE_INDEX);
         let scan_line = memory.scan_line;
 
-        let lcd_control = LcdControlFlag::from_bits(
-            memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+        let lcd_control = LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
         let palette = self.get_palette(order);
 
-        let using_window = lcd_control.contains(LcdControlFlag::WINDOW) &&
-            window_y <= memory.scan_line;
+        let using_window =
+            lcd_control.contains(LcdControlFlag::WINDOW) && window_y <= memory.scan_line;
 
-        let tile_offset = if (using_window &&
-            lcd_control.contains(LcdControlFlag::WINDOW_TILE_MAP)) ||
-            lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_MAP) {
+        let tile_offset = if (using_window && lcd_control.contains(LcdControlFlag::WINDOW_TILE_MAP))
+            || lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_MAP)
+        {
             0x9C00
         } else {
             0x9800
@@ -207,14 +199,13 @@ impl GPU {
             let low_color = (low & (1 << column_num) != 0) as u8;
             let color = palette[(high_color + low_color) as usize];
 
-            self.pixels[160 * (143 - scan_line as usize) + x as usize] = color;
+            pixel_mapper.map_pixel(x, scan_line, color);
         }
     }
 
-    fn render_sprites(&mut self, memory: &Memory) {
+    fn render_sprites<T: PixelMapper>(&mut self, memory: &Memory, pixel_mapper: &mut T) {
         let scan_line = memory.scan_line;
-        let lcd_control = LcdControlFlag::from_bits(
-            memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+        let lcd_control = LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
 
         for sprite in 0..40 {
             let index = sprite * 4;
@@ -222,8 +213,8 @@ impl GPU {
             let x_pos = memory.read_byte(SPRITES_START_INDEX + index + 1) as i16 - 8;
             let tile_location = memory.read_byte(SPRITES_START_INDEX + index + 2);
             let attributes = SpriteAttributes::from_bits_truncate(
-                memory.read_byte(SPRITES_START_INDEX + index + 3));
-
+                memory.read_byte(SPRITES_START_INDEX + index + 3),
+            );
 
             let y_size = if lcd_control.contains(LcdControlFlag::SPRITES_SIZE) {
                 16
@@ -264,12 +255,13 @@ impl GPU {
                     let low_color = ((low & (1 << color_bit)) != 0) as u8;
                     let color_index = high_color + low_color;
 
-                    if pixel >= 0 && pixel < 160
-                        && color_index != 0
+                    if pixel >= 0 && pixel < 160 && color_index != 0
                         && (attributes.contains(SpriteAttributes::BACKGROUND_PRIORITY)
-                        || self.pixels[160 * (143 - scan_line as usize) + pixel as usize] != 0) {
+                            || pixel_mapper.get_pixel(pixel as u8, scan_line) != Color::Black)
+                    {
                         let color = palette[color_index as usize];
-                        self.pixels[160 * (143 - scan_line as usize) + pixel as usize] = color;
+
+                        pixel_mapper.map_pixel(pixel as u8, scan_line, color);
                     }
                 }
             }

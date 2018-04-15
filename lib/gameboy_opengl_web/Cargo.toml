@@ -1,0 +1,14 @@
+[package]
+name = "gameboy_opengl_web"
+version = "0.1.0"
+authors = ["Ben Konz <bkonz@unomaha.edu>"]
+
+[dependencies]
+stdweb = "0.4.3"
+serde = "1.0.0"
+serde_derive = "1.0.0"
+stdweb-derive = "0.4.0"
+gameboy_core = {path = "../gameboy_core"}
+
+[build-dependencies]
+webgl_generator = "0.1.0"

@@ -4,10 +4,16 @@ version = "0.1.1"
 authors = ["Ben Konz <bkonz@unomaha.edu>"]
 
 [dependencies]
-gameboy_opengl = { path = "gameboy_opengl" }
+
+[target.wasm32-unknown-unknown.dependencies]
+gameboy_opengl_web = { path = "gameboy_opengl_web" }
+stdweb = "0.4"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gameboy_opengl = {path = "gameboy_opengl"}
 
 [workspace]
 
 [lib]
 name = "gameboy_lib"
-#crate-type = ["cdylib"]
+crate-type = ["cdylib"]

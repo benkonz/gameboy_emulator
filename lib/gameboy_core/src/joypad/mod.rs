@@ -2,7 +2,7 @@ mod buttons;
 pub mod button;
 
 use self::buttons::Buttons;
-use self::button::Button;
+pub use self::button::Button;
 
 use mmu::interrupt::Interrupt;
 use mmu::Memory;

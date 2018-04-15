@@ -3,7 +3,6 @@ pub mod traits;
 use self::traits::*;
 use cpu::Cpu;
 use gpu::GPU;
-use joypad::Joypad;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
 use std::thread;
@@ -15,7 +14,6 @@ pub struct Emulator {
     gpu: GPU,
     timer: Timer,
     memory: Memory,
-    joypad: Joypad,
 }
 
 impl Emulator {
@@ -25,7 +23,6 @@ impl Emulator {
             gpu: GPU::new(),
             timer: Timer::new(),
             memory: Memory::new(),
-            joypad: Joypad::new(),
         }
     }
 
@@ -33,7 +30,7 @@ impl Emulator {
         self.memory.load_rom(rom);
     }
 
-    pub fn emulate<T: Render + Input + Running>(&mut self, system: &mut T) {
+    pub fn emulate<T: Render + Input + Running + PixelMapper>(&mut self, system: &mut T) {
         let frame_rate = 60f64;
         let frame_duration = Duration::from_millis((1000f64 * (1f64 / frame_rate)) as u64);
         let max_cycles = 69905;
@@ -47,12 +44,12 @@ impl Emulator {
                 let cycles = self.cpu.step(&mut self.memory);
                 cycles_this_update += cycles;
                 self.timer.update(cycles, &mut self.memory);
-                self.gpu.step(cycles, &mut self.memory);
+                self.gpu.step(cycles, &mut self.memory, system);
                 system.get_input().update(&mut self.memory);
                 self.handle_interrupts();
             }
 
-            system.render(&self.gpu.pixels);
+            system.render();
 
             let end_time = SystemTime::now();
 

@@ -1,11 +1,13 @@
 #[macro_use]
-extern crate c_str_macro;
+extern crate stdweb;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate stdweb_derive;
 extern crate gameboy_core;
-extern crate gl;
-extern crate glutin;
 
-mod shader;
 mod screen;
+mod webgl_rendering_context;
 
 use screen::Screen;
 use gameboy_core::Emulator;

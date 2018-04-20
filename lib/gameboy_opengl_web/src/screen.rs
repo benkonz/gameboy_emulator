@@ -1,14 +1,14 @@
 use gameboy_core::joypad::Joypad;
 use gameboy_core::traits::*;
 use gameboy_core::Color;
-use std::mem;
 use stdweb;
 use stdweb::unstable::TryInto;
 use stdweb::web::html_element::CanvasElement;
-use stdweb::web::{document, window, ArrayBuffer, IEventTarget, IHtmlElement, IParentNode,
-                  TypedArray};
-use webgl_rendering_context;
+use stdweb::web::{document, ArrayBuffer, IHtmlElement, IParentNode,
+                  TypedArray, window};
 use webgl_rendering_context::*;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
 const FRAGMENT_SOURCE: &'static str = include_str!("shaders/fragment.glsl");
@@ -16,7 +16,7 @@ const VERTICIES: [f32; 12] = [
     1.0, 1.0, 0.0, 1.0, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, 1.0, 0.0,
 ];
 const TEXTURE_COORDINATE: [f32; 8] = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
-const INDICIES: [u32; 6] = [0, 1, 3, 1, 2, 3];
+const INDICIES: [u8; 6] = [0, 1, 3, 1, 2, 3];
 
 type gl = WebGLRenderingContext;
 
@@ -26,7 +26,7 @@ pub struct Screen {
     texture: WebGLTexture,
     shader_program: WebGLProgram,
     verticies: ArrayBuffer,
-    pixels: [u8; 144 * 160 * 4],
+    pixels: Vec<u8>,
 }
 
 impl Screen {
@@ -58,7 +58,7 @@ impl Screen {
         context.bind_buffer(gl::ARRAY_BUFFER, Some(&texture_buffer));
         context.buffer_data_1(gl::ARRAY_BUFFER, Some(&textures), gl::STATIC_DRAW);
 
-        let indicies = TypedArray::<u32>::from(&INDICIES[..]).buffer();
+        let indicies = TypedArray::<u8>::from(&INDICIES[..]).buffer();
         let index_buffer = context.create_buffer().unwrap();
         context.bind_buffer(gl::ELEMENT_ARRAY_BUFFER, Some(&index_buffer));
         context.buffer_data_1(gl::ELEMENT_ARRAY_BUFFER, Some(&indicies), gl::STATIC_DRAW);
@@ -107,13 +107,12 @@ impl Screen {
         let texture = context.create_texture().unwrap();
         context.bind_texture(gl::TEXTURE_2D, Some(&texture));
 
-        context.tex_parameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-        context.tex_parameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-
         context.tex_parameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
         context.tex_parameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+        context.tex_parameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
+        context.tex_parameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
 
-        let pixels = [0; 144 * 160 * 4];
+        let pixels = vec![0; 144 * 160 * 3];
 
         Screen {
             context,
@@ -124,52 +123,27 @@ impl Screen {
             pixels,
         }
     }
-}
 
-impl PixelMapper for Screen {
-    fn map_pixel(&mut self, x: u8, y: u8, color: Color) {
-        let color_bytes: [u8; 4] = match color {
-            Color::White => [255, 255, 255, 255],
-            Color::LightGray => [178, 178, 178, 255],
-            Color::DarkGray => [102, 102, 102, 255],
-            Color::Black => [0, 0, 0, 255],
-        };
-
-        let offset = 160 * (143 - y as usize) + x as usize * 4;
-        self.pixels[offset] = color_bytes[0]; // red
-        self.pixels[offset + 1] = color_bytes[1]; // green
-        self.pixels[offset + 2] = color_bytes[2]; // blue
-        self.pixels[offset + 3] = color_bytes[3]; // alpha
-    }
-
-    fn get_pixel(&self, x: u8, y: u8) -> Color {
-        Color::White
-    }
-}
-
-impl Render for Screen {
-    fn render(&mut self) {
-        self.context.clear_color(1.0, 0.0, 0.0, 1.0);
-        self.context.clear(gl::COLOR_BUFFER_BIT);
+    fn draw_texture(&mut self) {
 
         self.context
             .bind_texture(gl::TEXTURE_2D, Some(&self.texture));
 
-        let pixels = TypedArray::<u8>::from(&self.pixels[..]).buffer();
+        let pixels = &self.pixels[..];
 
         self.context.tex_image2_d(
             gl::TEXTURE_2D,
             0,
-            gl::RGBA as i32,
+            gl::RGB as i32,
             160,
             144,
             0,
-            gl::RGBA,
+            gl::RGB,
             gl::UNSIGNED_BYTE,
-            Some(&pixels),
+            Some(pixels.as_ref()),
         );
 
-        self.context.generate_mipmap(gl::TEXTURE_2D);
+//        self.context.generate_mipmap(gl::TEXTURE_2D);
         self.context.active_texture(gl::TEXTURE0);
 
         self.context.use_program(Some(&self.shader_program));
@@ -180,18 +154,50 @@ impl Render for Screen {
         self.context.uniform1i(Some(&screen_uniform), 0);
 
         self.context
-            .draw_elements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0);
+            .draw_elements(gl::TRIANGLES, 6, gl::UNSIGNED_BYTE, 0);
+    }
+
+    pub fn animate(&mut self, rc: Rc<RefCell<Self>>) {
+        window().request_animation_frame(move |_: f64| {
+            rc.borrow_mut().draw_texture();
+        });
+    }
+
+    pub fn should_run(&self) -> bool {
+        true
+    }
+}
+
+impl PixelMapper for Screen {
+    fn map_pixel(&mut self, x: u8, y: u8, color: Color) {
+
+        let color_bytes: [u8; 3] = match color {
+            Color::White => [255, 255, 255],
+            Color::LightGray => [178, 178, 178],
+            Color::DarkGray => [102, 102, 102],
+            Color::Black => [0, 0, 0],
+        };
+
+        let offset = 160 * (143 - y as usize) + x as usize * 3;
+        for (i, byte) in color_bytes.iter().enumerate() {
+            self.pixels[offset + i] = *byte;
+        }
+    }
+
+    fn get_pixel(&self, x: u8, y: u8) -> Color {
+        let offset = 160 * (143 - y as usize) + x as usize * 3;
+        match self.pixels[offset..offset + 3] {
+            [255, 255, 255] => Color::White,
+            [178, 178, 178] => Color::LightGray,
+            [102, 102, 102] => Color::DarkGray,
+            [0, 0, 0] => Color::Black,
+            _ => Color::Black
+        }
     }
 }
 
 impl Input for Screen {
     fn get_input(&mut self) -> &mut Joypad {
         &mut self.joypad
-    }
-}
-
-impl Running for Screen {
-    fn should_run(&self) -> bool {
-        true
     }
 }

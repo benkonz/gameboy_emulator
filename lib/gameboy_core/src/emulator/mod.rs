@@ -5,8 +5,8 @@ use cpu::Cpu;
 use gpu::GPU;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
-use std::thread;
-use std::time::{Duration, SystemTime};
+// use std::thread;
+// use std::time::{Duration, SystemTime};
 use timer::Timer;
 
 pub struct Emulator {
@@ -30,36 +30,36 @@ impl Emulator {
         self.memory.load_rom(rom);
     }
 
-    pub fn emulate<T: Render + Input + Running + PixelMapper>(&mut self, system: &mut T) {
-        let frame_rate = 60f64;
-        let frame_duration = Duration::from_millis((1000f64 * (1f64 / frame_rate)) as u64);
+    pub fn emulate<T: Render + Input + PixelMapper>(&mut self, system: &mut T) {
+        // let frame_rate = 60f64;
+        // let frame_duration = Duration::from_millis((1000f64 * (1f64 / frame_rate)) as u64);
         let max_cycles = 69905;
 
-        while system.should_run() {
-            let start_time = SystemTime::now();
+        // while system.should_run() {
+        // let start_time = SystemTime::now();
 
-            let mut cycles_this_update = 0;
+        let mut cycles_this_update = 0;
 
-            while cycles_this_update < max_cycles {
-                let cycles = self.cpu.step(&mut self.memory);
-                cycles_this_update += cycles;
-                self.timer.update(cycles, &mut self.memory);
-                self.gpu.step(cycles, &mut self.memory, system);
-                system.get_input().update(&mut self.memory);
-                self.handle_interrupts();
-            }
-
-            system.render();
-
-            let end_time = SystemTime::now();
-
-            let last_frame_duration = end_time.duration_since(start_time).unwrap();
-
-            if frame_duration >= last_frame_duration {
-                let sleep_duration = frame_duration - last_frame_duration;
-                thread::sleep(sleep_duration);
-            }
+        while cycles_this_update < max_cycles {
+            let cycles = self.cpu.step(&mut self.memory);
+            cycles_this_update += cycles;
+            self.timer.update(cycles, &mut self.memory);
+            self.gpu.step(cycles, &mut self.memory, system);
+            system.get_input().update(&mut self.memory);
+            self.handle_interrupts();
         }
+
+        system.render();
+
+        // let end_time = SystemTime::now();
+
+        // let last_frame_duration = end_time.duration_since(start_time).unwrap();
+
+        // if frame_duration >= last_frame_duration {
+        //     let sleep_duration = frame_duration - last_frame_duration;
+        //     thread::sleep(sleep_duration);
+        // }
+        // }
     }
 
     fn handle_interrupts(&mut self) {

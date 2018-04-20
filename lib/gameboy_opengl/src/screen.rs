@@ -116,6 +116,10 @@ impl Screen {
             pixels: [0; 144 * 160],
         }
     }
+
+    pub fn should_run(&self) -> bool {
+        self.is_running
+    }
 }
 
 impl PixelMapper for Screen {
@@ -232,13 +236,7 @@ impl Input for Screen {
 
         joypad
     }
-}
-
-impl Running for Screen {
-    fn should_run(&self) -> bool {
-        self.is_running
-    }
-}
+}  
 
 impl Drop for Screen {
     fn drop(&mut self) {

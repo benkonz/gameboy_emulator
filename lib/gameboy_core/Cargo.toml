@@ -8,3 +8,4 @@ description = "core library to be used for Gameboy emulation"
 
 [dependencies]
 bitflags = "1.0"
+lazy_static = "1.0"

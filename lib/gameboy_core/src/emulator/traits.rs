@@ -6,7 +6,7 @@ pub trait Render {
 }
 
 pub trait Input {
-    fn get_input(&mut self) -> &mut Joypad;
+    fn get_input(&mut self) -> Joypad;
 }
 
 pub trait PixelMapper {

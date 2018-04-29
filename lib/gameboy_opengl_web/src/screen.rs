@@ -1,11 +1,13 @@
 use gameboy_core::joypad::Joypad;
+use gameboy_core::joypad::Button;
 use gameboy_core::traits::*;
 use gameboy_core::Color;
 use stdweb;
 use stdweb::unstable::TryInto;
 use stdweb::web::html_element::CanvasElement;
-use stdweb::web::{document, ArrayBuffer, IHtmlElement, IParentNode,
-                  TypedArray, window};
+use stdweb::web::{document, IParentNode, TypedArray, window, IEventTarget};
+use stdweb::web::event::{KeyUpEvent, KeyDownEvent};
+use stdweb::traits::IKeyboardEvent;
 use webgl_rendering_context::*;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -22,10 +24,9 @@ type gl = WebGLRenderingContext;
 
 pub struct Screen {
     context: gl,
-    joypad: Joypad,
+    joypad: Rc<RefCell<Joypad>>,
     texture: WebGLTexture,
     shader_program: WebGLProgram,
-    verticies: ArrayBuffer,
     pixels: Vec<u8>,
 }
 
@@ -40,10 +41,47 @@ impl Screen {
             .try_into()
             .unwrap();
 
+        let joypad = Rc::new(RefCell::new(Joypad::new()));
+
+        {
+            let joypad = joypad.clone();
+            window().add_event_listener(move |event: KeyDownEvent| {
+                match event.key().as_ref() {
+                    "ArrowUp" => joypad.borrow_mut().press(Button::Up),
+                    "ArrowDown" => joypad.borrow_mut().press(Button::Down),
+                    "ArrowLeft" => joypad.borrow_mut().press(Button::Left),
+                    "ArrowRight" => joypad.borrow_mut().press(Button::Right),
+                    "z" => joypad.borrow_mut().press(Button::A),
+                    "x" => joypad.borrow_mut().press(Button::B),
+                    "Enter" => joypad.borrow_mut().press(Button::Select),
+                    " " => joypad.borrow_mut().press(Button::Start),
+                    _ => console!(log, "unknown key")
+                }
+            });
+        }
+
+        {
+            let joypad = joypad.clone();
+            window().add_event_listener(move |event: KeyUpEvent| {
+                match event.key().as_ref() {
+                    "ArrowUp" => joypad.borrow_mut().release(Button::Up),
+                    "ArrowDown" => joypad.borrow_mut().release(Button::Down),
+                    "ArrowLeft" => joypad.borrow_mut().release(Button::Left),
+                    "ArrowRight" => joypad.borrow_mut().release(Button::Right),
+                    "z" => joypad.borrow_mut().release(Button::A),
+                    "x" => joypad.borrow_mut().release(Button::B),
+                    "Enter" => joypad.borrow_mut().release(Button::Select),
+                    " " => joypad.borrow_mut().release(Button::Start),
+                    _ => console!(log, "unknown key")
+                }
+            });
+        }
+
+
         let context: gl = canvas.get_context().unwrap();
 
-        canvas.set_width(canvas.offset_width() as u32);
-        canvas.set_height(canvas.offset_height() as u32);
+//        canvas.set_width(canvas.offset_width() as u32);
+//        canvas.set_height(canvas.offset_height() as u32);
 
         context.clear_color(1.0, 0.0, 0.0, 1.0);
         context.clear(gl::COLOR_BUFFER_BIT);
@@ -116,16 +154,20 @@ impl Screen {
 
         Screen {
             context,
-            joypad: Joypad::new(),
+            joypad,
             texture,
             shader_program,
-            verticies,
             pixels,
         }
     }
 
-    fn draw_texture(&mut self) {
+    pub fn should_run(&self) -> bool {
+        true
+    }
+}
 
+impl Render for Screen {
+    fn render(&mut self) {
         self.context
             .bind_texture(gl::TEXTURE_2D, Some(&self.texture));
 
@@ -156,21 +198,10 @@ impl Screen {
         self.context
             .draw_elements(gl::TRIANGLES, 6, gl::UNSIGNED_BYTE, 0);
     }
-
-    pub fn animate(&mut self, rc: Rc<RefCell<Self>>) {
-        window().request_animation_frame(move |_: f64| {
-            rc.borrow_mut().draw_texture();
-        });
-    }
-
-    pub fn should_run(&self) -> bool {
-        true
-    }
 }
 
 impl PixelMapper for Screen {
     fn map_pixel(&mut self, x: u8, y: u8, color: Color) {
-
         let color_bytes: [u8; 3] = match color {
             Color::White => [255, 255, 255],
             Color::LightGray => [178, 178, 178],
@@ -178,14 +209,14 @@ impl PixelMapper for Screen {
             Color::Black => [0, 0, 0],
         };
 
-        let offset = 160 * (143 - y as usize) + x as usize * 3;
+        let offset = (160 * (143 - y as usize) + x as usize) * 3;
         for (i, byte) in color_bytes.iter().enumerate() {
             self.pixels[offset + i] = *byte;
         }
     }
 
     fn get_pixel(&self, x: u8, y: u8) -> Color {
-        let offset = 160 * (143 - y as usize) + x as usize * 3;
+        let offset = (160 * (143 - y as usize) + x as usize) * 3;
         match self.pixels[offset..offset + 3] {
             [255, 255, 255] => Color::White,
             [178, 178, 178] => Color::LightGray,
@@ -197,7 +228,10 @@ impl PixelMapper for Screen {
 }
 
 impl Input for Screen {
-    fn get_input(&mut self) -> &mut Joypad {
-        &mut self.joypad
+    fn get_input(&mut self) -> Joypad {
+        let x = self.joypad.borrow_mut();
+        let z = x.clone();
+
+        z
     }
 }

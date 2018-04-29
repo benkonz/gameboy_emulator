@@ -3,11 +3,10 @@
 
 <head>
 	<meta charset="utf-8">
-	<title>stdweb • WebGL</title>
+	<title>emulator</title>
 </head>
 
 <body>
-	<p>hello world</p>
 	<input type="file" id="file_selector" />
 	<canvas id="canvas"></canvas>
 	<script src="gameboy_lib.js"></script>
@@ -21,7 +20,7 @@
 						var bytes = new Uint8Array(arraybuffer);
 						var rom = Array.prototype.slice.call(bytes);
 						emulator.start(rom);
-					}
+					};
 
 					reader.readAsArrayBuffer(this.files[0]);
 				});

@@ -7,41 +7,28 @@ extern crate stdweb_derive;
 extern crate gameboy_core;
 
 mod screen;
-mod system;
 mod webgl_rendering_context;
 
 use gameboy_core::Emulator;
-use system::System;
-use stdweb::web;
-use stdweb::web::Date;
+use screen::Screen;
+use stdweb::web::window;
 
 pub fn start(rom: Vec<u8>) {
-    let mut system = System::new();
+    let screen= Screen::new();
     let mut emulator = Emulator::new();
 
     emulator.load_rom(rom);
 
-    main_loop(system, emulator);
+    main_loop(screen, emulator);
 
 }
 
-fn main_loop(mut system: System, mut emulator: Emulator) {
-
-    let frame_duration = 1f64 / 60f64 * 1000f64;
-
-    let start = Date::now();
+fn main_loop(mut system: Screen, mut emulator: Emulator) {
 
     emulator.emulate(&mut system);
 
-    let end = Date::now();
-
-    let duration = end - start;
-
-    if duration > 0f64 {
-        let wait_time = duration as u32 - frame_duration as u32;
-        web::set_timeout(|| main_loop(system, emulator),
-                         wait_time);
-    } else {
+    window().request_animation_frame(|_| {
+        emulator.emulate(&mut system);
         main_loop(system, emulator);
-    }
+    });
 }

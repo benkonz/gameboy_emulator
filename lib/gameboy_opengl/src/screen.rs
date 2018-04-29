@@ -184,9 +184,9 @@ impl Render for Screen {
 }
 
 impl Input for Screen {
-    fn get_input(&mut self) -> &mut Joypad {
+    fn get_input(&mut self) -> Joypad {
         let mut running = self.is_running;
-        let joypad = &mut self.joypad;
+        let mut joypad = self.joypad.clone();
 
         self.events_loop.poll_events(|event| match event {
             glutin::Event::WindowEvent { event, .. } => match event {
@@ -194,9 +194,7 @@ impl Input for Screen {
                     if input.state == glutin::ElementState::Pressed {
                         if let Some(keycode) = input.virtual_keycode {
                             match keycode {
-                                VirtualKeyCode::Up => {
-                                    joypad.press(Button::Up);
-                                }
+                                VirtualKeyCode::Up => joypad.press(Button::Up),
                                 VirtualKeyCode::Down => joypad.press(Button::Down),
                                 VirtualKeyCode::Left => joypad.press(Button::Left),
                                 VirtualKeyCode::Right => joypad.press(Button::Right),
@@ -210,9 +208,7 @@ impl Input for Screen {
                     } else if input.state == glutin::ElementState::Released {
                         if let Some(keycode) = input.virtual_keycode {
                             match keycode {
-                                VirtualKeyCode::Up => {
-                                    joypad.release(Button::Up);
-                                }
+                                VirtualKeyCode::Up => joypad.release(Button::Up),
                                 VirtualKeyCode::Down => joypad.release(Button::Down),
                                 VirtualKeyCode::Left => joypad.release(Button::Left),
                                 VirtualKeyCode::Right => joypad.release(Button::Right),

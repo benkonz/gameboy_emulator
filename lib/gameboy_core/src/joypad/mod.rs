@@ -8,31 +8,36 @@ use mmu::interrupt::Interrupt;
 use mmu::Memory;
 use std::collections::HashMap;
 
+lazy_static! {
+    static ref button_map: HashMap<Button, Buttons> = {
+        let mut bm = HashMap::new();
+
+        bm.insert(Button::A, Buttons::A);
+        bm.insert(Button::B, Buttons::B);
+        bm.insert(Button::Start, Buttons::START);
+        bm.insert(Button::Select, Buttons::SELECT);
+        bm.insert(Button::Down, Buttons::DOWN);
+        bm.insert(Button::Up, Buttons::UP);
+        bm.insert(Button::Left, Buttons::LEFT);
+        bm.insert(Button::Right, Buttons::RIGHT);
+
+        bm
+    };
+}
+
+#[derive(Copy, Clone)]
 pub struct Joypad {
     released_keys: Buttons,
     previously_unset_button_pressed: bool,
     previously_unset_direction_pressed: bool,
-    button_map: HashMap<Button, Buttons>,
 }
 
 impl Joypad {
     pub fn new() -> Joypad {
-        let mut button_map = HashMap::new();
-
-        button_map.insert(Button::A, Buttons::A);
-        button_map.insert(Button::B, Buttons::B);
-        button_map.insert(Button::Start, Buttons::START);
-        button_map.insert(Button::Select, Buttons::SELECT);
-        button_map.insert(Button::Down, Buttons::DOWN);
-        button_map.insert(Button::Up, Buttons::UP);
-        button_map.insert(Button::Left, Buttons::LEFT);
-        button_map.insert(Button::Right, Buttons::RIGHT);
-
         Joypad {
             released_keys: Buttons::all(),
             previously_unset_button_pressed: false,
             previously_unset_direction_pressed: false,
-            button_map,
         }
     }
 
@@ -52,7 +57,7 @@ impl Joypad {
     }
 
     pub fn press(&mut self, button: Button) {
-        let pressed = *(self.button_map.get(&button).unwrap());
+        let pressed = *(button_map.get(&button).unwrap());
 
         if self.released_keys.contains(pressed) {
             // was an action button just pressed?
@@ -70,7 +75,7 @@ impl Joypad {
     }
 
     pub fn release(&mut self, button: Button) {
-        let released = self.button_map.get(&button).unwrap();
+        let released = button_map.get(&button).unwrap();
         self.released_keys.insert(*released);
     }
 }

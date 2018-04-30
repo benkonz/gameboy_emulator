@@ -9,5 +9,6 @@ Cargo.lock
 *.gb
 !bios.gb
 
+dist/
 node_modules/
 package-lock.json

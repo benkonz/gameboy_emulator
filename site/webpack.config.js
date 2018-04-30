@@ -1,25 +1,27 @@
+const path = require('path');
+
 module.exports = {
-    entry: ,
+    node: {
+        fs: 'empty'
+    },
+    entry: './index.js',
     output: {
-      filename: 'bundle.js',
-      path: __dirname + '/build',
+        filename: 'index.js',
+        path: path.resolve(__dirname, 'dist')
     },
     module: {
-      rules: [
-        {
-          test: /\.rs$/,
-          use: {
-            loader: 'rust-wasm-loader',
-            options: {
-              // The path to the webpack output relative to the project root
-              path: 'build'
+        rules: [
+            {
+                test: /\.html/,
+                loader: 'file-loader?name=[name].[ext]',
+            },
+            {
+                test: /\.rs$/,
+                loader: 'rust-native-wasm-loader',
+                options: {
+                    cargoWeb: true
+                }
             }
-          }
-        }
-      ]
-    },
-    externals: {
-      'fs': true,
-      'path': true,
+        ]
     }
-  }
+};

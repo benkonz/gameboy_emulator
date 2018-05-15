@@ -5,7 +5,8 @@ use std::fs::File;
 use std::io::Read;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+//    let args: Vec<String> = env::args().collect();
+    let args = vec!["", "C:/Users/konz/Documents/gameboy_emulator/lib/gameboy_opengl/tests/dr_mario.gb"];
 
     if args.len() == 2 {
         let filename = &args[1];

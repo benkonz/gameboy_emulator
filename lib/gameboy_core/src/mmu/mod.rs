@@ -126,11 +126,9 @@ impl Memory {
     }
 
     fn do_dma_transfer(&mut self, data: u8) {
-//        println!("DOING A DMA TRANSFER");
         let address = 0x100u16 * data as u16;
         for i in 0..0xA0 {
             let value = self.read_byte(address + i);
-//            println!("TRANSFERING {:X} FROM {:X} TO ADDRESS {:X}", value, address + i, 0xFE00 + i);
             self.write_byte(0xFE00 + i, value);
         }
     }
@@ -234,14 +232,6 @@ mod tests {
         memory.write_word(0xFF80, 0x1122);
         assert_eq!(memory.read_word(0xFF80), 0x1122);
     }
-
-    // #[test]
-    // fn test_echo() {
-    //     let mut memory = Memory::new();
-    //     memory.write_byte(0xC000, 1);
-    //     assert_eq!(memory.read_byte(0xC000), 1);
-    //     assert_eq!(memory.read_byte(0xE000), 1);
-    // }
 
     #[test]
     fn test_get_tile_from_map_0() {

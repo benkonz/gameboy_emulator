@@ -10,6 +10,8 @@ use shader::Shader;
 use std;
 use std::os::raw::c_void;
 use std::{mem, ptr};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
 const FRAGMENT_SOURCE: &'static str = include_str!("shaders/fragment.glsl");
@@ -29,7 +31,7 @@ pub struct Screen {
     ebo: GLuint,
     texture: GLuint,
     is_running: bool,
-    joypad: Joypad,
+    joypad: Rc<RefCell<Joypad>>,
     pixels: [u8; 144 * 160],
 }
 
@@ -103,6 +105,8 @@ impl Screen {
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
         }
 
+        let joypad = Rc::new(RefCell::new(Joypad::new()));
+
         Screen {
             gl_window,
             events_loop,
@@ -112,7 +116,7 @@ impl Screen {
             ebo,
             texture,
             is_running: true,
-            joypad: Joypad::new(),
+            joypad,
             pixels: [0; 144 * 160],
         }
     }
@@ -120,32 +124,58 @@ impl Screen {
     pub fn should_run(&self) -> bool {
         self.is_running
     }
-}
 
-impl PixelMapper for Screen {
-    fn map_pixel(&mut self, x: u8, y: u8, color: Color) {
-        let color_byte = match color {
-            Color::White => 0b11111111,
-            Color::LightGray => 0b01001010,
-            Color::DarkGray => 0b00100101,
-            Color::Black => 0b0000000
-        };
+    pub fn poll_input(&mut self) {
+        let mut running = self.is_running;
+        let joypad = self.joypad.clone();
 
-        self.pixels[160 * (143 - y as usize) + x as usize] = color_byte;
+        self.events_loop.poll_events(|event| match event {
+            glutin::Event::WindowEvent { event, .. } => match event {
+                WindowEvent::KeyboardInput { input, .. } => {
+                    if input.state == glutin::ElementState::Pressed {
+                        if let Some(keycode) = input.virtual_keycode {
+                            match keycode {
+                                VirtualKeyCode::Up => joypad.borrow_mut().press(Button::Up),
+                                VirtualKeyCode::Down => joypad.borrow_mut().press(Button::Down),
+                                VirtualKeyCode::Left => joypad.borrow_mut().press(Button::Left),
+                                VirtualKeyCode::Right => joypad.borrow_mut().press(Button::Right),
+                                VirtualKeyCode::Z => joypad.borrow_mut().press(Button::A),
+                                VirtualKeyCode::X => joypad.borrow_mut().press(Button::B),
+                                VirtualKeyCode::Space => joypad.borrow_mut().press(Button::Start),
+                                VirtualKeyCode::LShift => joypad.borrow_mut().press(Button::Select),
+                                _ => (),
+                            }
+                        }
+                    } else if input.state == glutin::ElementState::Released {
+                        if let Some(keycode) = input.virtual_keycode {
+                            match keycode {
+                                VirtualKeyCode::Up => joypad.borrow_mut().release(Button::Up),
+                                VirtualKeyCode::Down => joypad.borrow_mut().release(Button::Down),
+                                VirtualKeyCode::Left => joypad.borrow_mut().release(Button::Left),
+                                VirtualKeyCode::Right => joypad.borrow_mut().release(Button::Right),
+                                VirtualKeyCode::Z => joypad.borrow_mut().release(Button::A),
+                                VirtualKeyCode::X => joypad.borrow_mut().release(Button::B),
+                                VirtualKeyCode::Space => joypad.borrow_mut().release(Button::Start),
+                                VirtualKeyCode::LShift => joypad.borrow_mut().release(Button::Select),
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+                WindowEvent::Closed => running = false,
+                _ => (),
+            },
+            _ => (),
+        });
+        self.is_running = running;
     }
 
-    fn get_pixel(&self, x: u8, y: u8) -> Color {
-        match self.pixels[160 * (143 - y as usize) + x as usize] {
-            0b11111111 => Color::White,
-            0b01001010 => Color::LightGray,
-            0b00100101 => Color::DarkGray,
-            _ => Color::Black
-        }
+    pub fn get_input(&mut self) -> Rc<RefCell<Joypad>> {
+        let joypad = self.joypad.clone();
+        joypad
     }
-}
 
-impl Render for Screen {
-    fn render(&mut self) {
+    pub fn render(&mut self) {
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
@@ -183,56 +213,27 @@ impl Render for Screen {
     }
 }
 
-impl Input for Screen {
-    fn get_input(&mut self) -> Joypad {
-        let mut running = self.is_running;
-        let mut joypad = self.joypad.clone();
+impl PixelMapper for Screen {
+    fn map_pixel(&mut self, x: u8, y: u8, color: Color) {
+        let color_byte = match color {
+            Color::White => 0b11111111,
+            Color::LightGray => 0b01001010,
+            Color::DarkGray => 0b00100101,
+            Color::Black => 0b0000000
+        };
 
-        self.events_loop.poll_events(|event| match event {
-            glutin::Event::WindowEvent { event, .. } => match event {
-                WindowEvent::KeyboardInput { input, .. } => {
-                    if input.state == glutin::ElementState::Pressed {
-                        if let Some(keycode) = input.virtual_keycode {
-                            match keycode {
-                                VirtualKeyCode::Up => joypad.press(Button::Up),
-                                VirtualKeyCode::Down => joypad.press(Button::Down),
-                                VirtualKeyCode::Left => joypad.press(Button::Left),
-                                VirtualKeyCode::Right => joypad.press(Button::Right),
-                                VirtualKeyCode::Z => joypad.press(Button::A),
-                                VirtualKeyCode::X => joypad.press(Button::B),
-                                VirtualKeyCode::Space => joypad.press(Button::Start),
-                                VirtualKeyCode::LShift => joypad.press(Button::Select),
-                                _ => (),
-                            }
-                        }
-                    } else if input.state == glutin::ElementState::Released {
-                        if let Some(keycode) = input.virtual_keycode {
-                            match keycode {
-                                VirtualKeyCode::Up => joypad.release(Button::Up),
-                                VirtualKeyCode::Down => joypad.release(Button::Down),
-                                VirtualKeyCode::Left => joypad.release(Button::Left),
-                                VirtualKeyCode::Right => joypad.release(Button::Right),
-                                VirtualKeyCode::Z => joypad.release(Button::A),
-                                VirtualKeyCode::X => joypad.release(Button::B),
-                                VirtualKeyCode::Space => joypad.release(Button::Start),
-                                VirtualKeyCode::LShift => joypad.release(Button::Select),
-                                _ => (),
-                            }
-                        }
-                    }
-                }
-                WindowEvent::Closed => {
-                    running = false;
-                }
-                _ => (),
-            },
-            _ => (),
-        });
-        self.is_running = running;
-
-        joypad
+        self.pixels[160 * (143 - y as usize) + x as usize] = color_byte;
     }
-}  
+
+    fn get_pixel(&self, x: u8, y: u8) -> Color {
+        match self.pixels[160 * (143 - y as usize) + x as usize] {
+            0b11111111 => Color::White,
+            0b01001010 => Color::LightGray,
+            0b00100101 => Color::DarkGray,
+            _ => Color::Black
+        }
+    }
+}
 
 impl Drop for Screen {
     fn drop(&mut self) {

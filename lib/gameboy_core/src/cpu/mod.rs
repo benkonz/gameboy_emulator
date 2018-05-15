@@ -13,7 +13,7 @@ const INSTRUCTION_TIMINGS: [u8; 256] = [
     1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
     1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
     1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    2, 2, 2, 2, 2, 2, 0, 2, 1, 1, 1, 1, 1, 1, 2, 1,
+    2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1,
     1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
     1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
     1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
@@ -93,8 +93,7 @@ impl Cpu {
             }
 
             let opcode = self.get_n(memory);
-//                println!("executing opcode: {:X} at pc {:X}", opcode, self.registers.pc - 1);
-            self.instruction_cycle = INSTRUCTION_TIMINGS[opcode as usize] as i32;
+            self.instruction_cycle = INSTRUCTION_TIMINGS[opcode as usize] as i32 ;
             self.execute_opcode(opcode, memory);
         }
 
@@ -1236,7 +1235,6 @@ impl Cpu {
 
     fn jp_nn(&mut self, nn: u16) {
         self.registers.pc = nn;
-        self.instruction_cycle = 12;
     }
 
     fn call_nz_nn(&mut self, memory: &mut Memory, nn: u16) {
@@ -2682,8 +2680,6 @@ impl Cpu {
     }
 
     fn ld_a_nn(&mut self, nn: u16, memory: &Memory) {
-        self.instruction_cycle = 16;
-
         self.registers.a = memory.read_byte(nn);
     }
 
@@ -2696,8 +2692,6 @@ impl Cpu {
     }
 
     fn ld_hl_n(&mut self, n: u8, memory: &mut Memory) {
-        self.instruction_cycle = 12;
-
         memory.write_byte(self.registers.get_hl(), n);
     }
 
@@ -2706,8 +2700,6 @@ impl Cpu {
     }
 
     fn ld_nn_a(&mut self, nn: u16, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         memory.write_byte(nn, self.registers.a);
     }
 
@@ -2746,14 +2738,10 @@ impl Cpu {
     }
 
     fn ldh_a_n(&mut self, n: u8, memory: &Memory) {
-        self.instruction_cycle = 12;
-
         self.registers.a = memory.read_byte(0xFF00 + n as u16);
     }
 
     fn ldh_n_a(&mut self, n: u8, memory: &mut Memory) {
-        self.instruction_cycle = 12;
-
         memory.write_byte(0xFF00 + n as u16, self.registers.a);
     }
 
@@ -2767,8 +2755,6 @@ impl Cpu {
     }
 
     fn ld_rr_nn(&mut self, nn: u16) -> u16 {
-        self.instruction_cycle = 12;
-
         nn
     }
 
@@ -2777,15 +2763,11 @@ impl Cpu {
     }
 
     fn ld_hl_sp_e(&mut self, e: u8) {
-        self.instruction_cycle = 12;
-
         let hl = self.add_sp(e);
         self.registers.set_hl(hl);
     }
 
     fn ld_nn_sp(&mut self, nn: u16, memory: &mut Memory) {
-        self.instruction_cycle = 20;
-
         memory.write_word(nn, self.registers.sp);
     }
 
@@ -2795,8 +2777,6 @@ impl Cpu {
     }
 
     fn push_nn(&mut self, rr: u16, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         self.push(rr, memory);
     }
 
@@ -2808,14 +2788,10 @@ impl Cpu {
     }
 
     fn pop_nn(&mut self, memory: &Memory) -> u16 {
-        self.instruction_cycle = 12;
-
         self.pop(memory)
     }
 
     fn pop_af(&mut self, memory: &Memory) {
-        self.instruction_cycle = 12;
-
         let nn = self.pop(memory);
         self.registers.set_af(nn);
     }
@@ -3024,8 +3000,6 @@ impl Cpu {
     }
 
     fn inc_hl_ref(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 12;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.inc(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3052,8 +3026,6 @@ impl Cpu {
     }
 
     fn dec_hl_ref(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 12;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.dec(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3078,8 +3050,6 @@ impl Cpu {
     }
 
     fn add_sp_s(&mut self, e: u8) {
-        self.instruction_cycle = 16;
-
         self.registers.sp = self.add_sp(e);
     }
 
@@ -3125,8 +3095,6 @@ impl Cpu {
     }
 
     fn rlc_hl(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.rlc(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3159,8 +3127,6 @@ impl Cpu {
     }
 
     fn rrc_hl(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.rrc(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3197,8 +3163,6 @@ impl Cpu {
     }
 
     fn rr_hl(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.rr(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3233,8 +3197,6 @@ impl Cpu {
     }
 
     fn rl_hl(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.rl(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3259,8 +3221,6 @@ impl Cpu {
     }
 
     fn sla_hl(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.sla(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3285,8 +3245,6 @@ impl Cpu {
     }
 
     fn sra_hl(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.sra(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3308,8 +3266,6 @@ impl Cpu {
     }
 
     fn srl_hl(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.srl(n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3328,8 +3284,6 @@ impl Cpu {
     }
 
     fn bit_i_hl(&mut self, i: u8, memory: &Memory) {
-        self.instruction_cycle = 16;
-
         let n = memory.read_byte(self.registers.get_hl());
         self.bit_i(i, n);
     }
@@ -3343,8 +3297,6 @@ impl Cpu {
     }
 
     fn set_i_hl(&mut self, i: u8, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.set_i(i, n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3359,8 +3311,6 @@ impl Cpu {
     }
 
     fn res_i_hl(&mut self, i: u8, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.res_i(i, n);
         memory.write_byte(self.registers.get_hl(), n);
@@ -3369,15 +3319,11 @@ impl Cpu {
     // functions
 
     fn call_nn(&mut self, nn: u16, memory: &mut Memory) {
-        self.instruction_cycle = 12;
-
         self.push(self.registers.pc, memory);
         self.registers.pc = nn;
     }
 
     fn call_cc_nn(&mut self, cc: bool, nn: u16, memory: &mut Memory) {
-        self.instruction_cycle = 12;
-
         if cc {
             self.push(self.registers.pc, memory);
             self.registers.pc = nn;
@@ -3385,8 +3331,6 @@ impl Cpu {
     }
 
     fn rst_n(&mut self, n: u8, memory: &mut Memory) {
-        self.instruction_cycle = 32;
-
         self.push(self.registers.pc, memory);
         self.registers.pc = n as u16;
     }
@@ -3403,8 +3347,6 @@ impl Cpu {
 
 
     fn jp_cc_nn(&mut self, cc: bool, nn: u16) {
-        self.instruction_cycle = 12;
-
         if cc {
             self.registers.pc = nn;
         }
@@ -3435,8 +3377,6 @@ impl Cpu {
     }
 
     fn swap_hl(&mut self, memory: &mut Memory) {
-        self.instruction_cycle = 16;
-
         let mut n = memory.read_byte(self.registers.get_hl());
         n = self.swap(n);
         memory.write_byte(self.registers.get_hl(), n);

@@ -60,15 +60,14 @@ impl Joypad {
         let pressed = *(button_map.get(&button).unwrap());
 
         if self.released_keys.contains(pressed) {
+
             // was an action button just pressed?
-            self.previously_unset_button_pressed = pressed.contains(
-                Buttons::A | Buttons::B | Buttons::START | Buttons::SELECT
-            );
+            let action_keys = Buttons::A | Buttons::B | Buttons::START | Buttons::SELECT;
+            self.previously_unset_button_pressed = action_keys.contains(pressed);
 
             // was a direction button just pressed?
-            self.previously_unset_direction_pressed = pressed.contains(
-                Buttons::UP | Buttons::DOWN | Buttons::LEFT | Buttons::RIGHT
-            );
+            let direction_keys = Buttons::UP | Buttons::DOWN | Buttons::LEFT | Buttons::RIGHT;
+            self.previously_unset_direction_pressed = direction_keys.contains(pressed);
         }
 
         self.released_keys.remove(pressed);

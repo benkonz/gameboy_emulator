@@ -4,7 +4,7 @@ module.exports = {
     node: {
         fs: 'empty'
     },
-    entry: './index.js',
+    entry: './src/index.js',
     output: {
         filename: 'index.js',
         path: path.resolve(__dirname, 'dist')
@@ -21,7 +21,16 @@ module.exports = {
                 options: {
                     cargoWeb: true
                 }
+            },
+            {
+                test: /\.js/,
+                loader: 'babel-loader',
+                exclude: /node_modules/,
+                options: {
+                    presets: ['env', 'react']
+                }
             }
         ]
-    }
+    },
+    devtool: 'source-map'
 };

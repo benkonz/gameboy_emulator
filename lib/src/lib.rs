@@ -20,6 +20,5 @@ pub fn start(pointer: *mut u8, length: usize) {
 #[cfg(target_arch = "wasm32")]
 #[js_export]
 fn start(rom: Vec<u8>) {
-    println!("{}", "hello world");
     gameboy_opengl_web::start(rom);
 }

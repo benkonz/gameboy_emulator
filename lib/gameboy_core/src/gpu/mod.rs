@@ -23,6 +23,13 @@ const OBJECT_PALETTE_1_INDEX: u16 = 0xFF49;
 const WINDOW_Y_INDEX: u16 = 0xFF4A;
 const WINDOW_X_INDEX: u16 = 0xFF4B;
 
+pub enum Mode {
+    VBlank = 0,
+    HBlank = 1,
+    Oam = 2,
+    VramRead = 3,
+}
+
 pub struct GPU {
     cycles: i32,
 }
@@ -103,12 +110,8 @@ impl GPU {
         } else {
             self.cycles = 456;
             memory.scan_line = 0;
-            lcd_status.remove(
-                LcdStatusFlag::MODE_0_INTERRUPT | LcdStatusFlag::MODE_1_INTERRUPT
-                    | LcdStatusFlag::MODE_2_INTERRUPT
-                    | LcdStatusFlag::LY_COINCIDENCE,
-            );
-            lcd_status.insert(LcdStatusFlag::MODE_LOW);
+            lcd_status.remove(LcdStatusFlag::MODE_HIGH);
+            lcd_status.remove(LcdStatusFlag::MODE_LOW);
         }
 
         memory.write_byte(LCD_INDEX, lcd_status.bits());
@@ -159,9 +162,9 @@ impl GPU {
 
         let tile_offset = if (using_window && lcd_control.contains(LcdControlFlag::WINDOW_TILE_MAP))
             || lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_MAP)
-        {
-            0x9C00
-        } else {
+            {
+                0x9C00
+            } else {
             0x9800
         };
 
@@ -257,12 +260,12 @@ impl GPU {
 
                     if pixel >= 0 && pixel < 160 && color_index != 0
                         && (attributes.contains(SpriteAttributes::BACKGROUND_PRIORITY)
-                            || pixel_mapper.get_pixel(pixel as u8, scan_line) != Color::Black)
-                    {
-                        let color = palette[color_index as usize];
+                        || pixel_mapper.get_pixel(pixel as u8, scan_line) != Color::Black)
+                        {
+                            let color = palette[color_index as usize];
 
-                        pixel_mapper.map_pixel(pixel as u8, scan_line, color);
-                    }
+                            pixel_mapper.map_pixel(pixel as u8, scan_line, color);
+                        }
                 }
             }
         }

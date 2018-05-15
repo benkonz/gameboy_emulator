@@ -14,7 +14,8 @@ use std::time::{Duration, SystemTime};
 
 pub fn start(rom: Vec<u8>) {
     let mut screen = Screen::new();
-    let mut emulator = Emulator::new();
+    let joypad = screen.get_input();
+    let mut emulator = Emulator::new(joypad);
 
     emulator.load_rom(rom);
 
@@ -24,7 +25,17 @@ pub fn start(rom: Vec<u8>) {
     while screen.should_run() {
         let start_time = SystemTime::now();
 
-        emulator.emulate(&mut screen);
+        let max_cycles = 69905;
+
+        let mut cycles_this_update = 0;
+
+        while cycles_this_update < max_cycles {
+            let cycles = emulator.emulate(&mut screen);
+            screen.poll_input();
+            cycles_this_update += cycles;
+        }
+
+        screen.render();
 
         let end_time = SystemTime::now();
 

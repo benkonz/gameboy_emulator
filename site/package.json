@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "test",
-    "compile": "webpack --progress",
+    "compile": "webpack --watch --progress",
     "serve": "http-server dist"
   },
   "repository": {
@@ -23,9 +23,15 @@
   },
   "homepage": "https://github.com/benkonz/gameboy_emulator#readme",
   "dependencies": {
-    "npm": "^5.8.0"
+    "npm": "^5.8.0",
+    "react": "^16.3.2",
+    "react-dom": "^16.3.2"
   },
   "devDependencies": {
+    "babel-core": "^6.26.3",
+    "babel-loader": "^7.1.4",
+    "babel-preset-env": "^1.6.1",
+    "babel-preset-react": "^6.24.1",
     "file-loader": "^1.1.11",
     "http-server": "^0.11.1",
     "rust-native-wasm-loader": "^0.7.0",

@@ -62,6 +62,7 @@ impl Screen {
 
         {
             let joypad = joypad.clone();
+
             window().add_event_listener(move |event: KeyUpEvent| {
                 match event.key().as_ref() {
                     "ArrowUp" => joypad.borrow_mut().release(Button::Up),
@@ -161,8 +162,8 @@ impl Screen {
         }
     }
 
-    pub fn should_run(&self) -> bool {
-        true
+    pub fn get_input(&mut self) -> Rc<RefCell<Joypad>> {
+        self.joypad.clone()
     }
 }
 
@@ -224,14 +225,5 @@ impl PixelMapper for Screen {
             [0, 0, 0] => Color::Black,
             _ => Color::Black
         }
-    }
-}
-
-impl Input for Screen {
-    fn get_input(&mut self) -> Joypad {
-        let x = self.joypad.borrow_mut();
-        let z = x.clone();
-
-        z
     }
 }

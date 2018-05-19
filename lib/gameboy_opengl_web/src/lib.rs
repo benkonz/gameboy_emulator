@@ -26,10 +26,17 @@ pub fn start(rom: Vec<u8>) {
 
 fn main_loop(mut system: Screen, mut emulator: Emulator) {
 
-    emulator.emulate(&mut system);
-
     window().request_animation_frame(|_| {
-        emulator.emulate(&mut system);
+        let max_cycles = 69905;
+        let mut cycles_this_update = 0;
+
+        while cycles_this_update < max_cycles {
+            let cycles = emulator.emulate(&mut system);
+            cycles_this_update += cycles;
+        }
+
+        system.render();
+
         main_loop(system, emulator);
     });
 }

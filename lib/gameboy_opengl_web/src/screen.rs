@@ -165,10 +165,8 @@ impl Screen {
     pub fn get_input(&mut self) -> Rc<RefCell<Joypad>> {
         self.joypad.clone()
     }
-}
 
-impl Render for Screen {
-    fn render(&mut self) {
+    pub fn render(&mut self) {
         self.context
             .bind_texture(gl::TEXTURE_2D, Some(&self.texture));
 
@@ -199,7 +197,9 @@ impl Render for Screen {
         self.context
             .draw_elements(gl::TRIANGLES, 6, gl::UNSIGNED_BYTE, 0);
     }
+
 }
+
 
 impl PixelMapper for Screen {
     fn map_pixel(&mut self, x: u8, y: u8, color: Color) {

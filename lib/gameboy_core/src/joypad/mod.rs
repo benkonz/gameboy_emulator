@@ -43,11 +43,9 @@ impl Joypad {
 
     pub fn update(&mut self, memory: &mut Memory) {
         if memory.are_action_keys_enabled() && self.previously_unset_button_pressed {
-            println!("requesting interrupt for action keys");
             memory.request_interrupt(Interrupt::Joypad);
             self.previously_unset_button_pressed = false;
         } else if memory.are_direction_keys_enabled() && self.previously_unset_direction_pressed {
-            println!("requesting interrupt for arrow keys");
             memory.request_interrupt(Interrupt::Joypad);
             self.previously_unset_direction_pressed = false;
         }

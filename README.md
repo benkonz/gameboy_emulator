@@ -39,5 +39,5 @@ npm install
 npm run compile
 ```
 
-use your faviorate static file server to serve the files generated in the
+use your favorite static file server to serve the files generated in the
 `dist` folder. You can also run `npm run serve`, to serve the files locally.

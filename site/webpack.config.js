@@ -19,7 +19,8 @@ module.exports = {
                 test: /\.rs$/,
                 loader: 'rust-native-wasm-loader',
                 options: {
-                    cargoWeb: true
+                    cargoWeb: true,
+                    release: true
                 }
             },
             {

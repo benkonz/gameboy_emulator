@@ -5,7 +5,7 @@ use gameboy_core::Color;
 use stdweb;
 use stdweb::unstable::TryInto;
 use stdweb::web::html_element::CanvasElement;
-use stdweb::web::{document, IParentNode, TypedArray, window, IEventTarget};
+use stdweb::web::{document, IParentNode, TypedArray, ArrayBuffer, window, IEventTarget};
 use stdweb::web::event::{KeyUpEvent, KeyDownEvent};
 use stdweb::traits::IKeyboardEvent;
 use webgl_rendering_context::*;
@@ -170,7 +170,9 @@ impl Screen {
         self.context
             .bind_texture(gl::TEXTURE_2D, Some(&self.texture));
 
-        let pixels = &self.pixels[..];
+        let slice = &self.pixels[..];
+        let array: TypedArray<u8> = slice.into();
+        let buffer = array.buffer();
 
         self.context.tex_image2_d(
             gl::TEXTURE_2D,
@@ -181,7 +183,7 @@ impl Screen {
             0,
             gl::RGB,
             gl::UNSIGNED_BYTE,
-            Some(pixels.as_ref()),
+            Some(&buffer),
         );
 
 //        self.context.generate_mipmap(gl::TEXTURE_2D);

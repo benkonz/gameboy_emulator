@@ -9,7 +9,7 @@ use mmu::Memory;
 use std::collections::HashMap;
 
 lazy_static! {
-    static ref button_map: HashMap<Button, Buttons> = {
+    static ref BUTTON_MAP: HashMap<Button, Buttons> = {
         let mut bm = HashMap::new();
 
         bm.insert(Button::A, Buttons::A);
@@ -55,7 +55,7 @@ impl Joypad {
     }
 
     pub fn press(&mut self, button: Button) {
-        let pressed = *(button_map.get(&button).unwrap());
+        let pressed = *(BUTTON_MAP.get(&button).unwrap());
 
         if self.released_keys.contains(pressed) {
 
@@ -72,7 +72,13 @@ impl Joypad {
     }
 
     pub fn release(&mut self, button: Button) {
-        let released = button_map.get(&button).unwrap();
+        let released = BUTTON_MAP.get(&button).unwrap();
         self.released_keys.insert(*released);
+    }
+}
+
+impl Default for Joypad {
+    fn default() -> Self {
+        Joypad::new()
     }
 }

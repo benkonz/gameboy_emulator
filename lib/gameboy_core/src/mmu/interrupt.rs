@@ -1,6 +1,6 @@
 #[derive(Clone)]
 pub enum Interrupt {
-    Vblank = 1 << 0,
+    Vblank = 1,
     Lcd = 1 << 1,
     Timer = 1 << 2,
     Serial = 1 << 3,

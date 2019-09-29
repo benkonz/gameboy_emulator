@@ -23,7 +23,8 @@ const OBJECT_PALETTE_1_INDEX: u16 = 0xFF49;
 const WINDOW_Y_INDEX: u16 = 0xFF4A;
 const WINDOW_X_INDEX: u16 = 0xFF4B;
 
-pub enum Mode {
+// TODO: refactor GPU to use mode state
+pub enum _Mode {
     VBlank = 0,
     HBlank = 1,
     Oam = 2,
@@ -121,12 +122,12 @@ impl GPU {
         let mut palette: [Color; 4] = [Color::White; 4];
 
         // iterate through each pair of two bits in the byte
-        for i in 0..4 {
+        for (i, color) in palette.iter_mut().enumerate() {
             match (order >> (i * 2)) & 0b11 {
-                0b00 => palette[i] = Color::White,
-                0b01 => palette[i] = Color::LightGray,
-                0b10 => palette[i] = Color::DarkGray,
-                0b11 => palette[i] = Color::Black,
+                0b00 => *color = Color::White,
+                0b01 => *color = Color::LightGray,
+                0b10 => *color = Color::DarkGray,
+                0b11 => *color = Color::Black,
                 _ => {}
             }
         }
@@ -219,7 +220,7 @@ impl GPU {
                 memory.read_byte(SPRITES_START_INDEX + index + 3),
             );
 
-            let y_size = if lcd_control.contains(LcdControlFlag::SPRITES_SIZE) {
+            let _y_size = if lcd_control.contains(LcdControlFlag::SPRITES_SIZE) {
                 16
             } else {
                 8

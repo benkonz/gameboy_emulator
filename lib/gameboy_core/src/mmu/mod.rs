@@ -2,7 +2,7 @@ pub mod interrupt;
 
 use self::interrupt::Interrupt;
 
-const BIOS: &'static [u8] = include_bytes!("bios.gb");
+const BIOS: &[u8] = include_bytes!("bios.gb");
 const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
 const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
 
@@ -24,6 +24,7 @@ pub struct Memory {
 }
 
 impl Memory {
+    // TODO: make default
     pub fn new() -> Memory {
         Memory {
             rom_banks: vec![[0; 0x4000]; 2],
@@ -47,22 +48,22 @@ impl Memory {
         let index = index as usize;
 
         match index {
-            0x0000 ... 0x00FF => {
+            0x0000..=0x00FF => {
                 if self.disable_bios == 0 {
                     BIOS[index]
                 } else {
                     self.rom_banks[0][index]
                 }
             }
-            0x0100 ... 0x3FFF => self.rom_banks[0][index],
-            0x4000 ... 0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
-            0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000],
-            0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
-            0xC000 ... 0xCFFF => self.wram_banks[0][index - 0xC000],
-            0xD000 ... 0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000],
-            0xE000 ... 0xFDFF => self.wram_banks[0][index - 0xE000],
-            0xFE00 ... 0xFE9F => self.oam[index - 0xFE00],
-            0xFF00 ... 0xFFFF => match index {
+            0x0100..=0x3FFF => self.rom_banks[0][index],
+            0x4000..=0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
+            0x8000..=0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000],
+            0xA000..=0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
+            0xC000..=0xCFFF => self.wram_banks[0][index - 0xC000],
+            0xD000..=0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000],
+            0xE000..=0xFDFF => self.wram_banks[0][index - 0xE000],
+            0xFE00..=0xFE9F => self.oam[index - 0xFE00],
+            0xFF00..=0xFFFF => match index {
                 0xFF00 => self.get_joypad_state(),
                 0xFF04 => self.divider_register,
                 0xFF44 => self.scan_line,
@@ -75,7 +76,6 @@ impl Memory {
 
     fn get_joypad_state(&self) -> u8 {
         let joypad_control = self.high_ram[0x100];
-
 
         if self.are_direction_keys_enabled() {
             (joypad_control & 0xF0) | (self.joypad_state & 0x0F)
@@ -104,12 +104,12 @@ impl Memory {
         let index = index as usize;
 
         match index {
-            0x8000 ... 0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000] = value,
-            0xA000 ... 0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000] = value,
-            0xC000 ... 0xCFFF => self.wram_banks[0][index - 0xC000] = value,
-            0xD000 ... 0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000] = value,
-            0xFE00 ... 0xFE9F => self.oam[index - 0xFE00] = value,
-            0xFF00 ... 0xFFFF => match index {
+            0x8000..=0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000] = value,
+            0xA000..=0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000] = value,
+            0xC000..=0xCFFF => self.wram_banks[0][index - 0xC000] = value,
+            0xD000..=0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000] = value,
+            0xFE00..=0xFE9F => self.oam[index - 0xFE00] = value,
+            0xFF00..=0xFFFF => match index {
                 0xFF04 => self.divider_register = 0,
                 0xFF44 => self.scan_line = 0,
                 0xFF46 => self.do_dma_transfer(value),
@@ -119,7 +119,7 @@ impl Memory {
                         print!("{}", self.read_byte(0xFF01) as char);
                     }
                     self.high_ram[index - 0xFE00] = value
-                },
+                }
             },
             _ => {}
         };
@@ -147,7 +147,13 @@ impl Memory {
     }
 
     pub fn get_interrupts(&self) -> Option<Interrupt> {
-        let interrupts = [Interrupt::Vblank, Interrupt::Lcd, Interrupt::Timer, Interrupt::Serial, Interrupt::Joypad];
+        let interrupts = [
+            Interrupt::Vblank,
+            Interrupt::Lcd,
+            Interrupt::Timer,
+            Interrupt::Serial,
+            Interrupt::Joypad,
+        ];
         let interrupt_enable = self.read_byte(INTERRUPT_ENABLE_INDEX);
         let interrupt_flags = self.read_byte(INTERRUPT_FLAGS_INDEX);
         let check = interrupt_enable & interrupt_flags;
@@ -214,6 +220,12 @@ impl Memory {
     }
 }
 
+impl Default for Memory {
+    fn default() -> Self {
+        Memory::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use mmu::Memory;
@@ -258,10 +270,10 @@ mod tests {
         let mut rom = vec![0; 0xE000];
         for (i, item) in rom.iter_mut().enumerate() {
             match i {
-                0x0000 ... 0x3FFF => *item = 0u8,
-                0x4000 ... 0x7FFF => *item = 1u8,
-                0x8000 ... 0xBFFF => *item = 2u8,
-                0xC000 ... 0xE000 => *item = 3u8,
+                0x0000..=0x3FFF => *item = 0u8,
+                0x4000..=0x7FFF => *item = 1u8,
+                0x8000..=0xBFFF => *item = 2u8,
+                0xC000..=0xE000 => *item = 3u8,
                 _ => {}
             };
         }
@@ -272,22 +284,30 @@ mod tests {
 
         for (i, bank) in memory.rom_banks.iter().enumerate() {
             match i {
-                0 => for byte in bank.iter() {
-                    assert_eq!(*byte, 0);
-                },
-                1 => for byte in bank.iter() {
-                    assert_eq!(*byte, 1);
-                },
-                2 => for byte in bank.iter() {
-                    assert_eq!(*byte, 2);
-                },
-                3 => for (i, byte) in bank.iter().enumerate() {
-                    if i < 0x2000 {
-                        assert_eq!(*byte, 3);
-                    } else {
+                0 => {
+                    for byte in bank.iter() {
                         assert_eq!(*byte, 0);
                     }
-                },
+                }
+                1 => {
+                    for byte in bank.iter() {
+                        assert_eq!(*byte, 1);
+                    }
+                }
+                2 => {
+                    for byte in bank.iter() {
+                        assert_eq!(*byte, 2);
+                    }
+                }
+                3 => {
+                    for (i, byte) in bank.iter().enumerate() {
+                        if i < 0x2000 {
+                            assert_eq!(*byte, 3);
+                        } else {
+                            assert_eq!(*byte, 0);
+                        }
+                    }
+                }
                 _ => {}
             };
         }

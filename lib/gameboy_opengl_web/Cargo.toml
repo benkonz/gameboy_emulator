@@ -11,4 +11,4 @@ stdweb-derive = "0.5"
 gameboy_core = {path = "../gameboy_core"}
 
 [build-dependencies]
-webgl_generator = "0.1"
+webgl_generator = "0.2"

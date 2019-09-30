@@ -170,9 +170,7 @@ impl Screen {
         self.context
             .bind_texture(gl::TEXTURE_2D, Some(&self.texture));
 
-        let slice = &self.pixels[..];
-        let array: TypedArray<u8> = slice.into();
-        let buffer = array.buffer();
+        let pixels = &self.pixels[..];
 
         self.context.tex_image2_d(
             gl::TEXTURE_2D,
@@ -183,10 +181,9 @@ impl Screen {
             0,
             gl::RGB,
             gl::UNSIGNED_BYTE,
-            Some(&buffer),
+            Some(pixels.as_ref()),
         );
 
-//        self.context.generate_mipmap(gl::TEXTURE_2D);
         self.context.active_texture(gl::TEXTURE0);
 
         self.context.use_program(Some(&self.shader_program));
@@ -199,7 +196,6 @@ impl Screen {
         self.context
             .draw_elements(gl::TRIANGLES, 6, gl::UNSIGNED_BYTE, 0);
     }
-
 }
 
 

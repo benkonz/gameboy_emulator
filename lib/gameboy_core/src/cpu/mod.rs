@@ -612,38 +612,39 @@ impl Cpu {
     }
 
     fn daa(&mut self) {
-        let mut result = self.registers.a;
-        let mut correction = 0;
+        let mut result = self.registers.a as i32;
 
-        if self.registers.f.contains(Flag::HALF_CARRY) {
-            correction |= 0x06;
-        }
+        if (!self.registers.f.contains(Flag::NEGATIVE)) {
+            if self.registers.f.contains(Flag::HALF_CARRY) || ((result & 0xF) > 9) {
+                result += 0x06;
+            }
 
-        if self.registers.f.contains(Flag::FULL_CARRY) {
-            correction |= 0x60;
-        }
-
-        if self.registers.f.contains(Flag::NEGATIVE) {
-            result = result.wrapping_sub(correction);
+            if self.registers.f.contains(Flag::FULL_CARRY) || result > 0x9F {
+                result += 0x60;
+            }
         } else {
-            if result & 0x0F > 0x09 {
-                correction |= 0x06;
+            if (self.registers.f.contains(Flag::HALF_CARRY)) {
+                result = (result - 6) & 0xFF;
             }
 
-            if result > 0x99 {
-                correction |= 0x60;
+            if (self.registers.f.contains(Flag::FULL_CARRY)) {
+                result -= 0x60;
             }
-
-            result = result.wrapping_add(correction);
         }
 
-        let half_carry = correction & 0x60 != 0;
+        self.registers.f.remove(Flag::HALF_CARRY);
+        self.registers.f.remove(Flag::ZERO);
 
-        self.registers.f.remove(Flag::FULL_CARRY);
-        self.registers.f.set(Flag::HALF_CARRY, half_carry);
-        self.registers.f.set(Flag::ZERO, result == 0);
+        if (result & 0x100) == 0x100 {
+            self.registers.f.insert(Flag::FULL_CARRY);
+        }
 
-        self.registers.a = result;
+        result &= 0xFF;
+        if result == 0 {
+            self.registers.f.insert(Flag::ZERO);
+        }
+
+        self.registers.a = result as u8;
     }
 
     fn jr_z_n(&mut self, n: u8) {

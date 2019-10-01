@@ -16,9 +16,7 @@ use stdweb::web::window;
 pub fn start(rom: Vec<u8>) {
     let mut screen= Screen::new();
     let joypad = screen.get_input();
-    let mut emulator = Emulator::new(joypad);
-
-    emulator.load_rom(rom);
+    let emulator = Emulator::from_rom(rom, joypad);
 
     main_loop(screen, emulator);
 

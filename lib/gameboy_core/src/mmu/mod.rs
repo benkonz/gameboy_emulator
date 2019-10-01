@@ -6,6 +6,35 @@ const BIOS: &[u8] = include_bytes!("bios.gb");
 const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
 const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
 
+const ROM_ONLY: u8 = 0x0;
+const ROM_MBC1: u8 = 0x1;
+const ROM_MBC1_RAM: u8 = 0x2;
+const ROM_MBC1_RAM_BATT: u8 = 0x3;
+const ROM_MBC2: u8 = 0x5;
+const ROM_MBC2_BATT: u8 = 0x6;
+const ROM_RAM: u8 = 0x8;
+const ROM_RAM_BATT: u8 = 0x9;
+const ROM_MMM01: u8 = 0xB;
+const ROM_MMM01_SRAM: u8 = 0xC;
+const ROM_MMM01_SRAM_BATT: u8 = 0xD;
+const ROM_MBC3_TIMER_BATT: u8 = 0xF;
+const ROM_MBC3_TIMER_RAM_BATT: u8 = 0x10;
+const ROM_MBC3: u8 = 0x11;
+const ROM_MBC3_RAM: u8 = 0x12;
+const ROM_MBC3_RAM_BATT: u8 = 0x13;
+const ROM_MBC5: u8 = 0x19;
+const ROM_MBC5_RAM: u8 = 0x1A;
+const ROM_MBC5_RAM_BATT: u8 = 0x1B;
+const ROM_MBC5_RUMBLE: u8 = 0x1C;
+const ROM_MBC5_RUMBLE_SRAM: u8 = 0x1D;
+const ROM_MBC5_RUMBLE_SRAM_BATT: u8 = 0x1E;
+const MBC6: u8 = 0x20;
+const MBC7_SENSOR_RUMBLE_RAM_BATT: u8 = 0x22;
+const Pocket_Camera: u8 = 0xFC;
+const Bandai_TAMA5: u8 = 0xFD;
+const Hudson_HuC3: u8 = 0xFE;
+const Hudson_HuC1_RAM_BATTERY: u8 = 0xFF;
+
 pub struct Memory {
     rom_banks: Vec<[u8; 0x4000]>,
     eram_banks: Vec<[u8; 0x2000]>,
@@ -14,17 +43,19 @@ pub struct Memory {
     oam: [u8; 0x100],
     high_ram: [u8; 0x200],
     disable_bios: u8,
-    selected_rom_bank: usize,
-    selected_eram_bank: usize,
-    selected_wram_bank: usize,
-    selected_vram_bank: usize,
+    selected_rom_bank: u8,
+    selected_eram_bank: u8,
+    selected_wram_bank: u8,
+    selected_vram_bank: u8,
     pub divider_register: u8,
     pub scan_line: u8,
     joypad_state: u8,
+    cartridge_type: u8,
+    in_ram_banking_mode: bool,
+    external_ram_enabled: bool,
 }
 
 impl Memory {
-    // TODO: make default
     pub fn new() -> Memory {
         Memory {
             rom_banks: vec![[0; 0x4000]; 2],
@@ -41,6 +72,66 @@ impl Memory {
             divider_register: 0,
             scan_line: 0,
             joypad_state: 0,
+            cartridge_type: ROM_ONLY,
+            in_ram_banking_mode: false,
+            external_ram_enabled: false,
+        }
+    }
+
+    pub fn from_rom(rom: Vec<u8>) -> Memory {
+        let cartridge_type = rom[0x0147];
+        let rom_size = rom[0x0148];
+        let num_rom_banks = match rom_size {
+            0x0 => 2,
+            0x1 => 4,
+            0x2 => 8,
+            0x3 => 16,
+            0x4 => 32,
+            0x5 => 64,
+            0x6 => 128,
+            0x52 => 72,
+            0x53 => 80,
+            0x54 => 96,
+            _ => panic!("Unknown number of ROM banks"),
+        };
+        let ram_size = rom[0x0149];
+        let num_ram_banks = match ram_size {
+            0x0 => 0,
+            0x1 => 1,
+            0x2 => 1,
+            0x3 => 4,
+            0x4 => 16,
+            _ => panic!("Unknown number of RAM banks"),
+        };
+        println!("{:02X}", cartridge_type);
+        println!("{}", num_rom_banks);
+        println!("{}", num_ram_banks);
+        let mut rom_banks: Vec<[u8; 0x4000]> = vec![[0; 0x4000]; num_rom_banks];
+        for (i, bank) in rom_banks.iter_mut().enumerate() {
+            let start = i * 0x4000;
+            println!("copying rom from {:04X} to {:04X}", start, start + 0x4000);
+            bank.copy_from_slice(&rom[start..start + 0x4000]);
+        }
+
+        let eram_banks: Vec<[u8; 0x2000]> = vec![[0; 0x2000]; num_ram_banks];
+        Memory {
+            rom_banks,
+            vram_banks: vec![[0; 0x2000]],
+            eram_banks,
+            wram_banks: vec![[0; 0x1000]; 2],
+            oam: [0; 0x100],
+            high_ram: [0; 0x200],
+            disable_bios: 0,
+            selected_rom_bank: 1,
+            selected_vram_bank: 0,
+            selected_eram_bank: 0,
+            selected_wram_bank: 1,
+            divider_register: 0,
+            scan_line: 0,
+            joypad_state: 0,
+            cartridge_type,
+            in_ram_banking_mode: false,
+            external_ram_enabled: false,
         }
     }
 
@@ -56,11 +147,11 @@ impl Memory {
                 }
             }
             0x0100..=0x3FFF => self.rom_banks[0][index],
-            0x4000..=0x7FFF => self.rom_banks[self.selected_rom_bank][index - 0x4000],
-            0x8000..=0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000],
-            0xA000..=0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000],
+            0x4000..=0x7FFF => self.rom_banks[self.selected_rom_bank as usize][index - 0x4000],
+            0x8000..=0x9FFF => self.vram_banks[self.selected_vram_bank as usize][index - 0x8000],
+            0xA000..=0xBFFF => self.eram_banks[self.selected_eram_bank as usize][index - 0xA000],
             0xC000..=0xCFFF => self.wram_banks[0][index - 0xC000],
-            0xD000..=0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000],
+            0xD000..=0xDFFF => self.wram_banks[self.selected_wram_bank as usize][index - 0xD000],
             0xE000..=0xFDFF => self.wram_banks[0][index - 0xE000],
             0xFE00..=0xFE9F => self.oam[index - 0xFE00],
             0xFF00..=0xFFFF => match index {
@@ -100,14 +191,49 @@ impl Memory {
         joypad_control & (1 << 4) == 0
     }
 
+    fn cartridge_has_mbc1(&self) -> bool {
+        self.cartridge_type == ROM_MBC1
+            || self.cartridge_type == ROM_MBC1_RAM
+            || self.cartridge_type == ROM_MBC1_RAM_BATT
+    }
+
     pub fn write_byte(&mut self, index: u16, value: u8) {
         let index = index as usize;
 
         match index {
-            0x8000..=0x9FFF => self.vram_banks[self.selected_vram_bank][index - 0x8000] = value,
-            0xA000..=0xBFFF => self.eram_banks[self.selected_eram_bank][index - 0xA000] = value,
+            0x6000..=0x7FFF if self.cartridge_has_mbc1() => {
+                self.in_ram_banking_mode = value & 0x01 == 0x01
+            }
+            0x2000..=0x3FFF if self.cartridge_has_mbc1() => {
+                let new_rom_bank = if 0b0001_1111 & value == 0 {
+                    1
+                } else {
+                    0b0001_1111 & value
+                };
+                self.selected_rom_bank |= new_rom_bank;
+            }
+            0x4000..=0x5FFF if self.cartridge_has_mbc1() => {
+                if self.in_ram_banking_mode {
+                    if self.external_ram_enabled {
+                        self.selected_eram_bank = 0b0000_0011 & value;
+                    }
+                } else {
+                    self.selected_rom_bank |= (0b0000_0011 & value) << 5;
+                }
+            }
+            0x0000..=0x1FFF if self.cartridge_has_mbc1() => {
+                self.external_ram_enabled = value & 0b0000_1010 == 0b0000_1010
+            }
+            0x8000..=0x9FFF => {
+                self.vram_banks[self.selected_vram_bank as usize][index - 0x8000] = value
+            }
+            0xA000..=0xBFFF => {
+                self.eram_banks[self.selected_eram_bank as usize][index - 0xA000] = value
+            }
             0xC000..=0xCFFF => self.wram_banks[0][index - 0xC000] = value,
-            0xD000..=0xDFFF => self.wram_banks[self.selected_wram_bank][index - 0xD000] = value,
+            0xD000..=0xDFFF => {
+                self.wram_banks[self.selected_wram_bank as usize][index - 0xD000] = value
+            }
             0xFE00..=0xFE9F => self.oam[index - 0xFE00] = value,
             0xFF00..=0xFFFF => match index {
                 0xFF04 => self.divider_register = 0,
@@ -183,40 +309,17 @@ impl Memory {
 
     pub fn get_tile_from_set1(&self, tile_id: u8) -> &[u8] {
         let index = tile_id as usize * 0x10;
-        &self.vram_banks[self.selected_vram_bank][index..index + 0x10]
+        &self.vram_banks[self.selected_vram_bank as usize][index..index + 0x10]
     }
 
     pub fn get_tile_from_set0(&self, tile_id: i8) -> &[u8] {
         let index = (0x1000 + tile_id as i32 * 0x10) as usize;
-        &self.vram_banks[self.selected_vram_bank][index..index + 0x10]
+        &self.vram_banks[self.selected_vram_bank as usize][index..index + 0x10]
     }
 
     pub fn get_sprite_data(&self, sprite_id: u8) -> &[u8] {
         let start_index = (sprite_id * 4) as usize;
         &self.oam[start_index..start_index + 4]
-    }
-
-    /// loads the rom into the memory struct
-    ///
-    /// # Arguments
-    ///
-    /// * `rom` - the rom file as represented as a vector of bytes.
-    ///           Consumes the rom files, since the function makes a copy of the rom into memory
-    pub fn load_rom(&mut self, rom: Vec<u8>) {
-        self.rom_banks[0].copy_from_slice(&rom[..0x4000]);
-        self.rom_banks[1].copy_from_slice(&rom[0x4000..0x8000]);
-
-        let mut i = 0x8000;
-        while i < rom.len() {
-            let mut bank = [0u8; 0x4000];
-            if i + 0x4000 >= rom.len() {
-                bank[..rom.len() - i].copy_from_slice(&rom[i..]);
-            } else {
-                bank.copy_from_slice(&rom[i..i + 0x4000]);
-            }
-            self.rom_banks.push(bank);
-            i += 0x4000;
-        }
     }
 }
 
@@ -261,55 +364,6 @@ mod tests {
 
         for i in 0..0x10 {
             assert_eq!(tile[i], actual[i]);
-        }
-    }
-
-    #[test]
-    fn test_load_rom() {
-        let mut memory = Memory::new();
-        let mut rom = vec![0; 0xE000];
-        for (i, item) in rom.iter_mut().enumerate() {
-            match i {
-                0x0000..=0x3FFF => *item = 0u8,
-                0x4000..=0x7FFF => *item = 1u8,
-                0x8000..=0xBFFF => *item = 2u8,
-                0xC000..=0xE000 => *item = 3u8,
-                _ => {}
-            };
-        }
-
-        memory.load_rom(rom);
-
-        assert_eq!(memory.rom_banks.len(), 4);
-
-        for (i, bank) in memory.rom_banks.iter().enumerate() {
-            match i {
-                0 => {
-                    for byte in bank.iter() {
-                        assert_eq!(*byte, 0);
-                    }
-                }
-                1 => {
-                    for byte in bank.iter() {
-                        assert_eq!(*byte, 1);
-                    }
-                }
-                2 => {
-                    for byte in bank.iter() {
-                        assert_eq!(*byte, 2);
-                    }
-                }
-                3 => {
-                    for (i, byte) in bank.iter().enumerate() {
-                        if i < 0x2000 {
-                            assert_eq!(*byte, 3);
-                        } else {
-                            assert_eq!(*byte, 0);
-                        }
-                    }
-                }
-                _ => {}
-            };
         }
     }
 }

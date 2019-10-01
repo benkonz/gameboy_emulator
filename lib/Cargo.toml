@@ -10,7 +10,7 @@ gameboy_opengl_web = { path = "gameboy_opengl_web" }
 stdweb = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gameboy_opengl = {path = "gameboy_opengl"}
+gameboy_opengl = { path = "gameboy_opengl" }
 
 [workspace]
 

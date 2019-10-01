@@ -15,9 +15,7 @@ use std::time::{Duration, SystemTime};
 pub fn start(rom: Vec<u8>) {
     let mut screen = Screen::new();
     let joypad = screen.get_input();
-    let mut emulator = Emulator::new(joypad);
-
-    emulator.load_rom(rom);
+    let mut emulator = Emulator::from_rom(rom, joypad);
 
     let frame_rate = 60f64;
     let frame_duration = Duration::from_millis((1000f64 * (1f64 / frame_rate)) as u64);

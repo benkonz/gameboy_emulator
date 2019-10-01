@@ -2,7 +2,7 @@
 
 This is a GameBoy emulator written in Rust. It can be compiled to native
 and web assembly, see the build section for more details. There are a few
-missing features, such as sound and supporting ROM's larger than 32KB.
+missing features, such as sound.
 
 ## Screenshots
 
@@ -30,14 +30,13 @@ to run it, just supply the rom file as the first file argument
 
 ### Web Assembly
 
-`cargo-web` and `npm` are very useful for building the web
+`cargo-web` is very useful for building the web
 port of the emulator.
 
 ```text
-cd site
-npm install
-npm run compile
+cd lib
+cargo-web deploy
 ```
 
 use your favorite static file server to serve the files generated in the
-`dist` folder. You can also run `npm run serve`, to serve the files locally.
+`lib/target/deploy` directory. You can also run `cargo-web start`, to serve the files locally.

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use cpu::registers::flag::Flag;
     use cpu::Cpu;
     use mmu::Memory;
-    use cpu::registers::flag::Flag;
 
     #[test]
     fn opcode_01() {
@@ -2463,12 +2463,12 @@ mod tests {
         assert_eq!(cpu.registers.pc, 0xC000);
         assert_eq!(cpu.registers.sp, 0xD002);
     }
-    
+
     #[test]
     fn opcode_d1() {
         let mut memory = Memory::new();
         let mut cpu = Cpu::new();
-        
+
         cpu.registers.sp = 0xD000;
         memory.write_word(0xD000, 0x1234);
         cpu.execute_opcode(0xd1, &mut memory);
@@ -2527,7 +2527,5 @@ mod tests {
     }
 
     #[test]
-    fn opcode_d6() {
-
-    }
+    fn opcode_d6() {}
 }

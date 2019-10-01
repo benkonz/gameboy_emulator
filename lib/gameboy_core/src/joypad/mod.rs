@@ -1,8 +1,8 @@
-mod buttons;
 pub mod button;
+mod buttons;
 
-use self::buttons::Buttons;
 pub use self::button::Button;
+use self::buttons::Buttons;
 
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
@@ -58,7 +58,6 @@ impl Joypad {
         let pressed = *(BUTTON_MAP.get(&button).unwrap());
 
         if self.released_keys.contains(pressed) {
-
             // was an action button just pressed?
             let action_keys = Buttons::A | Buttons::B | Buttons::START | Buttons::SELECT;
             self.previously_unset_button_pressed = action_keys.contains(pressed);

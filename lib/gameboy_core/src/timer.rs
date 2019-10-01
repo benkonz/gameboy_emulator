@@ -1,5 +1,5 @@
-use mmu::Memory;
 use mmu::interrupt::Interrupt;
+use mmu::Memory;
 
 const SELECTABLE_TIMER_INDEX: u16 = 0xFF05;
 const TIMER_RESET_INDEX: u16 = 0xFF06;
@@ -28,10 +28,7 @@ struct Registers {
 
 impl Registers {
     fn new() -> Registers {
-        Registers {
-            div: 0,
-            tima: 0,
-        }
+        Registers { div: 0, tima: 0 }
     }
 }
 
@@ -75,7 +72,7 @@ impl Timer {
             0b01 => 1,
             0b10 => 4,
             0b11 => 16,
-            _ => panic!()
+            _ => panic!(),
         };
 
         if self.clock.main >= threshold {

@@ -1,5 +1,3 @@
-#![feature(proc_macro)]
-
 #[cfg(target_arch = "wasm32")]
 extern crate gameboy_opengl_web;
 #[cfg(target_arch = "wasm32")]

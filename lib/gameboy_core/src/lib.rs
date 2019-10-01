@@ -5,12 +5,12 @@ extern crate bitflags;
 extern crate lazy_static;
 
 mod cpu;
-mod mmu;
-mod gpu;
-mod timer;
-pub mod joypad;
 pub mod emulator;
+mod gpu;
+pub mod joypad;
+mod mmu;
+mod timer;
 
-pub use emulator::Emulator;
 pub use emulator::traits;
+pub use emulator::Emulator;
 pub use gpu::color::Color;

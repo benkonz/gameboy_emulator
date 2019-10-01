@@ -3,12 +3,12 @@ pub mod traits;
 use self::traits::*;
 use cpu::Cpu;
 use gpu::GPU;
+use joypad::Joypad;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
-use timer::Timer;
-use joypad::Joypad;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
+use timer::Timer;
 
 pub struct Emulator {
     cpu: Cpu,
@@ -29,8 +29,14 @@ impl Emulator {
         }
     }
 
-    pub fn load_rom(&mut self, rom: Vec<u8>) {
-        self.memory.load_rom(rom);
+    pub fn from_rom(rom: Vec<u8>, joypad: Rc<RefCell<Joypad>>) -> Emulator {
+        Emulator {
+            cpu: Cpu::new(),
+            gpu: GPU::new(),
+            timer: Timer::new(),
+            memory: Memory::from_rom(rom),
+            joypad,
+        }
     }
 
     pub fn emulate<T: PixelMapper>(&mut self, system: &mut T) -> i32 {

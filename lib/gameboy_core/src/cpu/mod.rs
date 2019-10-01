@@ -1,46 +1,30 @@
 mod registers;
 mod tests;
 
-use self::registers::Registers;
 use self::registers::flag::Flag;
+use self::registers::Registers;
 use mmu::Memory;
 
 const INSTRUCTION_TIMINGS: [u8; 256] = [
-    1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
-    0, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
-    2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1,
-    2, 3, 2, 2, 3, 3, 3, 1, 2, 2, 2, 2, 1, 1, 2, 1,
-    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    2, 3, 3, 4, 3, 4, 2, 4, 2, 4, 3, 0, 3, 6, 2, 4,
-    2, 3, 3, 0, 3, 4, 2, 4, 2, 4, 3, 0, 3, 0, 2, 4,
-    3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4,
-    3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4
+    1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1, 0, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+    2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1, 2, 3, 2, 2, 3, 3, 3, 1, 2, 2, 2, 2, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    2, 3, 3, 4, 3, 4, 2, 4, 2, 4, 3, 0, 3, 6, 2, 4, 2, 3, 3, 0, 3, 4, 2, 4, 2, 4, 3, 0, 3, 0, 2, 4,
+    3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4, 3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4,
 ];
 
 const CB_INSTRUCTION_TIMINGS: [u8; 256] = [
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
-    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
-    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
-    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
-    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 ];
 
 pub struct Cpu {
@@ -93,7 +77,7 @@ impl Cpu {
             }
 
             let opcode = self.get_n(memory);
-            self.instruction_cycle = INSTRUCTION_TIMINGS[opcode as usize] as i32 ;
+            self.instruction_cycle = INSTRUCTION_TIMINGS[opcode as usize] as i32;
             self.execute_opcode(opcode, memory);
         }
 
@@ -697,7 +681,6 @@ impl Cpu {
     fn ld_sp_nn(&mut self, nn: u16) {
         self.registers.sp = self.ld_rr_nn(nn);
     }
-
 
     fn inc_sp(&mut self) {
         self.registers.sp = self.inc_rr(self.registers.sp);
@@ -1524,7 +1507,7 @@ impl Cpu {
             0xFC => self.set_7_h(),
             0xFD => self.set_7_l(),
             0xFE => self.set_7_hl(memory),
-            _ => self.set_7_a()
+            _ => self.set_7_a(),
         }
     }
 
@@ -1612,7 +1595,6 @@ impl Cpu {
         let hl = self.registers.get_hl();
         self.push_nn(hl, memory);
     }
-
 
     fn rst_20(&mut self, memory: &mut Memory) {
         self.rst_n(0x20, memory);
@@ -2750,8 +2732,7 @@ impl Cpu {
     }
 
     fn ldh_c_a(&mut self, memory: &mut Memory) {
-        self.registers.a = memory.read_byte(0xFF00 +
-            self.registers.c as u16);
+        self.registers.a = memory.read_byte(0xFF00 + self.registers.c as u16);
     }
 
     fn ld_rr_nn(&mut self, nn: u16) -> u16 {
@@ -2850,9 +2831,7 @@ impl Cpu {
 
         let result = self.registers.a as i16 - n as i16 - carry as i16;
 
-        let half_carry = (self.registers.a & 0x0F) as i16
-            - (n & 0x0F) as i16
-            - (carry as i16) < 0;
+        let half_carry = (self.registers.a & 0x0F) as i16 - (n & 0x0F) as i16 - (carry as i16) < 0;
         let full_carry = result < 0;
 
         self.registers.a = self.registers.a.wrapping_sub(n).wrapping_sub(carry);
@@ -2924,7 +2903,9 @@ impl Cpu {
         self.registers.a |= n;
 
         self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::FULL_CARRY | Flag::HALF_CARRY);
+        self.registers
+            .f
+            .remove(Flag::NEGATIVE | Flag::FULL_CARRY | Flag::HALF_CARRY);
     }
 
     fn or_r(&mut self, r: u8) {
@@ -2944,7 +2925,9 @@ impl Cpu {
         self.registers.a ^= n;
 
         self.registers.f.set(Flag::ZERO, self.registers.a == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY);
+        self.registers
+            .f
+            .remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY);
     }
 
     fn xor_r(&mut self, r: u8) {
@@ -3056,8 +3039,7 @@ impl Cpu {
     fn add_sp(&mut self, n: u8) -> u16 {
         let s = n as i8 as i16 as u16;
 
-        let half_carry = (self.registers.sp & 0x000F)
-            + (n as i8 as u16 & 0x000F) > 0x000F;
+        let half_carry = (self.registers.sp & 0x000F) + (n as i8 as u16 & 0x000F) > 0x000F;
         let full_carry = (self.registers.sp & 0x00FF) + (s & 0x00FF) > 0x00FF;
 
         self.registers.f.remove(Flag::ZERO | Flag::NEGATIVE);
@@ -3068,7 +3050,6 @@ impl Cpu {
     }
 
     // rotates
-
 
     fn rlc(&mut self, n: u8) -> u8 {
         let left_bit = (n & 0x80) == 0x80;
@@ -3082,7 +3063,9 @@ impl Cpu {
     fn rlc_a(&mut self) {
         self.registers.a = self.rlc(self.registers.a);
 
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::ZERO);
+        self.registers
+            .f
+            .remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::ZERO);
     }
 
     fn rlc_r(&mut self, r: u8) -> u8 {
@@ -3114,7 +3097,9 @@ impl Cpu {
 
     fn rrc_a(&mut self) {
         self.registers.a = self.rrc(self.registers.a);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::ZERO);
+        self.registers
+            .f
+            .remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::ZERO);
     }
 
     fn rrc_r(&mut self, r: u8) -> u8 {
@@ -3135,7 +3120,6 @@ impl Cpu {
         self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY);
     }
 
-
     fn rr(&mut self, n: u8) -> u8 {
         let right_bit = (n & 0x1) == 1;
         let mut n = n >> 1;
@@ -3150,7 +3134,9 @@ impl Cpu {
     fn rr_a(&mut self) {
         self.registers.a = self.rr(self.registers.a);
 
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::ZERO);
+        self.registers
+            .f
+            .remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::ZERO);
     }
 
     fn rr_r(&mut self, r: u8) -> u8 {
@@ -3184,7 +3170,9 @@ impl Cpu {
     fn rl_a(&mut self) {
         self.registers.a = self.rl(self.registers.a);
 
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::ZERO);
+        self.registers
+            .f
+            .remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::ZERO);
     }
 
     fn rl_r(&mut self, r: u8) -> u8 {
@@ -3345,7 +3333,6 @@ impl Cpu {
         }
     }
 
-
     fn jp_cc_nn(&mut self, cc: bool, nn: u16) {
         if cc {
             self.registers.pc = nn;
@@ -3367,7 +3354,9 @@ impl Cpu {
         let n = (low << 4) | (high >> 4);
 
         self.registers.f.set(Flag::ZERO, n == 0);
-        self.registers.f.remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY);
+        self.registers
+            .f
+            .remove(Flag::NEGATIVE | Flag::HALF_CARRY | Flag::FULL_CARRY);
 
         n
     }
@@ -3382,4 +3371,3 @@ impl Cpu {
         memory.write_byte(self.registers.get_hl(), n);
     }
 }
-

@@ -67,6 +67,7 @@ impl Cpu {
     }
 
     pub fn step(&mut self, memory: &mut Memory) -> i32 {
+        self.instruction_cycle = 0;
         if !self.halted && !self.stopped {
             if self.interrupt_enabled_counter > 0 {
                 self.interrupt_enabled_counter -= 1;
@@ -614,7 +615,7 @@ impl Cpu {
     fn daa(&mut self) {
         let mut result = self.registers.a as i32;
 
-        if (!self.registers.f.contains(Flag::NEGATIVE)) {
+        if !self.registers.f.contains(Flag::NEGATIVE) {
             if self.registers.f.contains(Flag::HALF_CARRY) || ((result & 0xF) > 9) {
                 result += 0x06;
             }
@@ -623,11 +624,11 @@ impl Cpu {
                 result += 0x60;
             }
         } else {
-            if (self.registers.f.contains(Flag::HALF_CARRY)) {
+            if self.registers.f.contains(Flag::HALF_CARRY) {
                 result = (result - 6) & 0xFF;
             }
 
-            if (self.registers.f.contains(Flag::FULL_CARRY)) {
+            if self.registers.f.contains(Flag::FULL_CARRY) {
                 result -= 0x60;
             }
         }
@@ -2634,6 +2635,7 @@ impl Cpu {
     }
 
     pub fn rst_48(&mut self, memory: &mut Memory) {
+        println!("LCD interrupt");
         self.rst_n(0x48, memory);
     }
 

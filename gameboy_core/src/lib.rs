@@ -11,6 +11,5 @@ pub mod joypad;
 mod mmu;
 mod timer;
 
-pub use emulator::traits;
 pub use emulator::Emulator;
 pub use gpu::color::Color;

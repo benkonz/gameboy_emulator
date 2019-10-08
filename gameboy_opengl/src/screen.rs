@@ -1,17 +1,17 @@
 use gameboy_core::joypad::button::Button;
 use gameboy_core::joypad::Joypad;
-use gameboy_core::traits::*;
 use gameboy_core::Color;
+use gameboy_core::emulator::traits::PixelMapper;
 use gl;
 use gl::types::*;
 use glutin;
 use glutin::*;
 use shader::Shader;
 use std;
-use std::os::raw::c_void;
-use std::{mem, ptr};
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::os::raw::c_void;
+use std::rc::Rc;
+use std::{mem, ptr};
 
 const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
 const FRAGMENT_SOURCE: &'static str = include_str!("shaders/fragment.glsl");
@@ -32,7 +32,7 @@ pub struct Screen {
     texture: GLuint,
     is_running: bool,
     joypad: Rc<RefCell<Joypad>>,
-    pixels: [u8; 144 * 160],
+    frame_buffer: [u8; 144 * 160],
 }
 
 impl Screen {
@@ -117,7 +117,7 @@ impl Screen {
             texture,
             is_running: true,
             joypad,
-            pixels: [0; 144 * 160],
+            frame_buffer: [0; 144 * 160],
         }
     }
 
@@ -156,7 +156,9 @@ impl Screen {
                                 VirtualKeyCode::Z => joypad.borrow_mut().release(Button::A),
                                 VirtualKeyCode::X => joypad.borrow_mut().release(Button::B),
                                 VirtualKeyCode::Space => joypad.borrow_mut().release(Button::Start),
-                                VirtualKeyCode::LShift => joypad.borrow_mut().release(Button::Select),
+                                VirtualKeyCode::LShift => {
+                                    joypad.borrow_mut().release(Button::Select)
+                                }
                                 _ => (),
                             }
                         }
@@ -190,7 +192,7 @@ impl Screen {
                 0,
                 gl::RGB,
                 gl::UNSIGNED_BYTE_3_3_2,
-                self.pixels.as_ptr() as *const c_void,
+                self.frame_buffer.as_ptr() as *const c_void,
             );
             gl::GenerateMipmap(gl::TEXTURE_2D);
 
@@ -214,24 +216,13 @@ impl Screen {
 }
 
 impl PixelMapper for Screen {
-    fn map_pixel(&mut self, x: u8, y: u8, color: Color) {
-        let color_byte = match color {
+    fn map_pixel(&mut self, pixel: usize, color: Color) {
+        self.frame_buffer[pixel] = match color {
             Color::White => 0b11111111,
             Color::LightGray => 0b01001010,
             Color::DarkGray => 0b00100101,
             Color::Black => 0b0000000
         };
-
-        self.pixels[160 * (143 - y as usize) + x as usize] = color_byte;
-    }
-
-    fn get_pixel(&self, x: u8, y: u8) -> Color {
-        match self.pixels[160 * (143 - y as usize) + x as usize] {
-            0b11111111 => Color::White,
-            0b01001010 => Color::LightGray,
-            0b00100101 => Color::DarkGray,
-            _ => Color::Black
-        }
     }
 }
 

@@ -1,6 +1,9 @@
 pub mod interrupt;
+pub mod gpu_cycles;
 
+use mmu::gpu_cycles::GpuCycles;
 use self::interrupt::Interrupt;
+use gpu::lcd_control_flag::LcdControlFlag;
 
 const BIOS: &[u8] = include_bytes!("bios.gb");
 const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
@@ -10,30 +13,30 @@ const ROM_ONLY: u8 = 0x0;
 const ROM_MBC1: u8 = 0x1;
 const ROM_MBC1_RAM: u8 = 0x2;
 const ROM_MBC1_RAM_BATT: u8 = 0x3;
-const ROM_MBC2: u8 = 0x5;
-const ROM_MBC2_BATT: u8 = 0x6;
-const ROM_RAM: u8 = 0x8;
-const ROM_RAM_BATT: u8 = 0x9;
-const ROM_MMM01: u8 = 0xB;
-const ROM_MMM01_SRAM: u8 = 0xC;
-const ROM_MMM01_SRAM_BATT: u8 = 0xD;
-const ROM_MBC3_TIMER_BATT: u8 = 0xF;
-const ROM_MBC3_TIMER_RAM_BATT: u8 = 0x10;
-const ROM_MBC3: u8 = 0x11;
-const ROM_MBC3_RAM: u8 = 0x12;
-const ROM_MBC3_RAM_BATT: u8 = 0x13;
-const ROM_MBC5: u8 = 0x19;
-const ROM_MBC5_RAM: u8 = 0x1A;
-const ROM_MBC5_RAM_BATT: u8 = 0x1B;
-const ROM_MBC5_RUMBLE: u8 = 0x1C;
-const ROM_MBC5_RUMBLE_SRAM: u8 = 0x1D;
-const ROM_MBC5_RUMBLE_SRAM_BATT: u8 = 0x1E;
-const MBC6: u8 = 0x20;
-const MBC7_SENSOR_RUMBLE_RAM_BATT: u8 = 0x22;
-const Pocket_Camera: u8 = 0xFC;
-const Bandai_TAMA5: u8 = 0xFD;
-const Hudson_HuC3: u8 = 0xFE;
-const Hudson_HuC1_RAM_BATTERY: u8 = 0xFF;
+const _ROM_MBC2: u8 = 0x5;
+const _ROM_MBC2_BATT: u8 = 0x6;
+const _ROM_RAM: u8 = 0x8;
+const _ROM_RAM_BATT: u8 = 0x9;
+const _ROM_MMM01: u8 = 0xB;
+const _ROM_MMM01_SRAM: u8 = 0xC;
+const _ROM_MMM01_SRAM_BATT: u8 = 0xD;
+const _ROM_MBC3_TIMER_BATT: u8 = 0xF;
+const _ROM_MBC3_TIMER_RAM_BATT: u8 = 0x10;
+const _ROM_MBC3: u8 = 0x11;
+const _ROM_MBC3_RAM: u8 = 0x12;
+const _ROM_MBC3_RAM_BATT: u8 = 0x13;
+const _ROM_MBC5: u8 = 0x19;
+const _ROM_MBC5_RAM: u8 = 0x1A;
+const _ROM_MBC5_RAM_BATT: u8 = 0x1B;
+const _ROM_MBC5_RUMBLE: u8 = 0x1C;
+const _ROM_MBC5_RUMBLE_SRAM: u8 = 0x1D;
+const _ROM_MBC5_RUMBLE_SRAM_BATT: u8 = 0x1E;
+const _MBC6: u8 = 0x20;
+const _MBC7_SENSOR_RUMBLE_RAM_BATT: u8 = 0x22;
+const _POCKET_CAMERA: u8 = 0xFC;
+const _BANDAI_TAMA5: u8 = 0xFD;
+const _HUDSON_HU_C3: u8 = 0xFE;
+const _HUDSON_HU_C1_RAM_BATTERY: u8 = 0xFF;
 
 pub struct Memory {
     rom_banks: Vec<[u8; 0x4000]>,
@@ -47,12 +50,16 @@ pub struct Memory {
     selected_eram_bank: u8,
     selected_wram_bank: u8,
     selected_vram_bank: u8,
-    pub divider_register: u8,
-    pub scan_line: u8,
     joypad_state: u8,
     cartridge_type: u8,
     in_ram_banking_mode: bool,
     external_ram_enabled: bool,
+    pub divider_register: u8,
+    pub scan_line: u8,
+    pub irq48_signal: u8,
+    pub screen_disabled: bool,
+    pub lcd_status_mode: u8,
+    pub gpu_cycles: GpuCycles
 }
 
 impl Memory {
@@ -70,11 +77,15 @@ impl Memory {
             selected_eram_bank: 0,
             selected_wram_bank: 1,
             divider_register: 0,
-            scan_line: 0,
+            scan_line: 144,
             joypad_state: 0,
             cartridge_type: ROM_ONLY,
             in_ram_banking_mode: false,
             external_ram_enabled: false,
+            irq48_signal: 0,
+            screen_disabled: false,
+            lcd_status_mode: 0,
+            gpu_cycles: GpuCycles::new()
         }
     }
 
@@ -132,6 +143,10 @@ impl Memory {
             cartridge_type,
             in_ram_banking_mode: false,
             external_ram_enabled: false,
+            irq48_signal: 0,
+            screen_disabled: false,
+            lcd_status_mode: 0,
+            gpu_cycles: GpuCycles::new()
         }
     }
 
@@ -156,10 +171,16 @@ impl Memory {
             0xFE00..=0xFE9F => self.oam[index - 0xFE00],
             0xFF00..=0xFFFF => match index {
                 0xFF00 => self.get_joypad_state(),
+                0xFF0F => self.high_ram[index - 0xFF00] | 0xE0,
                 0xFF04 => self.divider_register,
-                0xFF44 => self.scan_line,
+                0xFF41 => self.high_ram[index - 0xFF00] | 0b01000_0000,
+                0xFF44 => if !self.screen_disabled {
+                    self.scan_line
+                } else {
+                    0x00
+                }
                 0xFF50 => self.disable_bios,
-                _ => self.high_ram[index - 0xFE00],
+                _ => self.high_ram[index - 0xFF00],
             },
             _ => 0,
         }
@@ -237,14 +258,86 @@ impl Memory {
             0xFE00..=0xFE9F => self.oam[index - 0xFE00] = value,
             0xFF00..=0xFFFF => match index {
                 0xFF04 => self.divider_register = 0,
-                0xFF44 => self.scan_line = 0,
-                0xFF46 => self.do_dma_transfer(value),
+                0xFF0F => self.high_ram[index - 0xFF00] = value & 0x1F,
+                0xFF40 => {
+                    let current_lcdc = LcdControlFlag::from_bits(self.read_byte(0xFF40)).unwrap();
+                    let new_lcdc = LcdControlFlag::from_bits(value).unwrap();
+                    self.high_ram[index - 0xFF00] = value;
+
+                    if !current_lcdc.contains(LcdControlFlag::WINDOW)
+                        && new_lcdc.contains(LcdControlFlag::WINDOW)
+                    {
+                        self.reset_window_line();
+                    }
+
+                    if new_lcdc.contains(LcdControlFlag::DISPLAY) {
+                        self.enable_screen();
+                    } else {
+                        self.disable_screen();
+                    }
+                }
+                0xFF41 => {
+                    let current_stat = self.read_byte(0xFF41) & 0x07;
+                    let new_stat = (value & 0x78) | (current_stat & 0x07);
+                    self.high_ram[index - 0xFF00] = new_stat;
+                    let lcd_control = LcdControlFlag::from_bits(self.read_byte(0xFF40)).unwrap();
+                    let mut signal = self.irq48_signal;
+                    let mode = self.lcd_status_mode;
+                    signal &= (new_stat >> 3) & 0x0F;
+                    self.irq48_signal = signal;
+
+                    if lcd_control.contains(LcdControlFlag::DISPLAY) {
+                        if new_stat & 0b0000_1000 == 0b0000_1000 && mode == 0 {
+                            if signal == 0 {
+                                self.request_interrupt(Interrupt::Lcd);
+                            }
+                            signal |= 0b01;
+                        }
+
+                        if new_stat & 0b0001_0000 == 0b0001_0000 && mode == 1 {
+                            if signal == 0 {
+                                self.request_interrupt(Interrupt::Lcd);
+                            }
+                            signal |= 0b10;
+                        }
+
+                        if new_stat & 0b0010_0000 == 0b0010_0000 && mode == 2 {
+                            if signal == 0 {
+                                self.request_interrupt(Interrupt::Lcd);
+                            }
+                        }
+                        self.compare_ly_to_lyc();
+                    }
+                }
+                0xFF44 => {
+                    let current_ly = self.scan_line;
+                    if current_ly & 0b1000_0000 == 0b1000_0000 && value & 0b1000_0000 != 0b1000_0000
+                    {
+                        self.disable_screen();
+                    }
+                }
+                0xFF45 => {
+                    println!("updating LYC");
+                    let current_lyc = self.read_byte(0xFF45);
+                    if current_lyc != value {
+                        self.high_ram[index - 0xFF00] = value;
+                        let lcd_control =
+                            LcdControlFlag::from_bits(self.read_byte(0xFF40)).unwrap();
+                        if lcd_control.contains(LcdControlFlag::DISPLAY) {
+                            self.compare_ly_to_lyc();
+                        }
+                    }
+                }
+                0xFF46 => {
+                    self.high_ram[index - 0xFF00] = value;
+                    self.do_dma_transfer(value)
+                }
                 0xFF50 => self.disable_bios = value,
                 _ => {
                     if index == 0xFF02 && value == 0x81 {
                         print!("{}", self.read_byte(0xFF01) as char);
                     }
-                    self.high_ram[index - 0xFE00] = value
+                    self.high_ram[index - 0xFF00] = value
                 }
             },
             _ => {}
@@ -307,19 +400,61 @@ impl Memory {
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
 
-    pub fn get_tile_from_set1(&self, tile_id: u8) -> &[u8] {
-        let index = tile_id as usize * 0x10;
-        &self.vram_banks[self.selected_vram_bank as usize][index..index + 0x10]
+    pub fn get_lcd_status_from_memory(&self) -> u8 {
+        self.high_ram[0xFF41 - 0xFF00]
     }
 
-    pub fn get_tile_from_set0(&self, tile_id: i8) -> &[u8] {
-        let index = (0x1000 + tile_id as i32 * 0x10) as usize;
-        &self.vram_banks[self.selected_vram_bank as usize][index..index + 0x10]
+    pub fn set_lcd_status_from_memory(&mut self, value: u8) {
+        self.high_ram[0xFF41 - 0xFF00] = value;
     }
 
-    pub fn get_sprite_data(&self, sprite_id: u8) -> &[u8] {
-        let start_index = (sprite_id * 4) as usize;
-        &self.oam[start_index..start_index + 4]
+    pub fn compare_ly_to_lyc(&mut self) {
+        if !self.screen_disabled {
+            let lyc = self.read_byte(0xFF45);
+            let mut stat = self.get_lcd_status_from_memory();
+
+            // println!("comparing LYC: {} to LY: {}", lyc, self.scan_line);
+            if lyc == self.scan_line {
+                stat |= 0b0000_0100;
+                if stat & 0b0100_0000 == 0b0100_0000 {
+                    if self.irq48_signal == 0 {
+                        self.request_interrupt(Interrupt::Lcd);
+                    }
+                    self.irq48_signal |= 0b0000_1000;
+                }
+            } else {
+                stat &= 0b1111_1011;
+                self.irq48_signal &= 0b1111_0111;
+            }
+            self.set_lcd_status_from_memory(stat);
+        }
+    }
+
+    pub fn enable_screen(&mut self) {
+        if self.screen_disabled {
+            self.gpu_cycles.screen_enable_delay_cycles = 244;
+        }
+    }
+
+    pub fn disable_screen(&mut self) {
+        self.screen_disabled = true;
+        // TODO may need to do some memeory modification here
+        let mut stat = self.read_byte(0xFF41);
+        stat &= 0x7C;
+        self.set_lcd_status_from_memory(stat);
+        self.lcd_status_mode = 0;
+        self.gpu_cycles.cycles_counter = 0;
+        self.gpu_cycles.aux_cycles_counter = 0;
+        self.scan_line = 0;
+        self.irq48_signal = 0;
+    }
+
+    pub fn reset_window_line(&mut self) {
+        let wy = self.read_byte(0xFF4A);
+
+        if (self.gpu_cycles.window_line == 0) && (self.scan_line < 144) && (self.scan_line > wy) {
+            self.gpu_cycles.window_line = 144;
+        }
     }
 }
 
@@ -346,24 +481,5 @@ mod tests {
         let mut memory = Memory::new();
         memory.write_word(0xFF80, 0x1122);
         assert_eq!(memory.read_word(0xFF80), 0x1122);
-    }
-
-    #[test]
-    fn test_get_tile_from_map_0() {
-        let mut memory = Memory::new();
-        let tile = [
-            0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00, 0x7F, 0x00,
-            0x7F, 0x00,
-        ];
-
-        for (i, row) in tile.iter().enumerate() {
-            memory.write_byte((0x9000 + i) as u16, *row);
-        }
-
-        let actual = memory.get_tile_from_set0(0);
-
-        for i in 0..0x10 {
-            assert_eq!(tile[i], actual[i]);
-        }
     }
 }

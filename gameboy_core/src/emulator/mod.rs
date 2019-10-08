@@ -1,8 +1,9 @@
 pub mod traits;
 
-use self::traits::*;
+use emulator::traits::PixelMapper;
 use cpu::Cpu;
 use gpu::GPU;
+use gpu::color::Color;
 use joypad::Joypad;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
@@ -39,13 +40,13 @@ impl Emulator {
         }
     }
 
-    pub fn emulate<T: PixelMapper>(&mut self, system: &mut T) -> i32 {
+    pub fn emulate<T: PixelMapper>(&mut self, system: &mut T) -> bool {
         let cycles = self.cpu.step(&mut self.memory);
-        self.timer.update(cycles, &mut self.memory);
-        self.gpu.step(cycles, &mut self.memory, system);
+        // self.timer.update(cycles, &mut self.memory);
+        let vblank = self.gpu.step(cycles, &mut self.memory, system);
         self.joypad.borrow_mut().update(&mut self.memory);
         self.handle_interrupts();
-        cycles
+        vblank
     }
 
     fn handle_interrupts(&mut self) {

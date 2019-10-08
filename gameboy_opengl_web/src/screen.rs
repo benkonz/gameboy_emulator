@@ -1,7 +1,7 @@
 use gameboy_core::joypad::Joypad;
 use gameboy_core::joypad::Button;
-use gameboy_core::traits::*;
 use gameboy_core::Color;
+use gameboy_core::emulator::traits::PixelMapper;
 use stdweb;
 use stdweb::unstable::TryInto;
 use stdweb::web::html_element::CanvasElement;
@@ -197,7 +197,7 @@ impl Screen {
 
 
 impl PixelMapper for Screen {
-    fn map_pixel(&mut self, x: u8, y: u8, color: Color) {
+    fn map_pixel(&mut self, pixel: usize, color: Color) {
         let color_bytes: [u8; 3] = match color {
             Color::White => [255, 255, 255],
             Color::LightGray => [178, 178, 178],
@@ -205,20 +205,8 @@ impl PixelMapper for Screen {
             Color::Black => [0, 0, 0],
         };
 
-        let offset = (160 * (143 - y as usize) + x as usize) * 3;
         for (i, byte) in color_bytes.iter().enumerate() {
-            self.pixels[offset + i] = *byte;
-        }
-    }
-
-    fn get_pixel(&self, x: u8, y: u8) -> Color {
-        let offset = (160 * (143 - y as usize) + x as usize) * 3;
-        match self.pixels[offset..offset + 3] {
-            [255, 255, 255] => Color::White,
-            [178, 178, 178] => Color::LightGray,
-            [102, 102, 102] => Color::DarkGray,
-            [0, 0, 0] => Color::Black,
-            _ => Color::Black
+            self.pixels[pixel * 3 + i] = *byte;
         }
     }
 }

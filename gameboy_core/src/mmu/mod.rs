@@ -1,9 +1,10 @@
-pub mod interrupt;
 pub mod gpu_cycles;
+pub mod interrupt;
 
-use mmu::gpu_cycles::GpuCycles;
 use self::interrupt::Interrupt;
 use gpu::lcd_control_flag::LcdControlFlag;
+use mmu::gpu_cycles::GpuCycles;
+use std::cmp;
 
 const BIOS: &[u8] = include_bytes!("bios.gb");
 const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
@@ -45,7 +46,7 @@ pub struct Memory {
     vram_banks: Vec<[u8; 0x2000]>,
     oam: [u8; 0x100],
     high_ram: [u8; 0x200],
-    disable_bios: u8,
+    pub disable_bios: u8,
     selected_rom_bank: u8,
     selected_eram_bank: u8,
     selected_wram_bank: u8,
@@ -59,7 +60,7 @@ pub struct Memory {
     pub irq48_signal: u8,
     pub screen_disabled: bool,
     pub lcd_status_mode: u8,
-    pub gpu_cycles: GpuCycles
+    pub gpu_cycles: GpuCycles,
 }
 
 impl Memory {
@@ -85,7 +86,7 @@ impl Memory {
             irq48_signal: 0,
             screen_disabled: false,
             lcd_status_mode: 0,
-            gpu_cycles: GpuCycles::new()
+            gpu_cycles: GpuCycles::new(),
         }
     }
 
@@ -120,8 +121,12 @@ impl Memory {
         let mut rom_banks: Vec<[u8; 0x4000]> = vec![[0; 0x4000]; num_rom_banks];
         for (i, bank) in rom_banks.iter_mut().enumerate() {
             let start = i * 0x4000;
-            println!("copying rom from {:04X} to {:04X}", start, start + 0x4000);
-            bank.copy_from_slice(&rom[start..start + 0x4000]);
+            let end = cmp::min(start + 0x4000, rom.len());
+            bank.copy_from_slice(&rom[start..end]);
+            
+            if end == rom.len() {
+                break;
+            }
         }
 
         let eram_banks: Vec<[u8; 0x2000]> = vec![[0; 0x2000]; num_ram_banks];
@@ -146,7 +151,7 @@ impl Memory {
             irq48_signal: 0,
             screen_disabled: false,
             lcd_status_mode: 0,
-            gpu_cycles: GpuCycles::new()
+            gpu_cycles: GpuCycles::new(),
         }
     }
 
@@ -174,10 +179,12 @@ impl Memory {
                 0xFF0F => self.high_ram[index - 0xFF00] | 0xE0,
                 0xFF04 => self.divider_register,
                 0xFF41 => self.high_ram[index - 0xFF00] | 0b01000_0000,
-                0xFF44 => if !self.screen_disabled {
-                    self.scan_line
-                } else {
-                    0x00
+                0xFF44 => {
+                    if !self.screen_disabled {
+                        self.scan_line
+                    } else {
+                        0x00
+                    }
                 }
                 0xFF50 => self.disable_bios,
                 _ => self.high_ram[index - 0xFF00],
@@ -279,7 +286,7 @@ impl Memory {
                 0xFF41 => {
                     let current_stat = self.read_byte(0xFF41) & 0x07;
                     let new_stat = (value & 0x78) | (current_stat & 0x07);
-                    self.high_ram[index - 0xFF00] = new_stat;
+                    self.set_lcd_status_from_memory(new_stat);
                     let lcd_control = LcdControlFlag::from_bits(self.read_byte(0xFF40)).unwrap();
                     let mut signal = self.irq48_signal;
                     let mode = self.lcd_status_mode;
@@ -317,7 +324,6 @@ impl Memory {
                     }
                 }
                 0xFF45 => {
-                    println!("updating LYC");
                     let current_lyc = self.read_byte(0xFF45);
                     if current_lyc != value {
                         self.high_ram[index - 0xFF00] = value;
@@ -333,6 +339,7 @@ impl Memory {
                     self.do_dma_transfer(value)
                 }
                 0xFF50 => self.disable_bios = value,
+                0xFFFF => self.high_ram[index - 0xFF00] = value & 0x1F,
                 _ => {
                     if index == 0xFF02 && value == 0x81 {
                         print!("{}", self.read_byte(0xFF01) as char);
@@ -345,10 +352,13 @@ impl Memory {
     }
 
     fn do_dma_transfer(&mut self, data: u8) {
+        println!("dma transfer");
         let address = 0x100u16 * data as u16;
-        for i in 0..0xA0 {
-            let value = self.read_byte(address + i);
-            self.write_byte(0xFE00 + i, value);
+        if address >= 0x8000 && address < 0xE000 {
+            for i in 0..0xA0 {
+                let value = self.read_byte(address + i);
+                self.write_byte(0xFE00 + i, value);
+            }
         }
     }
 
@@ -413,7 +423,6 @@ impl Memory {
             let lyc = self.read_byte(0xFF45);
             let mut stat = self.get_lcd_status_from_memory();
 
-            // println!("comparing LYC: {} to LY: {}", lyc, self.scan_line);
             if lyc == self.scan_line {
                 stat |= 0b0000_0100;
                 if stat & 0b0100_0000 == 0b0100_0000 {
@@ -438,7 +447,6 @@ impl Memory {
 
     pub fn disable_screen(&mut self) {
         self.screen_disabled = true;
-        // TODO may need to do some memeory modification here
         let mut stat = self.read_byte(0xFF41);
         stat &= 0x7C;
         self.set_lcd_status_from_memory(stat);

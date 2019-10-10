@@ -28,7 +28,7 @@ const OAM_SCAN: u8 = 0b10;
 const LCD_TRANSFER: u8 = 0b11;
 
 const GAMEBOY_WIDTH: i32 = 160;
-const _GAMEBOY_HEIGHT: i32 = 144;
+const GAMEBOY_HEIGHT: i32 = 144;
 
 pub struct GPU {
     tile_cycles_counter: i32,
@@ -55,7 +55,7 @@ impl GPU {
         memory.gpu_cycles.cycles_counter += cycles;
 
         if !memory.screen_disabled {
-            match memory.lcd_status_mode & 0b11 {
+            match memory.lcd_status_mode {
                 HBLANK => {
                     if memory.gpu_cycles.cycles_counter >= 204 {
                         memory.gpu_cycles.cycles_counter -= 204;
@@ -246,7 +246,7 @@ impl GPU {
             self.render_window(memory, line, system);
             self.render_sprites(memory, line, system);
         } else {
-            let line_width = line * GAMEBOY_WIDTH;
+            let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
             for x in 0..GAMEBOY_WIDTH {
                 let index = (line_width + x) as usize;
                 system.map_pixel(index, Color::White);
@@ -259,7 +259,7 @@ impl GPU {
         let offset_x_end = offset_x_start + count;
         let screen_tile = pixel / 8;
         let lcd_control = LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
-        let line_width = line * GAMEBOY_WIDTH;
+        let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
 
         if lcd_control.contains(LcdControlFlag::DISPLAY) {
             let tile_start_addr = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
@@ -274,16 +274,16 @@ impl GPU {
                 0x9800
             };
 
-            let scroll_x = memory.read_byte(SCROLL_X_INDEX) as i32;
-            let scroll_y = memory.read_byte(SCROLL_Y_INDEX) as i32;
-            let line_scrolled = line + scroll_y;
-            let line_scrolled_32 = (line_scrolled / 8) * 32;
-            let tile_pixel_y = line_scrolled % 8;
+            let scroll_x = memory.read_byte(SCROLL_X_INDEX);
+            let scroll_y = memory.read_byte(SCROLL_Y_INDEX);
+            let line_scrolled = scroll_y.wrapping_add(line as u8);
+            let line_scrolled_32 = (line_scrolled as i32 / 8) * 32;
+            let tile_pixel_y = (line_scrolled % 8) as i32;
             let tile_pixel_y_2 = tile_pixel_y * 2;
 
             for offset_x in offset_x_start..offset_x_end {
                 let screen_pixel_x = (screen_tile * 8) + offset_x;
-                let map_pixel_x = (screen_pixel_x + scroll_x) as u8;
+                let map_pixel_x = scroll_x.wrapping_add(screen_pixel_x as u8);
                 let map_tile_x = (map_pixel_x / 8) as i32;
                 let map_tile_offset_x = map_pixel_x % 8;
                 let map_tile_addr = (map_start_addr + line_scrolled_32 + map_tile_x) as u16;
@@ -344,13 +344,13 @@ impl GPU {
             return;
         }
 
-        let wx = (memory.read_byte(WINDOW_X_INDEX) - 7) as i32;
+        let wx = memory.read_byte(WINDOW_X_INDEX) as i32 - 7;
 
         if wx > 159 {
             return;
         }
 
-        let wy = (memory.read_byte(WINDOW_Y_INDEX) - 7) as i32;
+        let wy = memory.read_byte(WINDOW_Y_INDEX) as i32;
 
         if (wy > 143) || (wy > line) {
             return;
@@ -362,17 +362,17 @@ impl GPU {
             0x8800
         };
 
-        let map = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_MAP) {
+        let map = if lcd_control.contains(LcdControlFlag::WINDOW_TILE_MAP) {
             0x9C00
         } else {
             0x9800
         };
 
-        let line_adjusted = memory.scan_line as i32;
+        let line_adjusted = memory.gpu_cycles.window_line as i32;
         let y_32 = (line_adjusted / 8) * 32;
         let pixely = line_adjusted % 8;
         let pixely_2 = pixely * 2;
-        let line_width = line * GAMEBOY_WIDTH;
+        let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
 
         for x in 0..32 {
             let tile = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
@@ -437,7 +437,7 @@ impl GPU {
             8
         };
 
-        let line_width = line * GAMEBOY_WIDTH;
+        let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
 
         for sprite in (0..40).rev() {
             let sprite_4 = sprite as u16 * 4;
@@ -495,13 +495,13 @@ impl GPU {
 
             for pixelx in 0..8 {
                 let mut pixel = if xflip {
-                    if byte1 & (0x01 << (7 - pixelx)) != 0 {
+                    if byte1 & (0x01 << pixelx) != 0 {
                         1
                     } else {
                         0
                     }
                 } else {
-                    if byte1 & (0x01 << pixelx) != 0 {
+                    if byte1 & (0x01 << (7 - pixelx)) != 0 {
                         1
                     } else {
                         0

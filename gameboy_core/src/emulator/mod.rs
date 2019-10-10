@@ -57,7 +57,6 @@ impl Emulator {
     }
 
     fn process_interrupt(&mut self, interrupt: Interrupt) {
-        println!("processing interrupt: {:?}", interrupt);
         self.cpu.interrupt_enabled = false;
 
         match interrupt {

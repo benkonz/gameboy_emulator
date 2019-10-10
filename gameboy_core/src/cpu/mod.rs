@@ -124,6 +124,10 @@ impl Cpu {
             }
         }
 
+        if self.halted {
+            self.instruction_cycle = 1;
+        }
+
         self.instruction_cycle
     }
 

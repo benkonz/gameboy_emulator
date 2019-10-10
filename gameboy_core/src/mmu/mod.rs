@@ -352,7 +352,6 @@ impl Memory {
     }
 
     fn do_dma_transfer(&mut self, data: u8) {
-        println!("dma transfer");
         let address = 0x100u16 * data as u16;
         if address >= 0x8000 && address < 0xE000 {
             for i in 0..0xA0 {

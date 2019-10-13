@@ -18,7 +18,7 @@ use opengl_rendering_context::Gl;
 use shader::Shader;
 use std;
 use std::os::raw::c_void;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use std::{mem, ptr};
 
 const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
@@ -45,6 +45,7 @@ impl Mapper {
     }
 }
 
+// TODO: create a seperate thread for the emulation
 impl PixelMapper for Mapper {
     fn map_pixel(&mut self, pixel: usize, color: Color) {
         let color_bytes: [u8; 3] = match color {
@@ -159,9 +160,6 @@ pub fn start(rom: Vec<u8>) {
     let mut mapper = Mapper::new();
     let mut controller = Controller::new();
     let mut emulator = Emulator::from_rom(rom);
-
-    let frame_rate = 60f64;
-    let frame_duration = Duration::from_millis((1000f64 * (1f64 / frame_rate)) as u64);
 
     events_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;

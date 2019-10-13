@@ -20,7 +20,7 @@ const INDICIES: [u8; 6] = [0, 1, 3, 1, 2, 3];
 
 type Gl = WebGLRenderingContext;
 
-pub static mut controller: Controller = Controller::new();
+pub static mut CONTROLLER: Controller = Controller::new();
 
 pub struct Screen {
     context: Gl,
@@ -43,14 +43,14 @@ impl Screen {
         {
             window().add_event_listener(move |event: KeyDownEvent| unsafe {
                 match event.key().as_ref() {
-                    "ArrowUp" => controller.press(Button::Up),
-                    "ArrowDown" => controller.press(Button::Down),
-                    "ArrowLeft" => controller.press(Button::Left),
-                    "ArrowRight" => controller.press(Button::Right),
-                    "z" => controller.press(Button::A),
-                    "x" => controller.press(Button::B),
-                    "Enter" => controller.press(Button::Select),
-                    " " => controller.press(Button::Start),
+                    "ArrowUp" => CONTROLLER.press(Button::Up),
+                    "ArrowDown" => CONTROLLER.press(Button::Down),
+                    "ArrowLeft" => CONTROLLER.press(Button::Left),
+                    "ArrowRight" => CONTROLLER.press(Button::Right),
+                    "z" => CONTROLLER.press(Button::A),
+                    "x" => CONTROLLER.press(Button::B),
+                    "Enter" => CONTROLLER.press(Button::Select),
+                    " " => CONTROLLER.press(Button::Start),
                     _ => (),
                 }
             });
@@ -59,14 +59,14 @@ impl Screen {
         {
             window().add_event_listener(move |event: KeyUpEvent| unsafe {
                 match event.key().as_ref() {
-                    "ArrowUp" => controller.release(Button::Up),
-                    "ArrowDown" => controller.release(Button::Down),
-                    "ArrowLeft" => controller.release(Button::Left),
-                    "ArrowRight" => controller.release(Button::Right),
-                    "z" => controller.release(Button::A),
-                    "x" => controller.release(Button::B),
-                    "Enter" => controller.release(Button::Select),
-                    " " => controller.release(Button::Start),
+                    "ArrowUp" => CONTROLLER.release(Button::Up),
+                    "ArrowDown" => CONTROLLER.release(Button::Down),
+                    "ArrowLeft" => CONTROLLER.release(Button::Left),
+                    "ArrowRight" => CONTROLLER.release(Button::Right),
+                    "z" => CONTROLLER.release(Button::A),
+                    "x" => CONTROLLER.release(Button::B),
+                    "Enter" => CONTROLLER.release(Button::Select),
+                    " " => CONTROLLER.release(Button::Start),
                     _ => (),
                 }
             });

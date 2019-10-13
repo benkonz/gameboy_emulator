@@ -1,41 +1,33 @@
-pub mod button;
 mod buttons;
 
-pub use self::button::Button;
 use self::buttons::Buttons;
-
-use mmu::interrupt::Interrupt;
+use button::Button;
 use mmu::Memory;
-use std::collections::HashMap;
+use mmu::interrupt::Interrupt;
 
-lazy_static! {
-    static ref BUTTON_MAP: HashMap<Button, Buttons> = {
-        let mut bm = HashMap::new();
-
-        bm.insert(Button::A, Buttons::A);
-        bm.insert(Button::B, Buttons::B);
-        bm.insert(Button::Start, Buttons::START);
-        bm.insert(Button::Select, Buttons::SELECT);
-        bm.insert(Button::Down, Buttons::DOWN);
-        bm.insert(Button::Up, Buttons::UP);
-        bm.insert(Button::Left, Buttons::LEFT);
-        bm.insert(Button::Right, Buttons::RIGHT);
-
-        bm
-    };
-}
-
-#[derive(Copy, Clone)]
-pub struct Joypad {
-    released_keys: Buttons,
+pub struct Controller {
+    released: Buttons,
     previously_unset_button_pressed: bool,
     previously_unset_direction_pressed: bool,
 }
 
-impl Joypad {
-    pub fn new() -> Joypad {
-        Joypad {
-            released_keys: Buttons::all(),
+fn button_to_buttons(button: Button) -> Buttons {
+    match button {
+        Button::Up => Buttons::UP,
+        Button::Down => Buttons::DOWN,
+        Button::Left => Buttons::LEFT,
+        Button::Right => Buttons::RIGHT,
+        Button::A => Buttons::A,
+        Button::B => Buttons::B,
+        Button::Start => Buttons::START,
+        Button::Select => Buttons::SELECT,
+    }
+}
+
+impl Controller {
+    pub const fn new() -> Controller {
+        Controller {
+            released: Buttons::all(),
             previously_unset_button_pressed: false,
             previously_unset_direction_pressed: false,
         }
@@ -50,34 +42,27 @@ impl Joypad {
             self.previously_unset_direction_pressed = false;
         }
 
-        let bits = self.released_keys.bits();
+        let bits = self.released.bits();
         memory.set_joypad_state(bits);
     }
 
     pub fn press(&mut self, button: Button) {
-        let pressed = *(BUTTON_MAP.get(&button).unwrap());
-
-        if self.released_keys.contains(pressed) {
+        let button = button_to_buttons(button);
+        if self.released.contains(button) {
             // was an action button just pressed?
             let action_keys = Buttons::A | Buttons::B | Buttons::START | Buttons::SELECT;
-            self.previously_unset_button_pressed = action_keys.contains(pressed);
+            self.previously_unset_button_pressed = action_keys.contains(button);
 
             // was a direction button just pressed?
             let direction_keys = Buttons::UP | Buttons::DOWN | Buttons::LEFT | Buttons::RIGHT;
-            self.previously_unset_direction_pressed = direction_keys.contains(pressed);
+            self.previously_unset_direction_pressed = direction_keys.contains(button);
         }
 
-        self.released_keys.remove(pressed);
+        self.released.remove(button);
     }
 
     pub fn release(&mut self, button: Button) {
-        let released = BUTTON_MAP.get(&button).unwrap();
-        self.released_keys.insert(*released);
-    }
-}
-
-impl Default for Joypad {
-    fn default() -> Self {
-        Joypad::new()
+        let button = button_to_buttons(button);
+        self.released.insert(button);
     }
 }

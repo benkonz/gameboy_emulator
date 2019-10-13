@@ -986,7 +986,6 @@ impl Cpu {
     }
 
     fn halt(&mut self) {
-        println!("halting");
         self.halted = true;
     }
 
@@ -2682,7 +2681,6 @@ impl Cpu {
     }
 
     pub fn rst_48(&mut self, memory: &mut Memory) {
-        println!("LCD interrupt");
         self.rst_n(0x48, memory);
     }
 

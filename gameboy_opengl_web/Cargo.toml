@@ -2,13 +2,15 @@
 name = "gameboy_opengl_web"
 version = "0.1.0"
 authors = ["Ben Konz <bkonz@unomaha.edu>"]
+license = "Apache-2.0"
+repository = "https://github.com/bkonzUNOmaha/gameboy_opengl"
 
 [dependencies]
 stdweb = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
 stdweb-derive = "0.5"
-gameboy_core = {path = "../gameboy_core"}
+gameboy_core = { path = "../gameboy_core" }
 
 [build-dependencies]
 webgl_generator = "0.2"

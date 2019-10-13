@@ -1,5 +1,6 @@
-use gl;
-use gl::types::*;
+use opengl_rendering_context;
+use opengl_rendering_context::types::*;
+use opengl_rendering_context::Gl;
 use std::ffi::CString;
 use std::ptr;
 use std::str;
@@ -9,13 +10,18 @@ pub struct Shader {
 }
 
 impl Shader {
-    pub fn new(vertex_source: &str, fragment_source: &str) -> Shader {
+    pub fn new(gl: &Gl, vertex_source: &str, fragment_source: &str) -> Shader {
         let program = unsafe {
-            let vertex_shader = compile_shader(vertex_source, gl::VERTEX_SHADER);
-            let fragment_shader = compile_shader(fragment_source, gl::FRAGMENT_SHADER);
-            let program = link_shaders(vertex_shader, fragment_shader);
-            gl::DeleteShader(vertex_shader);
-            gl::DeleteShader(fragment_shader);
+            let vertex_shader =
+                compile_shader(gl, vertex_source, opengl_rendering_context::VERTEX_SHADER);
+            let fragment_shader = compile_shader(
+                gl,
+                fragment_source,
+                opengl_rendering_context::FRAGMENT_SHADER,
+            );
+            let program = link_shaders(gl, vertex_shader, fragment_shader);
+            gl.DeleteShader(vertex_shader);
+            gl.DeleteShader(fragment_shader);
 
             program
         };
@@ -23,36 +29,38 @@ impl Shader {
         Shader { program }
     }
 
-    pub fn use_program(&self) {
+    pub fn use_program(&self, gl: &Gl) {
         unsafe {
-            gl::UseProgram(self.program);
+            gl.UseProgram(self.program);
+        }
+    }
+
+    pub fn delete_program(&self, gl: &Gl) {
+        unsafe {
+            gl.DeleteProgram(self.program);
         }
     }
 }
 
-impl Drop for Shader {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteProgram(self.program);
-        }
-    }
-}
-
-unsafe fn compile_shader(source: &str, shader_type: GLenum) -> GLuint {
-    let shader = gl::CreateShader(shader_type);
+unsafe fn compile_shader(gl: &Gl, source: &str, shader_type: GLenum) -> GLuint {
+    let shader = gl.CreateShader(shader_type);
     let source = CString::new(source.as_bytes()).unwrap();
-    gl::ShaderSource(shader, 1, &source.as_ptr(), ptr::null());
-    gl::CompileShader(shader);
+    gl.ShaderSource(shader, 1, &source.as_ptr(), ptr::null());
+    gl.CompileShader(shader);
 
-    let mut status = gl::FALSE as GLint;
-    gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
+    let mut status = opengl_rendering_context::FALSE as GLint;
+    gl.GetShaderiv(
+        shader,
+        opengl_rendering_context::COMPILE_STATUS,
+        &mut status,
+    );
 
-    if status != (gl::TRUE as GLint) {
+    if status != (opengl_rendering_context::TRUE as GLint) {
         let mut len = 0;
-        gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
+        gl.GetShaderiv(shader, opengl_rendering_context::INFO_LOG_LENGTH, &mut len);
         let mut buf = Vec::with_capacity(len as usize);
         buf.set_len((len as usize) - 1);
-        gl::GetShaderInfoLog(
+        gl.GetShaderInfoLog(
             shader,
             len,
             ptr::null_mut(),
@@ -65,21 +73,21 @@ unsafe fn compile_shader(source: &str, shader_type: GLenum) -> GLuint {
     shader
 }
 
-unsafe fn link_shaders(vertex_shader: GLuint, fragment_shader: GLuint) -> GLuint {
-    let program = gl::CreateProgram();
-    gl::AttachShader(program, vertex_shader);
-    gl::AttachShader(program, fragment_shader);
-    gl::LinkProgram(program);
-    let mut status = gl::FALSE as GLint;
-    gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
+unsafe fn link_shaders(gl: &Gl, vertex_shader: GLuint, fragment_shader: GLuint) -> GLuint {
+    let program = gl.CreateProgram();
+    gl.AttachShader(program, vertex_shader);
+    gl.AttachShader(program, fragment_shader);
+    gl.LinkProgram(program);
+    let mut status = opengl_rendering_context::FALSE as GLint;
+    gl.GetProgramiv(program, opengl_rendering_context::LINK_STATUS, &mut status);
 
-    if status != (gl::TRUE as GLint) {
+    if status != (opengl_rendering_context::TRUE as GLint) {
         let mut len = 0;
-        gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
+        gl.GetProgramiv(program, opengl_rendering_context::INFO_LOG_LENGTH, &mut len);
         let mut buf = Vec::with_capacity(len as usize);
         //subtract 1 to remove the null character
         buf.set_len((len as usize) - 1);
-        gl::GetProgramInfoLog(
+        gl.GetProgramInfoLog(
             program,
             len,
             ptr::null_mut(),

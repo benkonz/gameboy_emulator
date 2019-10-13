@@ -1,4 +1,4 @@
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Copy, Clone)]
 pub enum Button {
     Up,
     Down,

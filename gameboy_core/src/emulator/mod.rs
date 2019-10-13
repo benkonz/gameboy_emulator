@@ -1,13 +1,11 @@
 pub mod traits;
 
+use joypad::Controller;
 use emulator::traits::PixelMapper;
 use cpu::Cpu;
 use gpu::GPU;
-use joypad::Joypad;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
-use std::cell::RefCell;
-use std::rc::Rc;
 use timer::Timer;
 
 pub struct Emulator {
@@ -15,35 +13,32 @@ pub struct Emulator {
     gpu: GPU,
     timer: Timer,
     memory: Memory,
-    joypad: Rc<RefCell<Joypad>>,
 }
 
 impl Emulator {
-    pub fn new(joypad: Rc<RefCell<Joypad>>) -> Emulator {
+    pub fn new() -> Emulator {
         Emulator {
             cpu: Cpu::new(),
             gpu: GPU::new(),
             timer: Timer::new(),
             memory: Memory::new(),
-            joypad,
         }
     }
 
-    pub fn from_rom(rom: Vec<u8>, joypad: Rc<RefCell<Joypad>>) -> Emulator {
+    pub fn from_rom(rom: Vec<u8>) -> Emulator {
         Emulator {
             cpu: Cpu::new(),
             gpu: GPU::new(),
             timer: Timer::new(),
             memory: Memory::from_rom(rom),
-            joypad,
         }
     }
 
-    pub fn emulate<T: PixelMapper>(&mut self, system: &mut T) -> bool {
+    pub fn emulate<T: PixelMapper>(&mut self, system: &mut T, controller: &mut Controller) -> bool {
         let cycles = self.cpu.step(&mut self.memory);
         self.timer.update(cycles, &mut self.memory);
         let vblank = self.gpu.step(cycles, &mut self.memory, system);
-        self.joypad.borrow_mut().update(&mut self.memory);
+        controller.update(&mut self.memory);
         self.handle_interrupts();
         vblank
     }

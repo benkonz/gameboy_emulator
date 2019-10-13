@@ -210,13 +210,13 @@ impl Memory {
     }
 
     pub fn are_action_keys_enabled(&self) -> bool {
-        let joypad_control = self.high_ram[0x100];
-        joypad_control & (1 << 5) == 0
+        let joypad_control = self.high_ram[0];
+        joypad_control & 0b0010_0000 == 0
     }
 
     pub fn are_direction_keys_enabled(&self) -> bool {
-        let joypad_control = self.high_ram[0x100];
-        joypad_control & (1 << 4) == 0
+        let joypad_control = self.high_ram[0];
+        joypad_control & 0b0001_0000 == 0
     }
 
     fn cartridge_has_mbc1(&self) -> bool {

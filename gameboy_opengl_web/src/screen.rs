@@ -1,16 +1,14 @@
-use gameboy_core::joypad::Joypad;
-use gameboy_core::joypad::Button;
-use gameboy_core::Color;
 use gameboy_core::emulator::traits::PixelMapper;
+use gameboy_core::Button;
+use gameboy_core::Color;
+use gameboy_core::Controller;
 use stdweb;
-use stdweb::unstable::TryInto;
-use stdweb::web::html_element::CanvasElement;
-use stdweb::web::{document, IParentNode, TypedArray, window, IEventTarget};
-use stdweb::web::event::{KeyUpEvent, KeyDownEvent};
 use stdweb::traits::IKeyboardEvent;
+use stdweb::unstable::TryInto;
+use stdweb::web::event::{KeyDownEvent, KeyUpEvent};
+use stdweb::web::html_element::CanvasElement;
+use stdweb::web::{document, window, IEventTarget, IParentNode, TypedArray};
 use webgl_rendering_context::*;
-use std::rc::Rc;
-use std::cell::RefCell;
 
 const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
 const FRAGMENT_SOURCE: &'static str = include_str!("shaders/fragment.glsl");
@@ -22,9 +20,10 @@ const INDICIES: [u8; 6] = [0, 1, 3, 1, 2, 3];
 
 type Gl = WebGLRenderingContext;
 
+pub static mut controller: Controller = Controller::new();
+
 pub struct Screen {
     context: Gl,
-    joypad: Rc<RefCell<Joypad>>,
     texture: WebGLTexture,
     shader_program: WebGLProgram,
     pixels: Vec<u8>,
@@ -41,43 +40,37 @@ impl Screen {
             .try_into()
             .unwrap();
 
-        let joypad = Rc::new(RefCell::new(Joypad::new()));
-
         {
-            let joypad = joypad.clone();
-            window().add_event_listener(move |event: KeyDownEvent| {
+            window().add_event_listener(move |event: KeyDownEvent| unsafe {
                 match event.key().as_ref() {
-                    "ArrowUp" => joypad.borrow_mut().press(Button::Up),
-                    "ArrowDown" => joypad.borrow_mut().press(Button::Down),
-                    "ArrowLeft" => joypad.borrow_mut().press(Button::Left),
-                    "ArrowRight" => joypad.borrow_mut().press(Button::Right),
-                    "z" => joypad.borrow_mut().press(Button::A),
-                    "x" => joypad.borrow_mut().press(Button::B),
-                    "Enter" => joypad.borrow_mut().press(Button::Select),
-                    " " => joypad.borrow_mut().press(Button::Start),
-                    _ => console!(log, "unknown key")
+                    "ArrowUp" => controller.press(Button::Up),
+                    "ArrowDown" => controller.press(Button::Down),
+                    "ArrowLeft" => controller.press(Button::Left),
+                    "ArrowRight" => controller.press(Button::Right),
+                    "z" => controller.press(Button::A),
+                    "x" => controller.press(Button::B),
+                    "Enter" => controller.press(Button::Select),
+                    " " => controller.press(Button::Start),
+                    _ => (),
                 }
             });
         }
 
         {
-            let joypad = joypad.clone();
-
-            window().add_event_listener(move |event: KeyUpEvent| {
+            window().add_event_listener(move |event: KeyUpEvent| unsafe {
                 match event.key().as_ref() {
-                    "ArrowUp" => joypad.borrow_mut().release(Button::Up),
-                    "ArrowDown" => joypad.borrow_mut().release(Button::Down),
-                    "ArrowLeft" => joypad.borrow_mut().release(Button::Left),
-                    "ArrowRight" => joypad.borrow_mut().release(Button::Right),
-                    "z" => joypad.borrow_mut().release(Button::A),
-                    "x" => joypad.borrow_mut().release(Button::B),
-                    "Enter" => joypad.borrow_mut().release(Button::Select),
-                    " " => joypad.borrow_mut().release(Button::Start),
-                    _ => console!(log, "unknown key")
+                    "ArrowUp" => controller.release(Button::Up),
+                    "ArrowDown" => controller.release(Button::Down),
+                    "ArrowLeft" => controller.release(Button::Left),
+                    "ArrowRight" => controller.release(Button::Right),
+                    "z" => controller.release(Button::A),
+                    "x" => controller.release(Button::B),
+                    "Enter" => controller.release(Button::Select),
+                    " " => controller.release(Button::Start),
+                    _ => (),
                 }
             });
         }
-
 
         let context: Gl = canvas.get_context().unwrap();
 
@@ -152,15 +145,10 @@ impl Screen {
 
         Screen {
             context,
-            joypad,
             texture,
             shader_program,
             pixels,
         }
-    }
-
-    pub fn get_input(&mut self) -> Rc<RefCell<Joypad>> {
-        self.joypad.clone()
     }
 
     pub fn render(&mut self) {
@@ -185,7 +173,8 @@ impl Screen {
 
         self.context.use_program(Some(&self.shader_program));
 
-        let screen_uniform = self.context
+        let screen_uniform = self
+            .context
             .get_uniform_location(&self.shader_program, "screen")
             .unwrap();
         self.context.uniform1i(Some(&screen_uniform), 0);
@@ -194,7 +183,6 @@ impl Screen {
             .draw_elements(Gl::TRIANGLES, 6, Gl::UNSIGNED_BYTE, 0);
     }
 }
-
 
 impl PixelMapper for Screen {
     fn map_pixel(&mut self, pixel: usize, color: Color) {

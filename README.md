@@ -6,9 +6,9 @@ missing features, such as sound.
 
 ## Screenshots
 
-![Dr. Mario](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/dr_mario.PNG)
+![Plant Boy](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/plantboy.png)
 
-![Tetris](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/tetris.PNG)
+![2048](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/2048.png)
 
 ![Oranges](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/oranges.PNG)
 

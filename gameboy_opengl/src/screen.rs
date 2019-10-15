@@ -1,15 +1,6 @@
-use gameboy_core::Button;
-use gameboy_core::Color;
-use gameboy_core::Controller;
-use gameboy_core::Emulator;
-use gameboy_core::PixelMapper;
-use glutin::event::ElementState;
-use glutin::event::Event;
-use glutin::event::KeyboardInput;
-use glutin::event::VirtualKeyCode;
-use glutin::event::WindowEvent;
-use glutin::event_loop::ControlFlow;
-use glutin::event_loop::EventLoop;
+use gameboy_core::{Button, Color, Controller, Emulator, PixelMapper};
+use glutin::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
 use glutin::ContextBuilder;
 use opengl_rendering_context;
@@ -18,7 +9,11 @@ use opengl_rendering_context::Gl;
 use shader::Shader;
 use std;
 use std::os::raw::c_void;
-use std::time::Duration;
+use std::sync::mpsc;
+use std::sync::mpsc::SendError;
+use std::sync::mpsc::TryRecvError;
+use std::thread;
+use std::time::{Duration, SystemTime};
 use std::{mem, ptr};
 
 const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
@@ -45,7 +40,6 @@ impl Mapper {
     }
 }
 
-// TODO: create a seperate thread for the emulation
 impl PixelMapper for Mapper {
     fn map_pixel(&mut self, pixel: usize, color: Color) {
         let color_bytes: [u8; 3] = match color {
@@ -157,9 +151,134 @@ pub fn start(rom: Vec<u8>) {
         );
     }
 
-    let mut mapper = Mapper::new();
-    let mut controller = Controller::new();
+    let (sender1, receiver1) = mpsc::channel();
+    let (sender2, receiver2) = mpsc::channel();
+
     let mut emulator = Emulator::from_rom(rom);
+    let mut controller = Controller::new();
+
+    thread::spawn(move || {
+        let mut mapper = Mapper::new();
+        let mut run = true;
+        let frame_rate = 60f64;
+        let frame_duration = Duration::from_millis((1000f64 * (1f64 / frame_rate)) as u64);
+
+        while run {
+            let start_time = SystemTime::now();
+            loop {
+                let vblank = emulator.emulate(&mut mapper, &mut controller);
+                if vblank {
+                    break;
+                }
+            }
+
+            match sender2.send(mapper.get_frame_buffer().clone()) {
+                Ok(()) => (),
+                Err(SendError(_)) => run = false,
+            };
+            loop {
+                match receiver1.try_recv() {
+                    Ok(input) => {
+                        match input {
+                            // key pressed
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Up),
+                                ..
+                            } => {
+                                controller.press(Button::Up);
+                            }
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Down),
+                                ..
+                            } => controller.press(Button::Down),
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Left),
+                                ..
+                            } => controller.press(Button::Left),
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Right),
+                                ..
+                            } => controller.press(Button::Right),
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Z),
+                                ..
+                            } => controller.press(Button::A),
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::X),
+                                ..
+                            } => controller.press(Button::B),
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Return),
+                                ..
+                            } => controller.press(Button::Select),
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Space),
+                                ..
+                            } => controller.press(Button::Start),
+                            // key released
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(VirtualKeyCode::Up),
+                                ..
+                            } => controller.release(Button::Up),
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(VirtualKeyCode::Down),
+                                ..
+                            } => controller.release(Button::Down),
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(VirtualKeyCode::Left),
+                                ..
+                            } => controller.release(Button::Left),
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(VirtualKeyCode::Right),
+                                ..
+                            } => controller.release(Button::Right),
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(VirtualKeyCode::Z),
+                                ..
+                            } => controller.release(Button::A),
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(VirtualKeyCode::X),
+                                ..
+                            } => controller.release(Button::B),
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(VirtualKeyCode::Return),
+                                ..
+                            } => controller.release(Button::Select),
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(VirtualKeyCode::Space),
+                                ..
+                            } => controller.release(Button::Start),
+                            _ => (),
+                        }
+                    }
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => run = false,
+                }
+            }
+            let end_time = SystemTime::now();
+            let last_frame_duration = end_time.duration_since(start_time).unwrap();
+            if frame_duration >= last_frame_duration {
+                let sleep_duration = frame_duration - last_frame_duration;
+                thread::sleep(sleep_duration);
+            }
+        }
+    });
 
     events_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
@@ -167,91 +286,15 @@ pub fn start(rom: Vec<u8>) {
         match event {
             Event::LoopDestroyed => return,
             Event::WindowEvent { ref event, .. } => match event {
-                WindowEvent::KeyboardInput { input, .. } => match input {
-                    // key pressed
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Up),
-                        ..
-                    } => controller.press(Button::Up),
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Down),
-                        ..
-                    } => controller.press(Button::Down),
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Left),
-                        ..
-                    } => controller.press(Button::Left),
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Right),
-                        ..
-                    } => controller.press(Button::Right),
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Z),
-                        ..
-                    } => controller.press(Button::A),
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::X),
-                        ..
-                    } => controller.press(Button::B),
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Return),
-                        ..
-                    } => controller.press(Button::Select),
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Space),
-                        ..
-                    } => controller.press(Button::Start),
-                    // key released
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::Up),
-                        ..
-                    } => controller.release(Button::Up),
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::Down),
-                        ..
-                    } => controller.release(Button::Down),
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::Left),
-                        ..
-                    } => controller.release(Button::Left),
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::Right),
-                        ..
-                    } => controller.release(Button::Right),
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::Z),
-                        ..
-                    } => controller.release(Button::A),
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::X),
-                        ..
-                    } => controller.release(Button::B),
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::Return),
-                        ..
-                    } => controller.release(Button::Select),
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::Space),
-                        ..
-                    } => controller.release(Button::Start),
-                    _ => (),
-                },
+                WindowEvent::KeyboardInput { input, .. } => {
+                    match sender1.send(input.clone()) {
+                        Ok(()) => (),
+                        Err(SendError(_)) => {
+                            shader.delete_program(&gl);
+                            *control_flow = ControlFlow::Exit;
+                        }
+                    };
+                }
                 WindowEvent::CloseRequested => {
                     shader.delete_program(&gl);
                     *control_flow = ControlFlow::Exit;
@@ -261,27 +304,31 @@ pub fn start(rom: Vec<u8>) {
             _ => (),
         }
 
-        // render the next frame of emulation
-        let vblank = emulator.emulate(&mut mapper, &mut controller);
-
-        if vblank {
-            draw_texture(&gl, texture, &shader, &mapper);
-            unsafe {
-                gl.BindVertexArray(vao);
-                gl.DrawElements(
-                    opengl_rendering_context::TRIANGLES,
-                    6,
-                    opengl_rendering_context::UNSIGNED_INT,
-                    ptr::null(),
-                );
-                gl.BindVertexArray(0);
+        match receiver2.try_recv() {
+            Ok(frame_buffer) => {
+                draw_texture(&gl, texture, &shader, &frame_buffer);
+                unsafe {
+                    gl.BindVertexArray(vao);
+                    gl.DrawElements(
+                        opengl_rendering_context::TRIANGLES,
+                        6,
+                        opengl_rendering_context::UNSIGNED_INT,
+                        ptr::null(),
+                    );
+                    gl.BindVertexArray(0);
+                }
+                windowed_context.swap_buffers().unwrap()
             }
-            windowed_context.swap_buffers().unwrap();
-        }
+            Err(TryRecvError::Empty) => (),
+            Err(TryRecvError::Disconnected) => {
+                shader.delete_program(&gl);
+                *control_flow = ControlFlow::Exit;
+            }
+        };
     });
 }
 
-fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, mapper: &Mapper) {
+fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, frame_buffer: &[u8]) {
     unsafe {
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);
         gl.Clear(opengl_rendering_context::COLOR_BUFFER_BIT);
@@ -296,7 +343,7 @@ fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, mapper: &Mapper) {
             0,
             opengl_rendering_context::RGB,
             opengl_rendering_context::UNSIGNED_BYTE,
-            mapper.get_frame_buffer().as_ptr() as *const c_void,
+            frame_buffer.as_ptr() as *const c_void,
         );
         gl.GenerateMipmap(opengl_rendering_context::TEXTURE_2D);
 

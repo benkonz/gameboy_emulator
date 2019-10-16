@@ -41,6 +41,7 @@ const _HUDSON_HU_C1_RAM_BATTERY: u8 = 0xFF;
 
 pub struct Memory {
     rom_banks: Vec<[u8; 0x4000]>,
+    // TODO: this needs to be a vector of vectors
     eram_banks: Vec<[u8; 0x2000]>,
     wram_banks: Vec<[u8; 0x1000]>,
     vram_banks: Vec<[u8; 0x2000]>,
@@ -60,6 +61,7 @@ pub struct Memory {
     pub irq48_signal: u8,
     pub screen_disabled: bool,
     pub lcd_status_mode: u8,
+    // TODO make this private with a getter
     pub gpu_cycles: GpuCycles,
     // TODO make this into a private struct
     pub div_cycles: i32,
@@ -189,7 +191,7 @@ impl Memory {
             }
             0xC000..=0xCFFF => self.wram_banks[0][index - 0xC000],
             0xD000..=0xDFFF => self.wram_banks[self.selected_wram_bank as usize][index - 0xD000],
-            0xE000..=0xFDFF => self.wram_banks[0][index - 0xE000],
+            0xE000..=0xFDFF => self.read_byte(index as u16 - 0x2000),
             0xFE00..=0xFE9F => self.oam[index - 0xFE00],
             0xFF00..=0xFFFF => match index {
                 0xFF00 => self.get_joypad_state(),
@@ -387,12 +389,7 @@ impl Memory {
                 }
                 0xFF50 => self.disable_bios = value,
                 0xFFFF => self.high_ram[index - 0xFF00] = value & 0x1F,
-                _ => {
-                    if index == 0xFF02 && value == 0x81 {
-                        print!("{}", self.read_byte(0xFF01) as char);
-                    }
-                    self.high_ram[index - 0xFF00] = value
-                }
+                _ => self.high_ram[index - 0xFF00] = value
             },
             _ => {}
         };
@@ -446,17 +443,12 @@ impl Memory {
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
         let interrupt = interrupt as u8;
-        println!("requesting interrupt {:08b}", interrupt.clone() as u8);
-        if interrupt.clone() as u8 == 0b0000_0100 {
-            println!("TIMER");
-        }
         interrupt_flag |= interrupt;
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
 
     pub fn remove_interrupt(&mut self, interrupt: Interrupt) {
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
-        println!("removing interrupt {:08b}", interrupt.clone() as u8);
         interrupt_flag &= !(interrupt as u8);
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }

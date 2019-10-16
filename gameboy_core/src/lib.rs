@@ -8,6 +8,7 @@ mod gpu;
 mod joypad;
 mod mmu;
 mod timer;
+mod serial;
 pub mod button;
 
 pub use emulator::Emulator;

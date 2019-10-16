@@ -3,10 +3,10 @@ pub mod lcd_control_flag;
 pub mod lcd_status_flag;
 mod sprite_attributes;
 
-use emulator::traits::PixelMapper;
 use self::color::Color;
 use self::lcd_control_flag::LcdControlFlag;
 use self::sprite_attributes::SpriteAttributes;
+use emulator::traits::PixelMapper;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
 
@@ -34,7 +34,7 @@ pub struct GPU {
     tile_cycles_counter: i32,
     vblank_line: i32,
     scan_line_transfered: bool,
-    hide_frames: i32
+    hide_frames: i32,
 }
 
 impl GPU {
@@ -43,14 +43,19 @@ impl GPU {
             tile_cycles_counter: 0,
             vblank_line: 0,
             hide_frames: 0,
-            scan_line_transfered: false
+            scan_line_transfered: false,
         }
     }
 
     // return value indicated wheather a vblank has happened
     // true -> vblank has happened, render the framebuffer
     // false -> no vblank, continue stepping
-    pub fn step<T: PixelMapper>(&mut self, cycles: i32, memory: &mut Memory, system: &mut T) -> bool {
+    pub fn step<T: PixelMapper>(
+        &mut self,
+        cycles: i32,
+        memory: &mut Memory,
+        system: &mut T,
+    ) -> bool {
         let mut vblank = false;
         memory.gpu_cycles.cycles_counter += cycles;
 
@@ -157,7 +162,7 @@ impl GPU {
                         self.tile_cycles_counter += cycles;
 
                         let lcdc =
-                            LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+                            LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
                         if !memory.screen_disabled && lcdc.contains(LcdControlFlag::DISPLAY) {
                             while self.tile_cycles_counter >= 3 {
                                 self.render_background(
@@ -165,7 +170,7 @@ impl GPU {
                                     memory.scan_line as i32,
                                     memory.gpu_cycles.pixel_counter,
                                     4,
-                                    system
+                                    system,
                                 );
                                 memory.gpu_cycles.pixel_counter += 4;
                                 self.tile_cycles_counter -= 3;
@@ -241,7 +246,7 @@ impl GPU {
     }
 
     fn scan_line<T: PixelMapper>(&mut self, memory: &mut Memory, line: i32, system: &mut T) {
-        let lcd_control = LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+        let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
         if !memory.screen_disabled && lcd_control.contains(LcdControlFlag::DISPLAY) {
             self.render_window(memory, line, system);
             self.render_sprites(memory, line, system);
@@ -254,11 +259,18 @@ impl GPU {
         }
     }
 
-    fn render_background<T: PixelMapper>(&mut self, memory: &Memory, line: i32, pixel: i32, count: i32, system: &mut T) {
+    fn render_background<T: PixelMapper>(
+        &mut self,
+        memory: &Memory,
+        line: i32,
+        pixel: i32,
+        count: i32,
+        system: &mut T,
+    ) {
         let offset_x_start = pixel % 8;
         let offset_x_end = offset_x_start + count;
         let screen_tile = pixel / 8;
-        let lcd_control = LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+        let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
         let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
 
         if lcd_control.contains(LcdControlFlag::DISPLAY) {
@@ -338,7 +350,7 @@ impl GPU {
             return;
         }
 
-        let lcd_control = LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+        let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
 
         if !lcd_control.contains(LcdControlFlag::WINDOW) {
             return;
@@ -425,7 +437,7 @@ impl GPU {
     }
 
     fn render_sprites<T: PixelMapper>(&mut self, memory: &Memory, line: i32, system: &mut T) {
-        let lcd_control = LcdControlFlag::from_bits(memory.read_byte(LCD_CONTROL_INDEX)).unwrap();
+        let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
 
         if !lcd_control.contains(LcdControlFlag::SPRITES) {
             return;
@@ -440,7 +452,7 @@ impl GPU {
         let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
 
         for sprite in (0..40).rev() {
-            let sprite_4 = sprite as u16 * 4;
+            let sprite_4 = sprite * 4;
             let sprite_y = memory.read_byte(SPRITES_START_INDEX + sprite_4) as i32 - 16;
 
             if (sprite_y > line) || (sprite_y + sprite_height) <= line {
@@ -459,10 +471,9 @@ impl GPU {
                 (memory.read_byte((SPRITES_START_INDEX + sprite_4 + 2) as u16) & 0xFF) as i32 * 16
             };
 
-            let sprite_flags = SpriteAttributes::from_bits(
+            let sprite_flags = SpriteAttributes::from_bits_truncate(
                 memory.read_byte((SPRITES_START_INDEX + sprite_4 + 3) as u16),
-            )
-            .unwrap();
+            );
 
             let sprite_pallette = sprite_flags.contains(SpriteAttributes::PALETTE);
             let xflip = sprite_flags.contains(SpriteAttributes::X_FLIP);

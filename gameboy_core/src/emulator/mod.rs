@@ -7,11 +7,13 @@ use gpu::GPU;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
 use timer::Timer;
+use serial::Serial;
 
 pub struct Emulator {
     cpu: Cpu,
     gpu: GPU,
     timer: Timer,
+    serial: Serial,
     memory: Memory,
 }
 
@@ -21,6 +23,7 @@ impl Emulator {
             cpu: Cpu::new(),
             gpu: GPU::new(),
             timer: Timer::new(),
+            serial: Serial::new(),
             memory: Memory::new(),
         }
     }
@@ -30,6 +33,7 @@ impl Emulator {
             cpu: Cpu::new(),
             gpu: GPU::new(),
             timer: Timer::new(),
+            serial: Serial::new(),
             memory: Memory::from_rom(rom),
         }
     }
@@ -37,6 +41,7 @@ impl Emulator {
     pub fn emulate<T: PixelMapper>(&mut self, system: &mut T, controller: &mut Controller) -> bool {
         let cycles = self.cpu.step(&mut self.memory);
         self.timer.update(cycles, &mut self.memory);
+        self.serial.update(cycles, &mut self.memory);
         let vblank = self.gpu.step(cycles, &mut self.memory, system);
         controller.update(&mut self.memory);
         self.handle_interrupts();

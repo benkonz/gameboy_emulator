@@ -70,7 +70,7 @@ pub struct Cpu {
     interrupt_enabled_counter: u8,
     new_interrupt_enabled: bool,
     pub cycles: u64,
-    instruction_cycle: i32,
+    pub instruction_cycle: i32,
     jump_taken: bool
 }
 
@@ -115,7 +115,7 @@ impl Cpu {
             }
 
             let opcode = self.get_n(memory);
-            self.instruction_cycle = INSTRUCTION_TIMINGS[opcode as usize] as i32;
+            self.instruction_cycle += INSTRUCTION_TIMINGS[opcode as usize] as i32;
             self.execute_opcode(opcode, memory);
 
             if self.jump_taken {

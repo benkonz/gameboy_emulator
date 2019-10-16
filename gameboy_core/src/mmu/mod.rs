@@ -55,12 +55,16 @@ pub struct Memory {
     cartridge_type: u8,
     in_ram_banking_mode: bool,
     external_ram_enabled: bool,
-    pub divider_register: u8,
+    higher_rom_bank_bits: u8,
     pub scan_line: u8,
     pub irq48_signal: u8,
     pub screen_disabled: bool,
     pub lcd_status_mode: u8,
     pub gpu_cycles: GpuCycles,
+    // TODO make this into a private struct
+    pub div_cycles: i32,
+    pub tima_cycles: i32
+
 }
 
 impl Memory {
@@ -77,7 +81,6 @@ impl Memory {
             selected_vram_bank: 0,
             selected_eram_bank: 0,
             selected_wram_bank: 1,
-            divider_register: 0,
             scan_line: 144,
             joypad_state: 0,
             cartridge_type: ROM_ONLY,
@@ -87,11 +90,17 @@ impl Memory {
             screen_disabled: false,
             lcd_status_mode: 0,
             gpu_cycles: GpuCycles::new(),
+            higher_rom_bank_bits: 0,
+            div_cycles: 0,
+            tima_cycles: 0
         }
     }
 
     pub fn from_rom(rom: Vec<u8>) -> Memory {
         let cartridge_type = rom[0x0147];
+        if cartridge_type > 0x3 {
+            panic!("unsupported cartridge type (for now...)");
+        }
         let rom_size = rom[0x0148];
         let num_rom_banks = match rom_size {
             0x0 => 2,
@@ -123,7 +132,6 @@ impl Memory {
             let start = i * 0x4000;
             let end = cmp::min(start + 0x4000, rom.len());
             bank.copy_from_slice(&rom[start..end]);
-            
             if end == rom.len() {
                 break;
             }
@@ -142,7 +150,6 @@ impl Memory {
             selected_vram_bank: 0,
             selected_eram_bank: 0,
             selected_wram_bank: 1,
-            divider_register: 0,
             scan_line: 0,
             joypad_state: 0,
             cartridge_type,
@@ -152,6 +159,9 @@ impl Memory {
             screen_disabled: false,
             lcd_status_mode: 0,
             gpu_cycles: GpuCycles::new(),
+            higher_rom_bank_bits: 0,
+            div_cycles: 0,
+            tima_cycles: 0
         }
     }
 
@@ -169,15 +179,22 @@ impl Memory {
             0x0100..=0x3FFF => self.rom_banks[0][index],
             0x4000..=0x7FFF => self.rom_banks[self.selected_rom_bank as usize][index - 0x4000],
             0x8000..=0x9FFF => self.vram_banks[self.selected_vram_bank as usize][index - 0x8000],
-            0xA000..=0xBFFF => self.eram_banks[self.selected_eram_bank as usize][index - 0xA000],
+            0xA000..=0xBFFF => {
+                let selected_bank = if self.in_ram_banking_mode {
+                    self.selected_eram_bank as usize
+                } else {
+                    0
+                };
+                self.eram_banks[selected_bank][index - 0xA000]
+            }
             0xC000..=0xCFFF => self.wram_banks[0][index - 0xC000],
             0xD000..=0xDFFF => self.wram_banks[self.selected_wram_bank as usize][index - 0xD000],
             0xE000..=0xFDFF => self.wram_banks[0][index - 0xE000],
             0xFE00..=0xFE9F => self.oam[index - 0xFE00],
             0xFF00..=0xFFFF => match index {
                 0xFF00 => self.get_joypad_state(),
+                0xFF07 => self.high_ram[index - 0xFF00] | 0xF8,
                 0xFF0F => self.high_ram[index - 0xFF00] | 0xE0,
-                0xFF04 => self.divider_register,
                 0xFF41 => self.high_ram[index - 0xFF00] | 0b01000_0000,
                 0xFF44 => {
                     if !self.screen_disabled {
@@ -229,34 +246,56 @@ impl Memory {
         let index = index as usize;
 
         match index {
-            0x6000..=0x7FFF if self.cartridge_has_mbc1() => {
-                self.in_ram_banking_mode = value & 0x01 == 0x01
+            0x0000..=0x1FFF if self.cartridge_has_mbc1() => {
+                self.external_ram_enabled = value & 0b0000_1010 == 0b0000_1010
             }
             0x2000..=0x3FFF if self.cartridge_has_mbc1() => {
-                let new_rom_bank = if 0b0001_1111 & value == 0 {
-                    1
+                if self.in_ram_banking_mode {
+                    self.selected_rom_bank = value & 0x1F;
                 } else {
-                    0b0001_1111 & value
-                };
-                self.selected_rom_bank |= new_rom_bank;
+                    self.selected_rom_bank = (value & 0x1F) | (self.higher_rom_bank_bits << 5);
+                }
+
+                if self.selected_rom_bank == 0x00
+                    || self.selected_rom_bank == 0x20
+                    || self.selected_rom_bank == 0x40
+                    || self.selected_rom_bank == 0x60
+                {
+                    self.selected_rom_bank += 1;
+                }
+
+                self.selected_rom_bank &= (self.rom_banks.len() - 1) as u8;
             }
             0x4000..=0x5FFF if self.cartridge_has_mbc1() => {
                 if self.in_ram_banking_mode {
-                    if self.external_ram_enabled {
-                        self.selected_eram_bank = 0b0000_0011 & value;
-                    }
+                    self.selected_eram_bank = value & 0x03;
+                    self.selected_eram_bank &= (self.eram_banks.len() - 1) as u8;
                 } else {
-                    self.selected_rom_bank |= (0b0000_0011 & value) << 5;
+                    self.higher_rom_bank_bits = value & 0x03;
+                    self.selected_rom_bank = (value & 0x1F) | (self.higher_rom_bank_bits << 5);
+
+                    if self.selected_rom_bank == 0x00
+                        || self.selected_rom_bank == 0x20
+                        || self.selected_rom_bank == 0x40
+                        || self.selected_rom_bank == 0x60
+                    {
+                        self.selected_rom_bank += 1;
+                    }
+                    self.selected_rom_bank &= (self.rom_banks.len() - 1) as u8;
                 }
             }
-            0x0000..=0x1FFF if self.cartridge_has_mbc1() => {
-                self.external_ram_enabled = value & 0b0000_1010 == 0b0000_1010
+            0x6000..=0x7FFF if self.cartridge_has_mbc1() => {
+                self.in_ram_banking_mode = value & 0x01 == 0x01
             }
             0x8000..=0x9FFF => {
                 self.vram_banks[self.selected_vram_bank as usize][index - 0x8000] = value
             }
             0xA000..=0xBFFF => {
-                self.eram_banks[self.selected_eram_bank as usize][index - 0xA000] = value
+                if self.in_ram_banking_mode {
+                    self.eram_banks[self.selected_eram_bank as usize][index - 0xA000] = value;
+                } else {
+                    self.eram_banks[0][index - 0xA000] = value;
+                }
             }
             0xC000..=0xCFFF => self.wram_banks[0][index - 0xC000] = value,
             0xD000..=0xDFFF => {
@@ -264,11 +303,19 @@ impl Memory {
             }
             0xFE00..=0xFE9F => self.oam[index - 0xFE00] = value,
             0xFF00..=0xFFFF => match index {
-                0xFF04 => self.divider_register = 0,
+                0xFF04 => self.reset_div_cycles(),
+                0xFF07 => {
+                    let value = value & 0x07;
+                    let current_tac = self.read_byte(0xFF07);
+                    if (current_tac & 0x03) != (value & 0x03) {
+                        self.reset_tima_cycles();
+                    }
+                    self.high_ram[index - 0xFF00] = value;
+                }
                 0xFF0F => self.high_ram[index - 0xFF00] = value & 0x1F,
                 0xFF40 => {
-                    let current_lcdc = LcdControlFlag::from_bits(self.read_byte(0xFF40)).unwrap();
-                    let new_lcdc = LcdControlFlag::from_bits(value).unwrap();
+                    let current_lcdc = LcdControlFlag::from_bits_truncate(self.read_byte(0xFF40));
+                    let new_lcdc = LcdControlFlag::from_bits_truncate(value);
                     self.high_ram[index - 0xFF00] = value;
 
                     if !current_lcdc.contains(LcdControlFlag::WINDOW)
@@ -287,7 +334,7 @@ impl Memory {
                     let current_stat = self.read_byte(0xFF41) & 0x07;
                     let new_stat = (value & 0x78) | (current_stat & 0x07);
                     self.set_lcd_status_from_memory(new_stat);
-                    let lcd_control = LcdControlFlag::from_bits(self.read_byte(0xFF40)).unwrap();
+                    let lcd_control = LcdControlFlag::from_bits_truncate(self.read_byte(0xFF40));
                     let mut signal = self.irq48_signal;
                     let mode = self.lcd_status_mode;
                     signal &= (new_stat >> 3) & 0x0F;
@@ -328,7 +375,7 @@ impl Memory {
                     if current_lyc != value {
                         self.high_ram[index - 0xFF00] = value;
                         let lcd_control =
-                            LcdControlFlag::from_bits(self.read_byte(0xFF40)).unwrap();
+                            LcdControlFlag::from_bits_truncate(self.read_byte(0xFF40));
                         if lcd_control.contains(LcdControlFlag::DISPLAY) {
                             self.compare_ly_to_lyc();
                         }
@@ -399,12 +446,17 @@ impl Memory {
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
         let interrupt = interrupt as u8;
+        println!("requesting interrupt {:08b}", interrupt.clone() as u8);
+        if interrupt.clone() as u8 == 0b0000_0100 {
+            println!("TIMER");
+        }
         interrupt_flag |= interrupt;
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
 
     pub fn remove_interrupt(&mut self, interrupt: Interrupt) {
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
+        println!("removing interrupt {:08b}", interrupt.clone() as u8);
         interrupt_flag &= !(interrupt as u8);
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
@@ -462,6 +514,24 @@ impl Memory {
         if (self.gpu_cycles.window_line == 0) && (self.scan_line < 144) && (self.scan_line > wy) {
             self.gpu_cycles.window_line = 144;
         }
+    }
+
+    pub fn get_div_from_memory(&self) -> u8 {
+        self.high_ram[0xFF04 - 0xFF00]
+    }
+
+    pub fn set_div_from_memory(&mut self, value: u8) {
+        self.high_ram[0xFF04 - 0xFF00] = value;
+    }
+
+    fn reset_div_cycles(&mut self) {
+        self.div_cycles = 0;
+        self.high_ram[0xFF04 - 0xFF00] = 0;
+    }
+
+    fn reset_tima_cycles(&mut self) {
+        self.tima_cycles = 0;
+        self.high_ram[0xFF05 - 0xFF00] = self.read_byte(0xFF06);
     }
 }
 

@@ -25,7 +25,7 @@ const _ROM_MBC3_TIMER_BATT: u8 = 0xF;
 const _ROM_MBC3_TIMER_RAM_BATT: u8 = 0x10;
 const _ROM_MBC3: u8 = 0x11;
 const _ROM_MBC3_RAM: u8 = 0x12;
-const _ROM_MBC3_RAM_BATT: u8 = 0x13;
+const _ROM_MBC3_RAM_BATT: u8 = 0x13; // TODO: needed for pokemon
 const _ROM_MBC5: u8 = 0x19;
 const _ROM_MBC5_RAM: u8 = 0x1A;
 const _ROM_MBC5_RAM_BATT: u8 = 0x1B;
@@ -41,7 +41,6 @@ const _HUDSON_HU_C1_RAM_BATTERY: u8 = 0xFF;
 
 pub struct Memory {
     rom_banks: Vec<[u8; 0x4000]>,
-    // TODO: this needs to be a vector of vectors
     eram_banks: Vec<[u8; 0x2000]>,
     wram_banks: Vec<[u8; 0x1000]>,
     vram_banks: Vec<[u8; 0x2000]>,
@@ -71,6 +70,7 @@ pub struct Memory {
 
 impl Memory {
     pub fn new() -> Memory {
+        // TODO: delete this at some point in time, only used in CPU tests
         Memory {
             rom_banks: vec![[0; 0x4000]; 2],
             vram_banks: vec![[0; 0x2000]],
@@ -101,7 +101,7 @@ impl Memory {
     pub fn from_rom(rom: Vec<u8>) -> Memory {
         let cartridge_type = rom[0x0147];
         if cartridge_type > 0x3 {
-            panic!("unsupported cartridge type (for now...)");
+            panic!("unsupported cartridge type: {:02X} (for now...)", cartridge_type);
         }
         let rom_size = rom[0x0148];
         let num_rom_banks = match rom_size {
@@ -139,7 +139,7 @@ impl Memory {
             }
         }
 
-        let eram_banks: Vec<[u8; 0x2000]> = vec![[0; 0x2000]; num_ram_banks];
+        let eram_banks: Vec<[u8; 0x2000]> = vec![[0; 0x2000]; 8];
         Memory {
             rom_banks,
             vram_banks: vec![[0; 0x2000]],
@@ -248,6 +248,7 @@ impl Memory {
         let index = index as usize;
 
         match index {
+            // TODO: use 0x0000..=0x7FFF then match on wheather we are in mbc1, 2, 3, or 5
             0x0000..=0x1FFF if self.cartridge_has_mbc1() => {
                 self.external_ram_enabled = value & 0b0000_1010 == 0b0000_1010
             }

@@ -125,7 +125,7 @@ impl Cpu {
         }
 
         if self.halted {
-            self.instruction_cycle = 1;
+            self.instruction_cycle = 4;
         }
 
         self.instruction_cycle
@@ -2801,7 +2801,7 @@ impl Cpu {
     }
 
     fn push(&mut self, nn: u16, memory: &mut Memory) {
-        self.registers.sp -= 2;
+        self.registers.sp = self.registers.sp.wrapping_sub(2);
         memory.write_word(self.registers.sp, nn);
     }
 

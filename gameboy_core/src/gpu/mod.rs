@@ -478,7 +478,7 @@ impl GPU {
             let sprite_pallette = sprite_flags.contains(SpriteAttributes::PALETTE);
             let xflip = sprite_flags.contains(SpriteAttributes::X_FLIP);
             let yflip = sprite_flags.contains(SpriteAttributes::Y_FLIP);
-            let above_bg = !sprite_flags.contains(SpriteAttributes::BACKGROUND_PRIORITY);
+            let behind_bg = sprite_flags.contains(SpriteAttributes::BACKGROUND_PRIORITY);
             let tiles = 0x8000;
 
             let pixel_y = if yflip {
@@ -545,7 +545,8 @@ impl GPU {
 
                 let position = line_width + buffer_x;
 
-                if !above_bg {
+                // the background should take priorify if the color isn't white
+                if behind_bg && system.get_pixel(position as usize) != Color::White {
                     continue;
                 }
 

@@ -200,7 +200,7 @@ impl PixelMapper for Screen {
 
    fn get_pixel(&self, pixel: usize) -> Color {
         let offset = pixel * 3;
-        match self.frame_buffer[offset..offset + 3] {
+        match self.pixels[offset..offset + 3] {
             [255, 255, 255] => Color::White,
             [178, 178, 178] => Color::LightGray,
             [102, 102, 102] => Color::DarkGray,

@@ -1,6 +1,3 @@
-[profile.release]
-debug=true
-
 [package]
 name = "gameboy_emulator"
 version = "0.1.1"

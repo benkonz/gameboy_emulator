@@ -34,16 +34,17 @@ pub struct GPU {
     tile_cycles_counter: i32,
     vblank_line: i32,
     scan_line_transfered: bool,
-    hide_frames: i32,
+    hide_frames: i32
 }
 
 impl GPU {
+    // TODO: make a background color map that we use to check bg priority
     pub fn new() -> GPU {
         GPU {
             tile_cycles_counter: 0,
             vblank_line: 0,
             hide_frames: 0,
-            scan_line_transfered: false,
+            scan_line_transfered: false
         }
     }
 

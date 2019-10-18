@@ -21,11 +21,11 @@ const _ROM_RAM_BATT: u8 = 0x9;
 const _ROM_MMM01: u8 = 0xB;
 const _ROM_MMM01_SRAM: u8 = 0xC;
 const _ROM_MMM01_SRAM_BATT: u8 = 0xD;
-const _ROM_MBC3_TIMER_BATT: u8 = 0xF;
-const _ROM_MBC3_TIMER_RAM_BATT: u8 = 0x10;
-const _ROM_MBC3: u8 = 0x11;
-const _ROM_MBC3_RAM: u8 = 0x12;
-const _ROM_MBC3_RAM_BATT: u8 = 0x13; // TODO: needed for pokemon
+const ROM_MBC3_TIMER_BATT: u8 = 0xF;
+const ROM_MBC3_TIMER_RAM_BATT: u8 = 0x10;
+const ROM_MBC3: u8 = 0x11;
+const ROM_MBC3_RAM: u8 = 0x12;
+const ROM_MBC3_RAM_BATT: u8 = 0x13; // TODO: needed for pokemon
 const _ROM_MBC5: u8 = 0x19;
 const _ROM_MBC5_RAM: u8 = 0x1A;
 const _ROM_MBC5_RAM_BATT: u8 = 0x1B;
@@ -100,9 +100,9 @@ impl Memory {
 
     pub fn from_rom(rom: Vec<u8>) -> Memory {
         let cartridge_type = rom[0x0147];
-        if cartridge_type > 0x3 {
-            panic!("unsupported cartridge type: {:02X} (for now...)", cartridge_type);
-        }
+        // if cartridge_type > 0x3 {
+        //     panic!("unsupported cartridge type: {:02X} (for now...)", cartridge_type);
+        // }
         let rom_size = rom[0x0148];
         let num_rom_banks = match rom_size {
             0x0 => 2,
@@ -244,13 +244,23 @@ impl Memory {
             || self.cartridge_type == ROM_MBC1_RAM_BATT
     }
 
+    fn cartridge_has_mbc3(&self) -> bool {
+        self.cartridge_type == ROM_MBC3
+            || self.cartridge_type == ROM_MBC3_RAM
+            || self.cartridge_type == ROM_MBC3_RAM_BATT
+            || self.cartridge_type == ROM_MBC3_TIMER_BATT
+            || self.cartridge_type == ROM_MBC3_TIMER_RAM_BATT
+    }
+
     pub fn write_byte(&mut self, index: u16, value: u8) {
         let index = index as usize;
 
         match index {
-            // TODO: use 0x0000..=0x7FFF then match on wheather we are in mbc1, 2, 3, or 5
             0x0000..=0x1FFF if self.cartridge_has_mbc1() => {
                 self.external_ram_enabled = value & 0b0000_1010 == 0b0000_1010
+            }
+            0x0000..=0x1FFF if self.cartridge_has_mbc3() => {
+                self.external_ram_enabled =  value & 0b0000_1010 == 0b0000_1010
             }
             0x2000..=0x3FFF if self.cartridge_has_mbc1() => {
                 if self.in_ram_banking_mode {
@@ -269,6 +279,14 @@ impl Memory {
 
                 self.selected_rom_bank &= (self.rom_banks.len() - 1) as u8;
             }
+            0x2000..=0x3FFF if self.cartridge_has_mbc3() => {
+                let mut value = value & 0b0111_1111;
+                if value == 0 {
+                    value = 1;
+                }
+
+                self.selected_rom_bank = value;
+            }
             0x4000..=0x5FFF if self.cartridge_has_mbc1() => {
                 if self.in_ram_banking_mode {
                     self.selected_eram_bank = value & 0x03;
@@ -286,6 +304,16 @@ impl Memory {
                     }
                     self.selected_rom_bank &= (self.rom_banks.len() - 1) as u8;
                 }
+            }
+            0x4000..=0x5FFF if self.cartridge_has_mbc3() => {
+                match value {
+                    0x00..=0x07 => {
+                        self.selected_eram_bank = value;
+                        self.selected_eram_bank &= (self.eram_banks.len() - 1) as u8;
+                    },
+                    0x08..=0x0C => panic!("RTC not implemented!"),
+                    _ => panic!("selecting unknown register: {:02X}", value)
+                };
             }
             0x6000..=0x7FFF if self.cartridge_has_mbc1() => {
                 self.in_ram_banking_mode = value & 0x01 == 0x01

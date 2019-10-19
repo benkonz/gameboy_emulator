@@ -16,8 +16,8 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 use std::{mem, ptr};
 
-const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
-const FRAGMENT_SOURCE: &'static str = include_str!("shaders/fragment.glsl");
+const VERTEX_SOURCE: &str = include_str!("shaders/vertex.glsl");
+const FRAGMENT_SOURCE: &str = include_str!("shaders/fragment.glsl");
 const VERTICIES: [f32; 20] = [
     1.0, 1.0, 0.0, 1.0, 1.0, 1.0, -1.0, 0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 1.0, 0.0,
     0.0, 1.0,

@@ -3,22 +3,56 @@
 
 <head>
 	<meta charset="utf-8">
-	<title>emulator</title>
+	<title>Gameboy Emulator</title>
+	<link href="https://fonts.googleapis.com/css?family=Roboto+Mono&display=swap" rel="stylesheet"> 
 </head>
 
 <body>
-	<input type="file" id="file_selector" />
-	<canvas id="canvas" style="width: 400px;height: 400px;"></canvas>
+	<div class="input-container">
+		<input type="file" id="file_selector" />
+	</div>
+	<div class="emulator-container">
+		<canvas id="canvas"></canvas>
+		<div class="controller-container">
+			<div class="buttons-container">
+				<table>
+					<tr>
+						<td></td>
+						<td><button id="up-btn">&uarr;</button></td>
+						<td></td>
+					</tr>
+					<tr>
+						<td><button id="left-btn">&larr;</button></td>
+						<td></td>
+						<td><button id="right-btn">&rarr;</button></td>
+					</tr>
+					<tr>
+						<td></td>
+						<td><button id="down-btn">&darr;</button></td>
+						<td></td>
+					</tr>
+				</table>
+			</div>
+			<div class="buttons-container">
+				<button id="start-btn" class="start-btn">START</button>
+				<button id="select-btn">SELECT</button>
+			</div>
+			<div class="buttons-container">
+				<button id="a-btn" class="a-btn">A</button>
+				<button id="b-btn">B</button>
+			</div>
+		</div>
+	</div>
 	<script src="gameboy_lib.js"></script>
 	<script>
 		Rust.gameboy_lib.then(function (emulator) {
 			document.getElementById("file_selector")
 				.addEventListener("change", function () {
-					var reader = new FileReader();
+					const reader = new FileReader();
 					reader.onload = function () {
-						var arraybuffer = this.result;
-						var bytes = new Uint8Array(arraybuffer);
-						var rom = Array.prototype.slice.call(bytes);
+						const arraybuffer = this.result;
+						const bytes = new Uint8Array(arraybuffer);
+						const rom = Array.prototype.slice.call(bytes);
 						emulator.start(rom);
 					};
 
@@ -26,6 +60,67 @@
 				});
 		});
 	</script>
+	<style>
+		body {
+			padding: 2rem;
+			margin: auto;
+			font-family: 'Roboto Mono', monospace;
+``		}
+
+		canvas {
+			width: 640px;
+			height: 576px;
+			display: block;
+			margin: auto;
+			padding-top: 10px;
+			padding-bottom: 10px;
+		}
+
+		button {
+			font-size: 24px;
+		}
+
+		table {
+			margin-right: auto;
+			margin-left: auto;
+		}
+
+		.input-container {
+			text-align: center;
+		}
+
+		.emulator-container {
+			margin-left: auto;
+			margin-right: auto;
+			width: 720px;
+			height: 750px;
+			border: 2px solid black;
+			border-radius: 5px;
+		}
+
+		.controller-container {
+			width: 720px;
+			height: 146px;
+			border-top: 4px solid black;
+		}
+
+		.buttons-container {
+			width: 33%;
+			height: 100%;
+			float: left;
+			text-align: center;
+			margin-top: 5px;
+		}
+
+		.start-btn {
+			margin-right: 5px; 
+			margin-top: 100px;
+		}
+		
+		.a-btn {
+			margin-right: 5px;
+		}
+	</style>
 </body>
 
 </html>

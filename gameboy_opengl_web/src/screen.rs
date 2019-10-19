@@ -5,7 +5,7 @@ use gameboy_core::Controller;
 use stdweb;
 use stdweb::traits::IKeyboardEvent;
 use stdweb::unstable::TryInto;
-use stdweb::web::event::{KeyDownEvent, KeyUpEvent};
+use stdweb::web::event::{KeyDownEvent, KeyUpEvent, MouseDownEvent, MouseUpEvent};
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, IEventTarget, IParentNode, TypedArray};
 use webgl_rendering_context::*;
@@ -32,6 +32,45 @@ pub struct Screen {
 impl Screen {
     pub fn new() -> Screen {
         stdweb::initialize();
+
+        let up_btn = document().query_selector("#up-btn").unwrap().unwrap();
+        let down_btn = document().query_selector("#down-btn").unwrap().unwrap();
+        let left_btn = document().query_selector("#left-btn").unwrap().unwrap();
+        let right_btn = document().query_selector("#right-btn").unwrap().unwrap();
+        let a_btn = document().query_selector("#a-btn").unwrap().unwrap();
+        let b_btn = document().query_selector("#b-btn").unwrap().unwrap();
+        let start_btn = document().query_selector("#start-btn").unwrap().unwrap();
+        let select_btn = document().query_selector("#select-btn").unwrap().unwrap();
+
+        up_btn.add_event_listener(|_: MouseDownEvent| unsafe { CONTROLLER.press(Button::Up) });
+        up_btn.add_event_listener(|_: MouseUpEvent| unsafe { CONTROLLER.release(Button::Up) });
+
+        down_btn.add_event_listener(|_: MouseDownEvent| unsafe { CONTROLLER.press(Button::Down) });
+        down_btn.add_event_listener(|_: MouseUpEvent| unsafe { CONTROLLER.release(Button::Down) });
+
+        left_btn.add_event_listener(|_: MouseDownEvent| unsafe { CONTROLLER.press(Button::Left) });
+        left_btn.add_event_listener(|_: MouseUpEvent| unsafe { CONTROLLER.release(Button::Left) });
+
+        right_btn
+            .add_event_listener(|_: MouseDownEvent| unsafe { CONTROLLER.press(Button::Right) });
+        right_btn
+            .add_event_listener(|_: MouseUpEvent| unsafe { CONTROLLER.release(Button::Right) });
+
+        a_btn.add_event_listener(|_: MouseDownEvent| unsafe { CONTROLLER.press(Button::A) });
+        a_btn.add_event_listener(|_: MouseUpEvent| unsafe { CONTROLLER.release(Button::A) });
+
+        b_btn.add_event_listener(|_: MouseDownEvent| unsafe { CONTROLLER.press(Button::B) });
+        b_btn.add_event_listener(|_: MouseUpEvent| unsafe { CONTROLLER.release(Button::B) });
+
+        start_btn
+            .add_event_listener(|_: MouseDownEvent| unsafe { CONTROLLER.press(Button::Start) });
+        start_btn
+            .add_event_listener(|_: MouseUpEvent| unsafe { CONTROLLER.release(Button::Start) });
+
+        select_btn
+            .add_event_listener(|_: MouseDownEvent| unsafe { CONTROLLER.press(Button::Select) });
+        select_btn
+            .add_event_listener(|_: MouseUpEvent| unsafe { CONTROLLER.release(Button::Select) });
 
         let canvas: CanvasElement = document()
             .query_selector("#canvas")
@@ -198,14 +237,14 @@ impl PixelMapper for Screen {
         }
     }
 
-   fn get_pixel(&self, pixel: usize) -> Color {
+    fn get_pixel(&self, pixel: usize) -> Color {
         let offset = pixel * 3;
         match self.pixels[offset..offset + 3] {
             [255, 255, 255] => Color::White,
             [178, 178, 178] => Color::LightGray,
             [102, 102, 102] => Color::DarkGray,
             [0, 0, 0] => Color::Black,
-            _ =>  panic!("this should never happen")
+            _ => panic!("this should never happen"),
         }
     }
 }

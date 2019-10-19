@@ -48,7 +48,7 @@ unsafe fn compile_shader(gl: &Gl, source: &str, shader_type: GLenum) -> GLuint {
     gl.ShaderSource(shader, 1, &source.as_ptr(), ptr::null());
     gl.CompileShader(shader);
 
-    let mut status = opengl_rendering_context::FALSE as GLint;
+    let mut status = i32::from(opengl_rendering_context::FALSE);
     gl.GetShaderiv(
         shader,
         opengl_rendering_context::COMPILE_STATUS,

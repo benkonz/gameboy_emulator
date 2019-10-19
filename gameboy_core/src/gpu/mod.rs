@@ -76,7 +76,7 @@ impl GPU {
                             self.vblank_line = 0;
                             memory.gpu_cycles.aux_cycles_counter = memory.gpu_cycles.cycles_counter;
 
-                            memory.request_interrupt(Interrupt::Vblank);
+                            memory.request_interrupt(Interrupt::Vblank);    
 
                             memory.irq48_signal &= 0x09;
                             let stat = memory.get_lcd_status_from_memory();

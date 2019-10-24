@@ -55,7 +55,7 @@ unsafe fn compile_shader(gl: &Gl, source: &str, shader_type: GLenum) -> GLuint {
         &mut status,
     );
 
-    if status != (opengl_rendering_context::TRUE as GLint) {
+    if status != (i32::from(opengl_rendering_context::TRUE)) {
         let mut len = 0;
         gl.GetShaderiv(shader, opengl_rendering_context::INFO_LOG_LENGTH, &mut len);
         let mut buf = Vec::with_capacity(len as usize);
@@ -78,10 +78,10 @@ unsafe fn link_shaders(gl: &Gl, vertex_shader: GLuint, fragment_shader: GLuint) 
     gl.AttachShader(program, vertex_shader);
     gl.AttachShader(program, fragment_shader);
     gl.LinkProgram(program);
-    let mut status = opengl_rendering_context::FALSE as GLint;
+    let mut status = i32::from(opengl_rendering_context::FALSE);
     gl.GetProgramiv(program, opengl_rendering_context::LINK_STATUS, &mut status);
 
-    if status != (opengl_rendering_context::TRUE as GLint) {
+    if status != (i32::from(opengl_rendering_context::TRUE)) {
         let mut len = 0;
         gl.GetProgramiv(program, opengl_rendering_context::INFO_LOG_LENGTH, &mut len);
         let mut buf = Vec::with_capacity(len as usize);

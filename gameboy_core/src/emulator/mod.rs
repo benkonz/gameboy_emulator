@@ -18,16 +18,6 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new() -> Emulator {
-        Emulator {
-            cpu: Cpu::new(),
-            gpu: GPU::new(),
-            timer: Timer::new(),
-            serial: Serial::new(),
-            memory: Memory::new(),
-        }
-    }
-
     pub fn from_rom(rom: Vec<u8>) -> Emulator {
         Emulator {
             cpu: Cpu::new(),

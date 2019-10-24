@@ -61,7 +61,7 @@ impl PixelMapper for Mapper {
             [178, 178, 178] => Color::LightGray,
             [102, 102, 102] => Color::DarkGray,
             [0, 0, 0] => Color::Black,
-            _ =>  panic!("this should never happen")
+            _ => panic!("this should never happen"),
         }
     }
 }
@@ -162,6 +162,7 @@ pub fn start(rom: Vec<u8>) {
         );
     }
 
+    // TODO: rename these
     let (sender1, receiver1) = mpsc::channel();
     let (sender2, receiver2) = mpsc::channel();
 
@@ -172,6 +173,7 @@ pub fn start(rom: Vec<u8>) {
         let mut mapper = Mapper::new();
         let mut run = true;
         let frame_rate = 60f64;
+        // TODO: use Duration::from_secs_f64
         let frame_duration = Duration::from_millis((1000f64 * (1f64 / frame_rate)) as u64);
 
         while run {

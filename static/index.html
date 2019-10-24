@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8">
 	<title>Gameboy Emulator</title>
-	<link href="https://fonts.googleapis.com/css?family=Roboto+Mono&display=swap" rel="stylesheet"> 
+	<link href="https://fonts.googleapis.com/css?family=Roboto+Mono&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -43,22 +43,24 @@
 			</div>
 		</div>
 	</div>
-	<script src="gameboy_lib.js"></script>
+	<script src="gameboy_lib.js" defer></script>
 	<script>
-		Rust.gameboy_lib.then(function (emulator) {
-			document.getElementById("file_selector")
-				.addEventListener("change", function () {
-					const reader = new FileReader();
-					reader.onload = function () {
-						const arraybuffer = this.result;
-						const bytes = new Uint8Array(arraybuffer);
-						const rom = Array.prototype.slice.call(bytes);
-						emulator.start(rom);
-					};
+		window.onload = () => {
+			Rust.gameboy_lib.then(function (emulator) {
+				document.getElementById("file_selector")
+					.addEventListener("change", function () {
+						const reader = new FileReader();
+						reader.onload = function () {
+							const arrayBuffer = this.result;
+							const bytes = new Uint8Array(arrayBuffer);
+							const rom = Array.prototype.slice.call(bytes);
+							emulator.start(rom);
+						};
 
-					reader.readAsArrayBuffer(this.files[0]);
-				});
-		});
+						reader.readAsArrayBuffer(this.files[0]);
+					});
+			});
+		};
 	</script>
 	<style>
 		body {
@@ -113,10 +115,10 @@
 		}
 
 		.start-btn {
-			margin-right: 5px; 
+			margin-right: 5px;
 			margin-top: 100px;
 		}
-		
+
 		.a-btn {
 			margin-right: 5px;
 		}

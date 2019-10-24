@@ -10,6 +10,7 @@ use emulator::traits::PixelMapper;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
 
+// TODO: move these to the MMU as pub const
 const SPRITES_START_INDEX: u16 = 0xFE00;
 const LCD_CONTROL_INDEX: u16 = 0xFF40;
 const LCD_INDEX: u16 = 0xFF41;
@@ -33,8 +34,8 @@ const GAMEBOY_HEIGHT: i32 = 144;
 pub struct GPU {
     tile_cycles_counter: i32,
     vblank_line: i32,
-    scan_line_transfered: bool,
-    hide_frames: i32
+    scan_line_transferred: bool,
+    hide_frames: i32,
 }
 
 impl GPU {
@@ -44,7 +45,7 @@ impl GPU {
             tile_cycles_counter: 0,
             vblank_line: 0,
             hide_frames: 0,
-            scan_line_transfered: false
+            scan_line_transferred: false,
         }
     }
 
@@ -76,7 +77,7 @@ impl GPU {
                             self.vblank_line = 0;
                             memory.gpu_cycles.aux_cycles_counter = memory.gpu_cycles.cycles_counter;
 
-                            memory.request_interrupt(Interrupt::Vblank);    
+                            memory.request_interrupt(Interrupt::Vblank);
 
                             memory.irq48_signal &= 0x09;
                             let stat = memory.get_lcd_status_from_memory();
@@ -153,7 +154,7 @@ impl GPU {
                     if memory.gpu_cycles.cycles_counter >= 80 {
                         memory.gpu_cycles.cycles_counter -= 80;
                         memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | 0b11;
-                        self.scan_line_transfered = false;
+                        self.scan_line_transferred = false;
                         memory.irq48_signal &= 0x08;
                         self.update_stat_register(memory);
                     }
@@ -168,7 +169,7 @@ impl GPU {
                             while self.tile_cycles_counter >= 3 {
                                 self.render_background(
                                     memory,
-                                    memory.scan_line as i32,
+                                    i32::from(memory.scan_line),
                                     memory.gpu_cycles.pixel_counter,
                                     4,
                                     system,
@@ -183,9 +184,9 @@ impl GPU {
                         }
                     }
 
-                    if memory.gpu_cycles.cycles_counter >= 160 && !self.scan_line_transfered {
-                        self.scan_line(memory, memory.scan_line as i32, system);
-                        self.scan_line_transfered = true;
+                    if memory.gpu_cycles.cycles_counter >= 160 && !self.scan_line_transferred {
+                        self.scan_line(memory, i32::from(memory.scan_line), system);
+                        self.scan_line_transferred = true;
                     }
 
                     if memory.gpu_cycles.cycles_counter >= 172 {
@@ -207,36 +208,34 @@ impl GPU {
                 }
                 _ => panic!("Impossible"),
             }
-        } else {
-            if memory.gpu_cycles.screen_enable_delay_cycles > 0 {
-                memory.gpu_cycles.screen_enable_delay_cycles -= cycles;
+        } else if memory.gpu_cycles.screen_enable_delay_cycles > 0 {
+            memory.gpu_cycles.screen_enable_delay_cycles -= cycles;
 
-                if memory.gpu_cycles.screen_enable_delay_cycles <= 0 {
-                    memory.gpu_cycles.screen_enable_delay_cycles = 0;
-                    memory.screen_disabled = false;
-                    self.hide_frames = 3;
-                    memory.lcd_status_mode = 0;
-                    memory.gpu_cycles.cycles_counter = 0;
-                    memory.gpu_cycles.aux_cycles_counter = 0;
-                    memory.scan_line = 0;
-                    memory.gpu_cycles.window_line = 0;
-                    self.vblank_line = 0;
-                    memory.gpu_cycles.pixel_counter = 0;
-                    self.tile_cycles_counter = 0;
-                    memory.irq48_signal = 0;
+            if memory.gpu_cycles.screen_enable_delay_cycles <= 0 {
+                memory.gpu_cycles.screen_enable_delay_cycles = 0;
+                memory.screen_disabled = false;
+                self.hide_frames = 3;
+                memory.lcd_status_mode = 0;
+                memory.gpu_cycles.cycles_counter = 0;
+                memory.gpu_cycles.aux_cycles_counter = 0;
+                memory.scan_line = 0;
+                memory.gpu_cycles.window_line = 0;
+                self.vblank_line = 0;
+                memory.gpu_cycles.pixel_counter = 0;
+                self.tile_cycles_counter = 0;
+                memory.irq48_signal = 0;
 
-                    let stat = memory.get_lcd_status_from_memory();
-                    if stat & 0b0010_0000 == 0b0010_0000 {
-                        memory.request_interrupt(Interrupt::Lcd);
-                        memory.irq48_signal |= 0b0000_0100;
-                    }
-
-                    memory.compare_ly_to_lyc();
+                let stat = memory.get_lcd_status_from_memory();
+                if stat & 0b0010_0000 == 0b0010_0000 {
+                    memory.request_interrupt(Interrupt::Lcd);
+                    memory.irq48_signal |= 0b0000_0100;
                 }
-            } else if memory.gpu_cycles.cycles_counter >= 70224 {
-                memory.gpu_cycles.cycles_counter -= 70224;
-                vblank = true;
+
+                memory.compare_ly_to_lyc();
             }
+        } else if memory.gpu_cycles.cycles_counter >= 70224 {
+            memory.gpu_cycles.cycles_counter -= 70224;
+            vblank = true;
         }
         vblank
     }
@@ -290,28 +289,28 @@ impl GPU {
             let scroll_x = memory.read_byte(SCROLL_X_INDEX);
             let scroll_y = memory.read_byte(SCROLL_Y_INDEX);
             let line_scrolled = scroll_y.wrapping_add(line as u8);
-            let line_scrolled_32 = (line_scrolled as i32 / 8) * 32;
-            let tile_pixel_y = (line_scrolled % 8) as i32;
+            let line_scrolled_32 = (i32::from(line_scrolled) / 8) * 32;
+            let tile_pixel_y = i32::from(line_scrolled % 8);
             let tile_pixel_y_2 = tile_pixel_y * 2;
 
             for offset_x in offset_x_start..offset_x_end {
                 let screen_pixel_x = (screen_tile * 8) + offset_x;
                 let map_pixel_x = scroll_x.wrapping_add(screen_pixel_x as u8);
-                let map_tile_x = (map_pixel_x / 8) as i32;
+                let map_tile_x = i32::from(map_pixel_x / 8);
                 let map_tile_offset_x = map_pixel_x % 8;
                 let map_tile_addr = (map_start_addr + line_scrolled_32 + map_tile_x) as u16;
 
                 let map_tile = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
-                    memory.read_byte(map_tile_addr) as i32
+                    i32::from(memory.read_byte(map_tile_addr))
                 } else {
-                    (memory.read_byte(map_tile_addr) as i8 as i32 + 128)
+                    (i32::from(memory.read_byte(map_tile_addr) as i8) + 128)
                 };
 
                 let map_tile_16 = map_tile * 16;
                 let tile_address = (tile_start_addr + map_tile_16 + tile_pixel_y_2) as u16;
                 let byte1 = memory.read_byte(tile_address);
                 let byte2 = memory.read_byte(tile_address + 1);
-                let pixel_x_in_tile = map_tile_offset_x as i32;
+                let pixel_x_in_tile = i32::from(map_tile_offset_x);
                 let pixel_x_in_tile_bit = 0x1 << (7 - pixel_x_in_tile) as u8;
 
                 let mut pixel_data = if byte1 & pixel_x_in_tile_bit != 0 {
@@ -357,13 +356,13 @@ impl GPU {
             return;
         }
 
-        let wx = memory.read_byte(WINDOW_X_INDEX) as i32 - 7;
+        let wx = i32::from(memory.read_byte(WINDOW_X_INDEX)) - 7;
 
         if wx > 159 {
             return;
         }
 
-        let wy = memory.read_byte(WINDOW_Y_INDEX) as i32;
+        let wy = i32::from(memory.read_byte(WINDOW_Y_INDEX));
 
         if (wy > 143) || (wy > line) {
             return;
@@ -389,9 +388,9 @@ impl GPU {
 
         for x in 0..32 {
             let tile = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
-                memory.read_byte((map + y_32 + x) as u16) as i32
+                i32::from(memory.read_byte((map + y_32 + x) as u16))
             } else {
-                (memory.read_byte((map + y_32 + x) as u16) as i8 as i32 + 128)
+                (i32::from(memory.read_byte((map + y_32 + x) as u16) as i8) + 128)
             };
 
             let map_offset_x = x * 8;
@@ -454,22 +453,22 @@ impl GPU {
 
         for sprite in (0..40).rev() {
             let sprite_4 = sprite * 4;
-            let sprite_y = memory.read_byte(SPRITES_START_INDEX + sprite_4) as i32 - 16;
+            let sprite_y = i32::from(memory.read_byte(SPRITES_START_INDEX + sprite_4)) - 16;
 
             if (sprite_y > line) || (sprite_y + sprite_height) <= line {
                 continue;
             }
 
-            let sprite_x = memory.read_byte(SPRITES_START_INDEX + sprite_4 + 1) as i32 - 8;
+            let sprite_x = i32::from(memory.read_byte(SPRITES_START_INDEX + sprite_4 + 1)) - 8;
 
             if (sprite_x < -7) || (sprite_x >= GAMEBOY_WIDTH) {
                 continue;
             }
 
             let sprite_tile_16 = if lcd_control.contains(LcdControlFlag::SPRITES_SIZE) {
-                (memory.read_byte((SPRITES_START_INDEX + sprite_4 + 2) as u16) & 0xFE) as i32 * 16
+                i32::from(memory.read_byte((SPRITES_START_INDEX + sprite_4 + 2) as u16) & 0xFE) * 16
             } else {
-                (memory.read_byte((SPRITES_START_INDEX + sprite_4 + 2) as u16) & 0xFF) as i32 * 16
+                i32::from(memory.read_byte((SPRITES_START_INDEX + sprite_4 + 2) as u16)) * 16
             };
 
             let sprite_flags = SpriteAttributes::from_bits_truncate(
@@ -512,12 +511,10 @@ impl GPU {
                     } else {
                         0
                     }
+                } else if byte1 & (0x01 << (7 - pixelx)) != 0 {
+                    1
                 } else {
-                    if byte1 & (0x01 << (7 - pixelx)) != 0 {
-                        1
-                    } else {
-                        0
-                    }
+                    0
                 };
 
                 pixel |= if xflip {
@@ -526,12 +523,10 @@ impl GPU {
                     } else {
                         0
                     }
+                } else if byte2 & (0x01 << (7 - pixelx)) != 0 {
+                    2
                 } else {
-                    if byte2 & (0x01 << (7 - pixelx)) != 0 {
-                        2
-                    } else {
-                        0
-                    }
+                    0
                 };
 
                 if pixel == 0 {

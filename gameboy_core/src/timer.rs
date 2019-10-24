@@ -1,10 +1,12 @@
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
 
+// TODO: move these to the mmu as a pub const
 const SELECTABLE_TIMER_INDEX: u16 = 0xFF05;
 const TIMER_RESET_INDEX: u16 = 0xFF06;
 const TIMER_CONTROL_INDEX: u16 = 0xFF07;
 
+// this might make sense as a static module, there isn't any state to manage
 pub struct Timer {}
 
 impl Timer {

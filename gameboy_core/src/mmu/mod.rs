@@ -6,11 +6,13 @@ use gpu::lcd_control_flag::LcdControlFlag;
 use mmu::gpu_cycles::GpuCycles;
 use std::cmp;
 
+// TODO: remove the bios
 const BIOS: &[u8] = include_bytes!("bios.gb");
+// TODO: add all IO Register INDEX's here
 const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
 const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
 
-const ROM_ONLY: u8 = 0x0;
+const _ROM_ONLY: u8 = 0x0;
 const ROM_MBC1: u8 = 0x1;
 const ROM_MBC1_RAM: u8 = 0x2;
 const ROM_MBC1_RAM_BATT: u8 = 0x3;
@@ -49,10 +51,14 @@ pub struct Memory {
     pub disable_bios: u8,
     selected_rom_bank: u8,
     selected_eram_bank: u8,
+    // TODO remove this since we don't do GBC
     selected_wram_bank: u8,
+    // TODO remove this since we don't do GBC
     selected_vram_bank: u8,
     joypad_state: u8,
     cartridge_type: u8,
+    // TODO: move this code to a seperate module, ex: strut Option<MBC1>, Option<MBC2>, ...
+    // then use MBCx.write/read_byte for 0x0000..=0x7FFF and 0xA000..=0xBFFF
     in_ram_banking_mode: bool,
     external_ram_enabled: bool,
     higher_rom_bank_bits: u8,
@@ -64,45 +70,12 @@ pub struct Memory {
     pub gpu_cycles: GpuCycles,
     // TODO make this into a private struct
     pub div_cycles: i32,
-    pub tima_cycles: i32
-
+    pub tima_cycles: i32,
 }
 
 impl Memory {
-    pub fn new() -> Memory {
-        // TODO: delete this at some point in time, only used in CPU tests
-        Memory {
-            rom_banks: vec![[0; 0x4000]; 2],
-            vram_banks: vec![[0; 0x2000]],
-            eram_banks: vec![[0; 0x2000]],
-            wram_banks: vec![[0; 0x1000]; 2],
-            oam: [0; 0x100],
-            high_ram: [0; 0x200],
-            disable_bios: 0,
-            selected_rom_bank: 1,
-            selected_vram_bank: 0,
-            selected_eram_bank: 0,
-            selected_wram_bank: 1,
-            scan_line: 144,
-            joypad_state: 0,
-            cartridge_type: ROM_ONLY,
-            in_ram_banking_mode: false,
-            external_ram_enabled: false,
-            irq48_signal: 0,
-            screen_disabled: false,
-            lcd_status_mode: 0,
-            gpu_cycles: GpuCycles::new(),
-            higher_rom_bank_bits: 0,
-            div_cycles: 0,
-            tima_cycles: 0
-        }
-    }
-
     pub fn from_rom(rom: Vec<u8>) -> Memory {
         let cartridge_type = rom[0x0147];
-        // if cartridge_type > 0x3 {
-        //     panic!("unsupported cartridge type: {:02X} (for now...)", cartridge_type);
-        // }
         let rom_size = rom[0x0148];
         let num_rom_banks = match rom_size {
             0x0 => 2,
@@ -118,6 +91,8 @@ impl Memory {
             _ => panic!("Unknown number of ROM banks"),
         };
         let ram_size = rom[0x0149];
+        // TODO: some ROM_ONLY games use up to 0x2000 of ERAM, but don't specify that info in the header
+        // just fill the ERAM to 2 if the game is ROM only
         let num_ram_banks = match ram_size {
             0x0 => 0,
             0x1 => 1,
@@ -134,6 +109,8 @@ impl Memory {
             let start = i * 0x4000;
             let end = cmp::min(start + 0x4000, rom.len());
             bank.copy_from_slice(&rom[start..end]);
+
+            // this, along with the call to min above, prevents us from copying past the length of the rom
             if end == rom.len() {
                 break;
             }
@@ -160,10 +137,10 @@ impl Memory {
             irq48_signal: 0,
             screen_disabled: false,
             lcd_status_mode: 0,
-            gpu_cycles: GpuCycles::new(),
+            gpu_cycles: Default::default(),
             higher_rom_bank_bits: 0,
             div_cycles: 0,
-            tima_cycles: 0
+            tima_cycles: 0,
         }
     }
 
@@ -197,7 +174,7 @@ impl Memory {
                 0xFF00 => self.get_joypad_state(),
                 0xFF07 => self.high_ram[index - 0xFF00] | 0xF8,
                 0xFF0F => self.high_ram[index - 0xFF00] | 0xE0,
-                0xFF41 => self.high_ram[index - 0xFF00] | 0b01000_0000,
+                0xFF41 => self.high_ram[index - 0xFF00] | 0x80,
                 0xFF44 => {
                     if !self.screen_disabled {
                         self.scan_line
@@ -260,7 +237,7 @@ impl Memory {
                 self.external_ram_enabled = value & 0b0000_1010 == 0b0000_1010
             }
             0x0000..=0x1FFF if self.cartridge_has_mbc3() => {
-                self.external_ram_enabled =  value & 0b0000_1010 == 0b0000_1010
+                self.external_ram_enabled = value & 0b0000_1010 == 0b0000_1010
             }
             0x2000..=0x3FFF if self.cartridge_has_mbc1() => {
                 if self.in_ram_banking_mode {
@@ -310,9 +287,9 @@ impl Memory {
                     0x00..=0x07 => {
                         self.selected_eram_bank = value;
                         self.selected_eram_bank &= (self.eram_banks.len() - 1) as u8;
-                    },
+                    }
                     0x08..=0x0C => panic!("RTC not implemented!"),
-                    _ => panic!("selecting unknown register: {:02X}", value)
+                    _ => panic!("selecting unknown register: {:02X}", value),
                 };
             }
             0x6000..=0x7FFF if self.cartridge_has_mbc1() => {
@@ -386,10 +363,8 @@ impl Memory {
                             signal |= 0b10;
                         }
 
-                        if new_stat & 0b0010_0000 == 0b0010_0000 && mode == 2 {
-                            if signal == 0 {
-                                self.request_interrupt(Interrupt::Lcd);
-                            }
+                        if new_stat & 0b0010_0000 == 0b0010_0000 && mode == 2 && signal == 0 {
+                            self.request_interrupt(Interrupt::Lcd);
                         }
                         self.compare_ly_to_lyc();
                     }
@@ -418,14 +393,14 @@ impl Memory {
                 }
                 0xFF50 => self.disable_bios = value,
                 0xFFFF => self.high_ram[index - 0xFF00] = value & 0x1F,
-                _ => self.high_ram[index - 0xFF00] = value
+                _ => self.high_ram[index - 0xFF00] = value,
             },
             _ => {}
         };
     }
 
     fn do_dma_transfer(&mut self, data: u8) {
-        let address = 0x100u16 * data as u16;
+        let address = 0x100 * u16::from(data);
         if address >= 0x8000 && address < 0xE000 {
             for i in 0..0xA0 {
                 let value = self.read_byte(address + i);
@@ -435,8 +410,8 @@ impl Memory {
     }
 
     pub fn read_word(&self, index: u16) -> u16 {
-        let low = self.read_byte(index) as u16;
-        let high = self.read_byte(index + 1) as u16;
+        let low = u16::from(self.read_byte(index));
+        let high = u16::from(self.read_byte(index + 1));
         (high << 8) + low
     }
 
@@ -553,31 +528,5 @@ impl Memory {
     fn reset_tima_cycles(&mut self) {
         self.tima_cycles = 0;
         self.high_ram[0xFF05 - 0xFF00] = self.read_byte(0xFF06);
-    }
-}
-
-impl Default for Memory {
-    fn default() -> Self {
-        Memory::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use mmu::Memory;
-
-    #[test]
-    fn test_write_byte() {
-        let mut memory = Memory::new();
-        memory.write_byte(0xFF80, 1);
-
-        assert_eq!(memory.read_byte(0xFF80), 1);
-    }
-
-    #[test]
-    fn test_write_word() {
-        let mut memory = Memory::new();
-        memory.write_word(0xFF80, 0x1122);
-        assert_eq!(memory.read_word(0xFF80), 0x1122);
     }
 }

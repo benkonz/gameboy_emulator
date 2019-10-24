@@ -1,11 +1,10 @@
 mod registers;
-mod tests;
 
 use self::registers::flag::Flag;
 use self::registers::Registers;
 use mmu::Memory;
 
-const INSTRUCTION_TIMINGS: [u8; 256] = [
+const INSTRUCTION_TIMINGS: [i32; 256] = [
     1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
     1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
     2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1,
@@ -24,7 +23,7 @@ const INSTRUCTION_TIMINGS: [u8; 256] = [
     3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4
 ];
 
-const BRANCH_INSTRUCTION_TIMINGS: [u8; 256] = [
+const BRANCH_INSTRUCTION_TIMINGS: [i32; 256] = [
     1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
     1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
     3, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
@@ -43,7 +42,7 @@ const BRANCH_INSTRUCTION_TIMINGS: [u8; 256] = [
     3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4
 ];
 
-const CB_INSTRUCTION_TIMINGS: [u8; 256] = [
+const CB_INSTRUCTION_TIMINGS: [i32; 256] = [
     2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
     2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
     2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
@@ -115,12 +114,12 @@ impl Cpu {
             }
 
             let opcode = self.get_n(memory);
-            self.instruction_cycle += INSTRUCTION_TIMINGS[opcode as usize] as i32;
+            self.instruction_cycle += INSTRUCTION_TIMINGS[opcode as usize];
             self.execute_opcode(opcode, memory);
 
             if self.jump_taken {
                 self.jump_taken = false;
-                self.instruction_cycle += BRANCH_INSTRUCTION_TIMINGS[opcode as usize] as i32;
+                self.instruction_cycle += BRANCH_INSTRUCTION_TIMINGS[opcode as usize];
             }
         }
 
@@ -659,7 +658,7 @@ impl Cpu {
     }
 
     fn daa(&mut self) {
-        let mut result = self.registers.a as i32;
+        let mut result = i32::from(self.registers.a);
 
         if !self.registers.f.contains(Flag::NEGATIVE) {
             if self.registers.f.contains(Flag::HALF_CARRY) || ((result & 0xF) > 9) {
@@ -1297,7 +1296,7 @@ impl Cpu {
     }
 
     fn ext_ops(&mut self, opcode: u8, memory: &mut Memory) {
-        self.instruction_cycle += CB_INSTRUCTION_TIMINGS[opcode as usize] as i32;
+        self.instruction_cycle += CB_INSTRUCTION_TIMINGS[opcode as usize];
 
         match opcode {
             0x00 => self.rlc_b(),
@@ -2768,19 +2767,19 @@ impl Cpu {
     }
 
     fn ldh_a_n(&mut self, n: u8, memory: &Memory) {
-        self.registers.a = memory.read_byte(0xFF00 + n as u16);
+        self.registers.a = memory.read_byte(0xFF00 + u16::from(n));
     }
 
     fn ldh_n_a(&mut self, n: u8, memory: &mut Memory) {
-        memory.write_byte(0xFF00 + n as u16, self.registers.a);
+        memory.write_byte(0xFF00 + u16::from(n), self.registers.a);
     }
 
     fn ldh_a_c(&mut self, memory: &mut Memory) {
-        memory.write_byte(0xFF00 + self.registers.c as u16, self.registers.a);
+        memory.write_byte(0xFF00 + u16::from(self.registers.c), self.registers.a);
     }
 
     fn ldh_c_a(&mut self, memory: &mut Memory) {
-        self.registers.a = memory.read_byte(0xFF00 + self.registers.c as u16);
+        self.registers.a = memory.read_byte(0xFF00 + u16::from(self.registers.c));
     }
 
     fn ld_rr_nn(&mut self, nn: u16) -> u16 {
@@ -2829,7 +2828,7 @@ impl Cpu {
 
     fn add(&mut self, n: u8) {
         let half_carry = ((self.registers.a & 0xF) + (n & 0xF)) & 0x10 == 0x10;
-        let full_carry = ((self.registers.a as u16) + (n as u16)) & 0x100 == 0x100;
+        let full_carry = (u16::from(self.registers.a) + u16::from(n)) & 0x100 == 0x100;
 
         self.registers.a = self.registers.a.wrapping_add(n);
 
@@ -2877,9 +2876,9 @@ impl Cpu {
             0u8
         };
 
-        let result = self.registers.a as i16 - n as i16 - carry as i16;
+        let result = i16::from(self.registers.a) - i16::from(n) - i16::from(carry);
 
-        let half_carry = (self.registers.a & 0x0F) as i16 - (n & 0x0F) as i16 - (carry as i16) < 0;
+        let half_carry = i16::from(self.registers.a & 0x0F) - i16::from(n & 0x0F) - (i16::from(carry)) < 0;
         let full_carry = result < 0;
 
         self.registers.a = self.registers.a.wrapping_sub(n).wrapping_sub(carry);
@@ -2907,7 +2906,7 @@ impl Cpu {
         };
 
         let half_carry = ((self.registers.a & 0xF) + (n & 0xF) + carry) & 0x10 == 0x10;
-        let full_carry = ((self.registers.a as u16) + (n as u16) + carry as u16) & 0x100 == 0x100;
+        let full_carry = (u16::from(self.registers.a) + u16::from(n) + u16::from(carry)) & 0x100 == 0x100;
 
         self.registers.a = self.registers.a.wrapping_add(n).wrapping_add(carry);
 
@@ -3068,7 +3067,7 @@ impl Cpu {
 
     fn add_hl_rr(&mut self, rr: u16) {
         let hl = self.registers.get_hl();
-        let result = hl as u32 + rr as u32;
+        let result = u32::from(hl) + u32::from(rr);
 
         let half_carry = (hl & 0xFFF) + (rr & 0xFFF) > 0xFFF;
         let full_carry = result > 0xFFFF;
@@ -3085,7 +3084,7 @@ impl Cpu {
     }
 
     fn add_sp(&mut self, n: u8) -> u16 {
-        let s = n as i8 as i16 as u16;
+        let s = i16::from(n as i8) as u16;
 
         let half_carry = (self.registers.sp & 0x000F) + (n as i8 as u16 & 0x000F) > 0x000F;
         let full_carry = (self.registers.sp & 0x00FF) + (s & 0x00FF) > 0x00FF;
@@ -3369,7 +3368,7 @@ impl Cpu {
 
     fn rst_n(&mut self, n: u8, memory: &mut Memory) {
         self.push(self.registers.pc, memory);
-        self.registers.pc = n as u16;
+        self.registers.pc = u16::from(n);
     }
 
     fn ret(&mut self, memory: &Memory) {
@@ -3392,7 +3391,7 @@ impl Cpu {
 
     fn jr_cc_n(&mut self, cc: bool, n: u8) {
         if cc {
-            self.registers.pc = self.registers.pc.wrapping_add(n as i8 as i16 as u16);
+            self.registers.pc = self.registers.pc.wrapping_add(i16::from(n as i8) as u16);
             self.jump_taken = true;
         }
     }

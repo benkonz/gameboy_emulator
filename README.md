@@ -20,7 +20,6 @@ simple.
 ### Native
 
 ```text
-cd lib 
 cargo build --package gameboy_opengl --bin gameboy_emulator --release
 ```
 
@@ -34,9 +33,8 @@ to run it, just supply the rom file as the first file argument
 port of the emulator.
 
 ```text
-cd lib
-cargo-web deploy
+cargo-web deploy --release
 ```
 
 use your favorite static file server to serve the files generated in the
-`lib/target/deploy --release` directory. You can also run `cargo-web start --release`, to serve the files locally.
+`lib/target/deploy` directory. You can also run `cargo-web start --release`, to serve the files locally.

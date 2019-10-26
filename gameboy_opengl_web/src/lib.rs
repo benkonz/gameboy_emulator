@@ -50,106 +50,106 @@ pub fn start(rom: Vec<u8>) {
     let select_btn = document().query_selector("#select-btn").unwrap().unwrap();
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         up_btn.add_event_listener(move |_: MouseDownEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Up));
+            sender.send(ControllerEvent::Pressed(Button::Up)).unwrap();
         });
     }
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         up_btn.add_event_listener(move |_: MouseUpEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Up));
+            sender.send(ControllerEvent::Pressed(Button::Up)).unwrap();
         });
     }
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         down_btn.add_event_listener(move |_: MouseDownEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Down));
+            sender.send(ControllerEvent::Pressed(Button::Down)).unwrap();
         });
     }
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         down_btn.add_event_listener(move |_: MouseUpEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Down));
+            sender.send(ControllerEvent::Pressed(Button::Down)).unwrap();
         });
     }
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         left_btn.add_event_listener(move |_: MouseDownEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Left));
+            sender.send(ControllerEvent::Pressed(Button::Left)).unwrap();
         });
     }
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         left_btn.add_event_listener(move |_: MouseUpEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Left));
+            sender.send(ControllerEvent::Pressed(Button::Left)).unwrap();
         });
     }
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         right_btn.add_event_listener(move |_: MouseDownEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Right));
+            sender.send(ControllerEvent::Pressed(Button::Right)).unwrap();
         });
     }
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         right_btn.add_event_listener(move |_: MouseUpEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Right));
+            sender.send(ControllerEvent::Pressed(Button::Right)).unwrap();
         });
     }
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         a_btn.add_event_listener(move |_: MouseDownEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::A));
+            sender.send(ControllerEvent::Pressed(Button::A)).unwrap();
         });
     }
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         a_btn.add_event_listener(move |_: MouseUpEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::A));
+            sender.send(ControllerEvent::Pressed(Button::A)).unwrap();
         });
     }
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         b_btn.add_event_listener(move |_: MouseDownEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::B));
+            sender.send(ControllerEvent::Pressed(Button::B)).unwrap();
         });
     }
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         b_btn.add_event_listener(move |_: MouseUpEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::B));
+            sender.send(ControllerEvent::Pressed(Button::B)).unwrap();
         });
     }
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         start_btn.add_event_listener(move |_: MouseDownEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Start));
+            sender.send(ControllerEvent::Pressed(Button::Start)).unwrap();
         });
     }
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         start_btn.add_event_listener(move |_: MouseUpEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Start));
+            sender.send(ControllerEvent::Pressed(Button::Start)).unwrap();
         });
     }
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         select_btn.add_event_listener(move |_: MouseDownEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Select));
+            sender.send(ControllerEvent::Pressed(Button::Select)).unwrap();
         });
     }
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         select_btn.add_event_listener(move |_: MouseUpEvent| {
-            let _ = sender2.send(ControllerEvent::Pressed(Button::Select));
+            sender.send(ControllerEvent::Pressed(Button::Select)).unwrap();
         });
     }
 
@@ -163,34 +163,34 @@ pub fn start(rom: Vec<u8>) {
         .unwrap();
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         window().add_event_listener(move |event: KeyDownEvent| {
             let _send_result = match event.key().as_ref() {
-                "ArrowUp" => Some(sender2.send(ControllerEvent::Pressed(Button::Up))),
-                "ArrowDown" => Some(sender2.send(ControllerEvent::Pressed(Button::Down))),
-                "ArrowLeft" => Some(sender2.send(ControllerEvent::Pressed(Button::Left))),
-                "ArrowRight" => Some(sender2.send(ControllerEvent::Pressed(Button::Right))),
-                "z" => Some(sender2.send(ControllerEvent::Pressed(Button::A))),
-                "x" => Some(sender2.send(ControllerEvent::Pressed(Button::B))),
-                "Enter" => Some(sender2.send(ControllerEvent::Pressed(Button::Select))),
-                " " => Some(sender2.send(ControllerEvent::Pressed(Button::Start))),
+                "ArrowUp" => Some(sender.send(ControllerEvent::Pressed(Button::Up))),
+                "ArrowDown" => Some(sender.send(ControllerEvent::Pressed(Button::Down))),
+                "ArrowLeft" => Some(sender.send(ControllerEvent::Pressed(Button::Left))),
+                "ArrowRight" => Some(sender.send(ControllerEvent::Pressed(Button::Right))),
+                "z" => Some(sender.send(ControllerEvent::Pressed(Button::A))),
+                "x" => Some(sender.send(ControllerEvent::Pressed(Button::B))),
+                "Enter" => Some(sender.send(ControllerEvent::Pressed(Button::Select))),
+                " " => Some(sender.send(ControllerEvent::Pressed(Button::Start))),
                 _ => None,
             };
         });
     }
 
     {
-        let sender2 = sender.clone();
+        let sender = sender.clone();
         window().add_event_listener(move |event: KeyUpEvent| {
             let _send_result = match event.key().as_ref() {
-                "ArrowUp" => Some(sender2.send(ControllerEvent::Released(Button::Up))),
-                "ArrowDown" => Some(sender2.send(ControllerEvent::Released(Button::Down))),
-                "ArrowLeft" => Some(sender2.send(ControllerEvent::Released(Button::Left))),
-                "ArrowRight" => Some(sender2.send(ControllerEvent::Released(Button::Right))),
-                "z" => Some(sender2.send(ControllerEvent::Released(Button::A))),
-                "x" => Some(sender2.send(ControllerEvent::Released(Button::B))),
-                "Enter" => Some(sender2.send(ControllerEvent::Released(Button::Select))),
-                " " => Some(sender2.send(ControllerEvent::Released(Button::Start))),
+                "ArrowUp" => Some(sender.send(ControllerEvent::Released(Button::Up))),
+                "ArrowDown" => Some(sender.send(ControllerEvent::Released(Button::Down))),
+                "ArrowLeft" => Some(sender.send(ControllerEvent::Released(Button::Left))),
+                "ArrowRight" => Some(sender.send(ControllerEvent::Released(Button::Right))),
+                "z" => Some(sender.send(ControllerEvent::Released(Button::A))),
+                "x" => Some(sender.send(ControllerEvent::Released(Button::B))),
+                "Enter" => Some(sender.send(ControllerEvent::Released(Button::Select))),
+                " " => Some(sender.send(ControllerEvent::Released(Button::Start))),
                 _ => None,
             };
         });

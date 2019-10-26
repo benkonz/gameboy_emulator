@@ -15,7 +15,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::TryRecvError;
 use stdweb::traits::IKeyboardEvent;
 use stdweb::unstable::TryInto;
-use stdweb::web::event::{KeyDownEvent, KeyUpEvent, MouseDownEvent, MouseUpEvent};
+use stdweb::web::event::{KeyDownEvent, KeyUpEvent, MouseDownEvent, MouseUpEvent, TouchStart, TouchEnd};
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, IEventTarget, IParentNode, TypedArray};
 use webgl_rendering_context::*;
@@ -49,6 +49,7 @@ pub fn start(rom: Vec<u8>) {
     let start_btn = document().query_selector("#start-btn").unwrap().unwrap();
     let select_btn = document().query_selector("#select-btn").unwrap().unwrap();
 
+    // add event listeners for mouse events
     {
         let sender = sender.clone();
         up_btn.add_event_listener(move |_: MouseDownEvent| {
@@ -58,7 +59,7 @@ pub fn start(rom: Vec<u8>) {
     {
         let sender = sender.clone();
         up_btn.add_event_listener(move |_: MouseUpEvent| {
-            sender.send(ControllerEvent::Pressed(Button::Up)).unwrap();
+            sender.send(ControllerEvent::Released(Button::Up)).unwrap();
         });
     }
 
@@ -71,7 +72,7 @@ pub fn start(rom: Vec<u8>) {
     {
         let sender = sender.clone();
         down_btn.add_event_listener(move |_: MouseUpEvent| {
-            sender.send(ControllerEvent::Pressed(Button::Down)).unwrap();
+            sender.send(ControllerEvent::Released(Button::Down)).unwrap();
         });
     }
 
@@ -84,7 +85,7 @@ pub fn start(rom: Vec<u8>) {
     {
         let sender = sender.clone();
         left_btn.add_event_listener(move |_: MouseUpEvent| {
-            sender.send(ControllerEvent::Pressed(Button::Left)).unwrap();
+            sender.send(ControllerEvent::Released(Button::Left)).unwrap();
         });
     }
 
@@ -97,7 +98,7 @@ pub fn start(rom: Vec<u8>) {
     {
         let sender = sender.clone();
         right_btn.add_event_listener(move |_: MouseUpEvent| {
-            sender.send(ControllerEvent::Pressed(Button::Right)).unwrap();
+            sender.send(ControllerEvent::Released(Button::Right)).unwrap();
         });
     }
 
@@ -110,7 +111,7 @@ pub fn start(rom: Vec<u8>) {
     {
         let sender = sender.clone();
         a_btn.add_event_listener(move |_: MouseUpEvent| {
-            sender.send(ControllerEvent::Pressed(Button::A)).unwrap();
+            sender.send(ControllerEvent::Released(Button::A)).unwrap();
         });
     }
 
@@ -123,7 +124,7 @@ pub fn start(rom: Vec<u8>) {
     {
         let sender = sender.clone();
         b_btn.add_event_listener(move |_: MouseUpEvent| {
-            sender.send(ControllerEvent::Pressed(Button::B)).unwrap();
+            sender.send(ControllerEvent::Released(Button::B)).unwrap();
         });
     }
 
@@ -136,7 +137,7 @@ pub fn start(rom: Vec<u8>) {
     {
         let sender = sender.clone();
         start_btn.add_event_listener(move |_: MouseUpEvent| {
-            sender.send(ControllerEvent::Pressed(Button::Start)).unwrap();
+            sender.send(ControllerEvent::Released(Button::Start)).unwrap();
         });
     }
 
@@ -149,11 +150,114 @@ pub fn start(rom: Vec<u8>) {
     {
         let sender = sender.clone();
         select_btn.add_event_listener(move |_: MouseUpEvent| {
-            sender.send(ControllerEvent::Pressed(Button::Select)).unwrap();
+            sender.send(ControllerEvent::Released(Button::Select)).unwrap();
         });
     }
 
-    // TODO: add touch listeners
+    // add event listeners for touch events
+    {
+        let sender = sender.clone();
+        up_btn.add_event_listener(move |_: TouchStart| {
+            sender.send(ControllerEvent::Pressed(Button::Up)).unwrap();
+        });
+    }
+    {
+        let sender = sender.clone();
+        up_btn.add_event_listener(move |_: TouchEnd| {
+            sender.send(ControllerEvent::Released(Button::Up)).unwrap();
+        });
+    }
+
+    {
+        let sender = sender.clone();
+        down_btn.add_event_listener(move |_: TouchStart| {
+            sender.send(ControllerEvent::Pressed(Button::Down)).unwrap();
+        });
+    }
+    {
+        let sender = sender.clone();
+        down_btn.add_event_listener(move |_: TouchEnd| {
+            sender.send(ControllerEvent::Released(Button::Down)).unwrap();
+        });
+    }
+
+    {
+        let sender = sender.clone();
+        left_btn.add_event_listener(move |_: TouchStart| {
+            sender.send(ControllerEvent::Pressed(Button::Left)).unwrap();
+        });
+    }
+    {
+        let sender = sender.clone();
+        left_btn.add_event_listener(move |_: TouchEnd| {
+            sender.send(ControllerEvent::Released(Button::Left)).unwrap();
+        });
+    }
+
+    {
+        let sender = sender.clone();
+        right_btn.add_event_listener(move |_: TouchStart| {
+            sender.send(ControllerEvent::Pressed(Button::Right)).unwrap();
+        });
+    }
+    {
+        let sender = sender.clone();
+        right_btn.add_event_listener(move |_: TouchEnd| {
+            sender.send(ControllerEvent::Released(Button::Right)).unwrap();
+        });
+    }
+
+    {
+        let sender = sender.clone();
+        a_btn.add_event_listener(move |_: TouchStart| {
+            sender.send(ControllerEvent::Pressed(Button::A)).unwrap();
+        });
+    }
+    {
+        let sender = sender.clone();
+        a_btn.add_event_listener(move |_: TouchEnd| {
+            sender.send(ControllerEvent::Released(Button::A)).unwrap();
+        });
+    }
+
+    {
+        let sender = sender.clone();
+        b_btn.add_event_listener(move |_: TouchStart| {
+            sender.send(ControllerEvent::Pressed(Button::B)).unwrap();
+        });
+    }
+    {
+        let sender = sender.clone();
+        b_btn.add_event_listener(move |_: TouchEnd| {
+            sender.send(ControllerEvent::Released(Button::B)).unwrap();
+        });
+    }
+
+    {
+        let sender = sender.clone();
+        start_btn.add_event_listener(move |_: TouchStart| {
+            sender.send(ControllerEvent::Pressed(Button::Start)).unwrap();
+        });
+    }
+    {
+        let sender = sender.clone();
+        start_btn.add_event_listener(move |_: TouchEnd| {
+            sender.send(ControllerEvent::Released(Button::Start)).unwrap();
+        });
+    }
+
+    {
+        let sender = sender.clone();
+        select_btn.add_event_listener(move |_: TouchStart| {
+            sender.send(ControllerEvent::Pressed(Button::Select)).unwrap();
+        });
+    }
+    {
+        let sender = sender.clone();
+        select_btn.add_event_listener(move |_: TouchEnd| {
+            sender.send(ControllerEvent::Released(Button::Select)).unwrap();
+        });
+    }
 
     let canvas: CanvasElement = document()
         .query_selector("#canvas")

@@ -9,20 +9,15 @@ extern crate gameboy_core;
 mod screen;
 mod webgl_rendering_context;
 
-use gameboy_core::Emulator;
+use gameboy_core::{Button, Controller, Emulator};
 use screen::Screen;
-use stdweb::web::window;
-
-use gameboy_core::Button;
-use gameboy_core::Controller;
 use std::sync::mpsc;
 use std::sync::mpsc::TryRecvError;
 use stdweb::traits::IKeyboardEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{KeyDownEvent, KeyUpEvent, MouseDownEvent, MouseUpEvent};
 use stdweb::web::html_element::CanvasElement;
-use stdweb::web::IWindowOrWorker;
-use stdweb::web::{document, IEventTarget, IParentNode, TypedArray};
+use stdweb::web::{document, window, IEventTarget, IParentNode, TypedArray};
 use webgl_rendering_context::*;
 
 const VERTEX_SOURCE: &'static str = include_str!("shaders/vertex.glsl");
@@ -41,14 +36,7 @@ enum ControllerEvent {
 }
 
 pub fn start(rom: Vec<u8>) {
-    let screen = Screen::new();
-    let emulator = Emulator::from_rom(rom);
-    let controller = gameboy_core::Controller::new();
-    let (sender, receiver) = mpsc::channel::<Vec<u8>>();
-    let (sender2, receiver2) = mpsc::channel::<ControllerEvent>();
-    // TODO: might be worth looking into making a third channel for "frame_rendered"
-    // whenever the render-er finishes, send something over the channel
-    // in the emulator loop, first check if the queue is empty, if not do teh computation, else just skip it
+    let (sender, receiver) = mpsc::channel::<ControllerEvent>();
 
     stdweb::initialize();
 
@@ -62,104 +50,104 @@ pub fn start(rom: Vec<u8>) {
     let select_btn = document().query_selector("#select-btn").unwrap().unwrap();
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         up_btn.add_event_listener(move |_: MouseDownEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Up));
         });
     }
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         up_btn.add_event_listener(move |_: MouseUpEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Up));
         });
     }
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         down_btn.add_event_listener(move |_: MouseDownEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Down));
         });
     }
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         down_btn.add_event_listener(move |_: MouseUpEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Down));
         });
     }
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         left_btn.add_event_listener(move |_: MouseDownEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Left));
         });
     }
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         left_btn.add_event_listener(move |_: MouseUpEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Left));
         });
     }
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         right_btn.add_event_listener(move |_: MouseDownEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Right));
         });
     }
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         right_btn.add_event_listener(move |_: MouseUpEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Right));
         });
     }
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         a_btn.add_event_listener(move |_: MouseDownEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::A));
         });
     }
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         a_btn.add_event_listener(move |_: MouseUpEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::A));
         });
     }
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         b_btn.add_event_listener(move |_: MouseDownEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::B));
         });
     }
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         b_btn.add_event_listener(move |_: MouseUpEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::B));
         });
     }
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         start_btn.add_event_listener(move |_: MouseDownEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Start));
         });
     }
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         start_btn.add_event_listener(move |_: MouseUpEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Start));
         });
     }
 
-     {
-        let sender2 = sender2.clone();
+    {
+        let sender2 = sender.clone();
         select_btn.add_event_listener(move |_: MouseDownEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Select));
         });
     }
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         select_btn.add_event_listener(move |_: MouseUpEvent| {
             let _ = sender2.send(ControllerEvent::Pressed(Button::Select));
         });
@@ -175,7 +163,7 @@ pub fn start(rom: Vec<u8>) {
         .unwrap();
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         window().add_event_listener(move |event: KeyDownEvent| {
             let _send_result = match event.key().as_ref() {
                 "ArrowUp" => Some(sender2.send(ControllerEvent::Pressed(Button::Up))),
@@ -192,7 +180,7 @@ pub fn start(rom: Vec<u8>) {
     }
 
     {
-        let sender2 = sender2.clone();
+        let sender2 = sender.clone();
         window().add_event_listener(move |event: KeyUpEvent| {
             let _send_result = match event.key().as_ref() {
                 "ArrowUp" => Some(sender2.send(ControllerEvent::Released(Button::Up))),
@@ -228,36 +216,17 @@ pub fn start(rom: Vec<u8>) {
     gl.bind_buffer(Gl::ELEMENT_ARRAY_BUFFER, Some(&index_buffer));
     gl.buffer_data_1(Gl::ELEMENT_ARRAY_BUFFER, Some(&indicies), Gl::STATIC_DRAW);
 
-    let vert_shader = gl.create_shader(Gl::VERTEX_SHADER).unwrap();
-    gl.shader_source(&vert_shader, VERTEX_SOURCE);
-    gl.compile_shader(&vert_shader);
+    let vert_shader = match compile_shader(&gl, Gl::VERTEX_SHADER, VERTEX_SOURCE) {
+        Ok(shader) => shader,
+        Err(msg) => panic!(msg),
+    };
 
-    let compiled = gl.get_shader_parameter(&vert_shader, Gl::COMPILE_STATUS);
+    let frag_shader = match compile_shader(&gl, Gl::FRAGMENT_SHADER, FRAGMENT_SOURCE) {
+        Ok(shader) => shader,
+        Err(msg) => panic!(msg),
+    };
 
-    if compiled == stdweb::Value::Bool(false) {
-        let error = gl.get_shader_info_log(&vert_shader);
-        if let Some(e) = error {
-            console!(log, e);
-        }
-    }
-
-    let frag_shader = gl.create_shader(Gl::FRAGMENT_SHADER).unwrap();
-    gl.shader_source(&frag_shader, FRAGMENT_SOURCE);
-    gl.compile_shader(&frag_shader);
-
-    let compiled = gl.get_shader_parameter(&frag_shader, Gl::COMPILE_STATUS);
-
-    if compiled == stdweb::Value::Bool(false) {
-        let error = gl.get_shader_info_log(&frag_shader);
-        if let Some(e) = error {
-            console!(log, e);
-        }
-    }
-
-    let shader_program = gl.create_program().unwrap();
-    gl.attach_shader(&shader_program, &vert_shader);
-    gl.attach_shader(&shader_program, &frag_shader);
-    gl.link_program(&shader_program);
+    let shader_program = link_program(&gl, &vert_shader, &frag_shader);
 
     gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&vertex_buffer));
     let pos_attr = gl.get_attrib_location(&shader_program, "aPos") as u32;
@@ -277,16 +246,51 @@ pub fn start(rom: Vec<u8>) {
     gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_S, Gl::CLAMP_TO_EDGE as i32);
     gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::CLAMP_TO_EDGE as i32);
 
-    emulator_loop(emulator, screen, controller, sender, receiver2);
-    render_loop(gl, shader_program, texture, receiver);
+    let emulator = Emulator::from_rom(rom);
+    let screen = Screen::new();
+    let controller = Controller::new();
+    main_loop(
+        emulator,
+        screen,
+        controller,
+        receiver,
+        gl,
+        shader_program,
+        texture,
+    );
 }
 
-fn emulator_loop(
+fn compile_shader(gl: &Gl, shader_type: GLenum, source: &str) -> Result<WebGLShader, String> {
+    let shader = gl.create_shader(shader_type).unwrap();
+    gl.shader_source(&shader, source);
+    gl.compile_shader(&shader);
+
+    let compiled = gl.get_shader_parameter(&shader, Gl::COMPILE_STATUS);
+
+    if compiled == stdweb::Value::Bool(false) {
+        let error = gl.get_shader_info_log(&shader);
+        Err(error.unwrap_or("Unknown compilation error".to_string()))
+    } else {
+        Ok(shader)
+    }
+}
+
+fn link_program(gl: &Gl, vert_shader: &WebGLShader, frag_shader: &WebGLShader) -> WebGLProgram {
+    let shader_program = gl.create_program().unwrap();
+    gl.attach_shader(&shader_program, vert_shader);
+    gl.attach_shader(&shader_program, frag_shader);
+    gl.link_program(&shader_program);
+    shader_program
+}
+
+fn main_loop(
     mut emulator: Emulator,
     mut screen: Screen,
     mut controller: Controller,
-    sender: mpsc::Sender<Vec<u8>>,
     receiver: mpsc::Receiver<ControllerEvent>,
+    gl: Gl,
+    shader_program: WebGLProgram,
+    texture: WebGLTexture,
 ) {
     loop {
         let vblank = emulator.emulate(&mut screen, &mut controller);
@@ -295,67 +299,51 @@ fn emulator_loop(
         }
     }
 
-    match sender.send(screen.get_frame_buffer().clone()) {
-        Ok(()) => {
-            loop {
-                match receiver.try_recv() {
-                    Ok(ControllerEvent::Pressed(button)) => controller.press(button),
-                    Ok(ControllerEvent::Released(button)) => controller.release(button),
-                    Err(TryRecvError::Empty) => break,
-                    Err(TryRecvError::Disconnected) => (),
-                }
-            }
-            window().set_timeout(
-                move || emulator_loop(emulator, screen, controller, sender, receiver),
-                18, // wait 18msc to allow for controller inputs to queue up
-            );
+    loop {
+        match receiver.try_recv() {
+            Ok(ControllerEvent::Pressed(button)) => controller.press(button),
+            Ok(ControllerEvent::Released(button)) => controller.release(button),
+            Err(TryRecvError::Empty) => break,
+            Err(TryRecvError::Disconnected) => (),
         }
-        Err(_) => (),
-    };
+    }
+
+    window().request_animation_frame(move |_| {
+        let frame_buffer = screen.get_frame_buffer();
+        render(&gl, &shader_program, &texture, &frame_buffer[..]);
+        main_loop(
+            emulator,
+            screen,
+            controller,
+            receiver,
+            gl,
+            shader_program,
+            texture,
+        );
+    });
 }
 
-fn render_loop(
-    gl: Gl,
-    shader_program: WebGLProgram,
-    texture: WebGLTexture,
-    receiver: mpsc::Receiver<Vec<u8>>,
-) {
-    match receiver.try_recv() {
-        Ok(frame_buffer) => {
-            gl.bind_texture(Gl::TEXTURE_2D, Some(&texture));
+fn render(gl: &Gl, shader_program: &WebGLProgram, texture: &WebGLTexture, frame_buffer: &[u8]) {
+    gl.bind_texture(Gl::TEXTURE_2D, Some(texture));
 
-            let pixels = &frame_buffer[..];
+    gl.tex_image2_d(
+        Gl::TEXTURE_2D,
+        0,
+        Gl::RGB as i32,
+        160,
+        144,
+        0,
+        Gl::RGB,
+        Gl::UNSIGNED_BYTE,
+        Some(frame_buffer.as_ref()),
+    );
 
-            gl.tex_image2_d(
-                Gl::TEXTURE_2D,
-                0,
-                Gl::RGB as i32,
-                160,
-                144,
-                0,
-                Gl::RGB,
-                Gl::UNSIGNED_BYTE,
-                Some(pixels.as_ref()),
-            );
+    gl.active_texture(Gl::TEXTURE0);
 
-            gl.active_texture(Gl::TEXTURE0);
+    gl.use_program(Some(shader_program));
 
-            gl.use_program(Some(&shader_program));
+    let screen_uniform = gl.get_uniform_location(&shader_program, "screen").unwrap();
+    gl.uniform1i(Some(&screen_uniform), 0);
 
-            let screen_uniform = gl.get_uniform_location(&shader_program, "screen").unwrap();
-            gl.uniform1i(Some(&screen_uniform), 0);
-
-            gl.draw_elements(Gl::TRIANGLES, 6, Gl::UNSIGNED_BYTE, 0);
-
-            window().request_animation_frame(move |_| {
-                render_loop(gl, shader_program, texture, receiver)
-            });
-        }
-        Err(TryRecvError::Empty) => {
-            window().request_animation_frame(move |_| {
-                render_loop(gl, shader_program, texture, receiver)
-            });
-        }
-        Err(TryRecvError::Disconnected) => (),
-    }
+    gl.draw_elements(Gl::TRIANGLES, 6, Gl::UNSIGNED_BYTE, 0);
 }

@@ -3,12 +3,14 @@ pub mod interrupt;
 mod mbc;
 mod mbc1;
 mod mbc3;
+mod mbc5;
 mod rom_only;
 
 use self::interrupt::Interrupt;
 use self::mbc::Mbc;
 use self::mbc1::Mbc1;
 use self::mbc3::Mbc3;
+use self::mbc5::Mbc5;
 use self::rom_only::RomOnly;
 use gpu::lcd_control_flag::LcdControlFlag;
 use mmu::gpu_cycles::GpuCycles;
@@ -56,8 +58,6 @@ impl Memory {
             _ => panic!("Unknown number of ROM banks"),
         };
         let ram_size = rom[0x0149];
-        // TODO: some ROM_ONLY games use up to 0x2000 of ERAM, but don't specify that info in the header
-        // just fill the ERAM to 2 if the game is ROM only
         let num_ram_banks = match ram_size {
             0x0 => 0,
             0x1 => 1,
@@ -75,6 +75,7 @@ impl Memory {
             0x00 => Box::new(RomOnly::new(&rom[..])),
             0x01..=0x03 => Box::new(Mbc1::new(num_rom_banks, num_ram_banks, &rom[..])),
             0x0F..=0x13 => Box::new(Mbc3::new(num_rom_banks, num_ram_banks, &rom[..])),
+            0x19..=0x1E => Box::new(Mbc5::new(num_rom_banks, num_ram_banks, &rom[..])),
             _ => panic!("Unsupported cartridge: {:02X}", cartridge_type),
         };
 

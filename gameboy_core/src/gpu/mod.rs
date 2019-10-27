@@ -56,156 +56,17 @@ impl GPU {
         &mut self,
         cycles: i32,
         memory: &mut Memory,
-        system: &mut T,
+        pixel_mapper: &mut T,
     ) -> bool {
         let mut vblank = false;
         memory.gpu_cycles.cycles_counter += cycles;
 
         if !memory.screen_disabled {
             match memory.lcd_status_mode {
-                HBLANK => {
-                    if memory.gpu_cycles.cycles_counter >= 204 {
-                        memory.gpu_cycles.cycles_counter -= 204;
-                        memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | OAM_SCAN;
-
-                        memory.scan_line += 1;
-                        memory.compare_ly_to_lyc();
-
-                        if memory.scan_line == 144 {
-                            memory.lcd_status_mode =
-                                (memory.lcd_status_mode & 0b1111_1100) | VBLANK;
-                            self.vblank_line = 0;
-                            memory.gpu_cycles.aux_cycles_counter = memory.gpu_cycles.cycles_counter;
-
-                            memory.request_interrupt(Interrupt::Vblank);
-
-                            memory.irq48_signal &= 0x09;
-                            let stat = memory.get_lcd_status_from_memory();
-                            if stat & 0b0001_0000 == 0b0001_0000 {
-                                if memory.irq48_signal & 0b0000_0001 != 0b0000_0001
-                                    && memory.irq48_signal & 0b0000_1000 != 0b0000_1000
-                                {
-                                    memory.request_interrupt(Interrupt::Lcd);
-                                }
-                                memory.irq48_signal |= 0b0000_0010;
-                            }
-                            memory.irq48_signal &= 0x0E;
-
-                            if self.hide_frames > 0 {
-                                self.hide_frames -= 1;
-                            } else {
-                                vblank = true;
-                            }
-
-                            memory.gpu_cycles.window_line = 0;
-                        } else {
-                            memory.irq48_signal &= 0x09;
-                            let stat = memory.get_lcd_status_from_memory();
-
-                            if stat & 0b0010_0000 == 0b0010_0000 {
-                                if memory.irq48_signal == 0 {
-                                    memory.request_interrupt(Interrupt::Lcd);
-                                }
-                                memory.irq48_signal |= 0b0000_0100;
-                            }
-                            memory.irq48_signal &= 0x0E;
-                        }
-                        self.update_stat_register(memory);
-                    }
-                }
-                VBLANK => {
-                    memory.gpu_cycles.aux_cycles_counter += cycles;
-
-                    if memory.gpu_cycles.aux_cycles_counter >= 456 {
-                        memory.gpu_cycles.aux_cycles_counter -= 456;
-                        self.vblank_line += 1;
-
-                        if self.vblank_line <= 9 {
-                            memory.scan_line += 1;
-                            memory.compare_ly_to_lyc();
-                        }
-                    }
-
-                    if memory.gpu_cycles.cycles_counter >= 4104
-                        && memory.gpu_cycles.aux_cycles_counter >= 4
-                        && memory.scan_line == 153
-                    {
-                        memory.scan_line = 0;
-                        memory.compare_ly_to_lyc();
-                    }
-
-                    if memory.gpu_cycles.cycles_counter >= 4560 {
-                        memory.gpu_cycles.cycles_counter -= 4560;
-                        memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | OAM_SCAN;
-                        self.update_stat_register(memory);
-
-                        memory.irq48_signal &= 0x0A;
-                        let stat = memory.get_lcd_status_from_memory();
-                        if stat & 0b0010_0000 == 0b0010_0000 {
-                            if memory.irq48_signal == 0 {
-                                memory.request_interrupt(Interrupt::Lcd);
-                            }
-                            memory.irq48_signal |= 0b0000_0100;
-                        }
-                        memory.irq48_signal &= 0x0D;
-                    }
-                }
-                OAM_SCAN => {
-                    if memory.gpu_cycles.cycles_counter >= 80 {
-                        memory.gpu_cycles.cycles_counter -= 80;
-                        memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | 0b11;
-                        self.scan_line_transferred = false;
-                        memory.irq48_signal &= 0x08;
-                        self.update_stat_register(memory);
-                    }
-                }
-                LCD_TRANSFER => {
-                    if memory.gpu_cycles.pixel_counter < 160 {
-                        self.tile_cycles_counter += cycles;
-
-                        let lcdc =
-                            LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
-                        if !memory.screen_disabled && lcdc.contains(LcdControlFlag::DISPLAY) {
-                            while self.tile_cycles_counter >= 3 {
-                                self.render_background(
-                                    memory,
-                                    i32::from(memory.scan_line),
-                                    memory.gpu_cycles.pixel_counter,
-                                    4,
-                                    system,
-                                );
-                                memory.gpu_cycles.pixel_counter += 4;
-                                self.tile_cycles_counter -= 3;
-
-                                if memory.gpu_cycles.pixel_counter >= 160 {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if memory.gpu_cycles.cycles_counter >= 160 && !self.scan_line_transferred {
-                        self.scan_line(memory, i32::from(memory.scan_line), system);
-                        self.scan_line_transferred = true;
-                    }
-
-                    if memory.gpu_cycles.cycles_counter >= 172 {
-                        memory.gpu_cycles.pixel_counter = 0;
-                        memory.gpu_cycles.cycles_counter -= 172;
-                        memory.lcd_status_mode = 0;
-                        self.tile_cycles_counter = 0;
-                        self.update_stat_register(memory);
-
-                        memory.irq48_signal &= 0x08;
-                        let stat = memory.get_lcd_status_from_memory();
-                        if stat & 0b0000_1000 == 0b0000_1000 {
-                            if memory.irq48_signal & 0b0000_1000 != 0b0000_1000 {
-                                memory.request_interrupt(Interrupt::Lcd);
-                            }
-                            memory.irq48_signal |= 0b0000_0001;
-                        }
-                    }
-                }
+                HBLANK => vblank = self.step_hblank(memory),
+                VBLANK => self.step_vblank(memory, cycles),
+                OAM_SCAN => self.step_oam_scan(memory),
+                LCD_TRANSFER => self.step_lcd_transfer(memory, cycles, pixel_mapper),
                 _ => panic!("Impossible"),
             }
         } else if memory.gpu_cycles.screen_enable_delay_cycles > 0 {
@@ -240,21 +101,173 @@ impl GPU {
         vblank
     }
 
+    fn step_hblank(&mut self, memory: &mut Memory) -> bool {
+        let mut vblank = false;
+        if memory.gpu_cycles.cycles_counter >= 204 {
+            memory.gpu_cycles.cycles_counter -= 204;
+            memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | OAM_SCAN;
+
+            memory.scan_line += 1;
+            memory.compare_ly_to_lyc();
+
+            if memory.scan_line == 144 {
+                memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | VBLANK;
+                self.vblank_line = 0;
+                memory.gpu_cycles.aux_cycles_counter = memory.gpu_cycles.cycles_counter;
+
+                memory.request_interrupt(Interrupt::Vblank);
+
+                memory.irq48_signal &= 0x09;
+                let stat = memory.get_lcd_status_from_memory();
+                if stat & 0b0001_0000 == 0b0001_0000 {
+                    if memory.irq48_signal & 0b0000_0001 != 0b0000_0001
+                        && memory.irq48_signal & 0b0000_1000 != 0b0000_1000
+                    {
+                        memory.request_interrupt(Interrupt::Lcd);
+                    }
+                    memory.irq48_signal |= 0b0000_0010;
+                }
+                memory.irq48_signal &= 0x0E;
+
+                if self.hide_frames > 0 {
+                    self.hide_frames -= 1;
+                } else {
+                    vblank = true;
+                }
+
+                memory.gpu_cycles.window_line = 0;
+            } else {
+                memory.irq48_signal &= 0x09;
+                let stat = memory.get_lcd_status_from_memory();
+
+                if stat & 0b0010_0000 == 0b0010_0000 {
+                    if memory.irq48_signal == 0 {
+                        memory.request_interrupt(Interrupt::Lcd);
+                    }
+                    memory.irq48_signal |= 0b0000_0100;
+                }
+                memory.irq48_signal &= 0x0E;
+            }
+            self.update_stat_register(memory);
+        }
+        vblank
+    }
+
+    fn step_vblank(&mut self, memory: &mut Memory, cycles: i32) {
+        memory.gpu_cycles.aux_cycles_counter += cycles;
+
+        if memory.gpu_cycles.aux_cycles_counter >= 456 {
+            memory.gpu_cycles.aux_cycles_counter -= 456;
+            self.vblank_line += 1;
+
+            if self.vblank_line <= 9 {
+                memory.scan_line += 1;
+                memory.compare_ly_to_lyc();
+            }
+        }
+
+        if memory.gpu_cycles.cycles_counter >= 4104
+            && memory.gpu_cycles.aux_cycles_counter >= 4
+            && memory.scan_line == 153
+        {
+            memory.scan_line = 0;
+            memory.compare_ly_to_lyc();
+        }
+
+        if memory.gpu_cycles.cycles_counter >= 4560 {
+            memory.gpu_cycles.cycles_counter -= 4560;
+            memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | OAM_SCAN;
+            self.update_stat_register(memory);
+
+            memory.irq48_signal &= 0x0A;
+            let stat = memory.get_lcd_status_from_memory();
+            if stat & 0b0010_0000 == 0b0010_0000 {
+                if memory.irq48_signal == 0 {
+                    memory.request_interrupt(Interrupt::Lcd);
+                }
+                memory.irq48_signal |= 0b0000_0100;
+            }
+            memory.irq48_signal &= 0x0D;
+        }
+    }
+
+    fn step_oam_scan(&mut self, memory: &mut Memory) {
+        if memory.gpu_cycles.cycles_counter >= 80 {
+            memory.gpu_cycles.cycles_counter -= 80;
+            memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | 0b11;
+            self.scan_line_transferred = false;
+            memory.irq48_signal &= 0x08;
+            self.update_stat_register(memory);
+        }
+    }
+
+    fn step_lcd_transfer<T: PixelMapper>(
+        &mut self,
+        memory: &mut Memory,
+        cycles: i32,
+        pixel_mapper: &mut T,
+    ) {
+        if memory.gpu_cycles.pixel_counter < 160 {
+            self.tile_cycles_counter += cycles;
+
+            let lcdc = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
+            if !memory.screen_disabled && lcdc.contains(LcdControlFlag::DISPLAY) {
+                while self.tile_cycles_counter >= 3 {
+                    self.render_background(
+                        memory,
+                        i32::from(memory.scan_line),
+                        memory.gpu_cycles.pixel_counter,
+                        4,
+                        pixel_mapper,
+                    );
+                    memory.gpu_cycles.pixel_counter += 4;
+                    self.tile_cycles_counter -= 3;
+
+                    if memory.gpu_cycles.pixel_counter >= 160 {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if memory.gpu_cycles.cycles_counter >= 160 && !self.scan_line_transferred {
+            self.scan_line(memory, i32::from(memory.scan_line), pixel_mapper);
+            self.scan_line_transferred = true;
+        }
+
+        if memory.gpu_cycles.cycles_counter >= 172 {
+            memory.gpu_cycles.pixel_counter = 0;
+            memory.gpu_cycles.cycles_counter -= 172;
+            memory.lcd_status_mode = 0;
+            self.tile_cycles_counter = 0;
+            self.update_stat_register(memory);
+
+            memory.irq48_signal &= 0x08;
+            let stat = memory.get_lcd_status_from_memory();
+            if stat & 0b0000_1000 == 0b0000_1000 {
+                if memory.irq48_signal & 0b0000_1000 != 0b0000_1000 {
+                    memory.request_interrupt(Interrupt::Lcd);
+                }
+                memory.irq48_signal |= 0b0000_0001;
+            }
+        }
+    }
+
     fn update_stat_register(&self, memory: &mut Memory) {
         let stat = memory.read_byte(LCD_INDEX);
         memory.set_lcd_status_from_memory((stat & 0xFC) | (memory.lcd_status_mode & 0x3));
     }
 
-    fn scan_line<T: PixelMapper>(&mut self, memory: &mut Memory, line: i32, system: &mut T) {
+    fn scan_line<T: PixelMapper>(&mut self, memory: &mut Memory, line: i32, pixel_mapper: &mut T) {
         let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
         if !memory.screen_disabled && lcd_control.contains(LcdControlFlag::DISPLAY) {
-            self.render_window(memory, line, system);
-            self.render_sprites(memory, line, system);
+            self.render_window(memory, line, pixel_mapper);
+            self.render_sprites(memory, line, pixel_mapper);
         } else {
             let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
             for x in 0..GAMEBOY_WIDTH {
                 let index = (line_width + x) as usize;
-                system.map_pixel(index, Color::White);
+                pixel_mapper.map_pixel(index, Color::White);
             }
         }
     }
@@ -265,7 +278,7 @@ impl GPU {
         line: i32,
         pixel: i32,
         count: i32,
-        system: &mut T,
+        pixel_mapper: &mut T,
     ) {
         let offset_x_start = pixel % 8;
         let offset_x_end = offset_x_start + count;
@@ -335,17 +348,17 @@ impl GPU {
                     0b11 => Color::Black,
                     _ => panic!("impossible"),
                 };
-                system.map_pixel(index, color);
+                pixel_mapper.map_pixel(index, color);
             }
         } else {
             for x in 0..GAMEBOY_WIDTH {
                 let index = (line_width + x) as usize;
-                system.map_pixel(index, Color::White);
+                pixel_mapper.map_pixel(index, Color::White);
             }
         }
     }
 
-    fn render_window<T: PixelMapper>(&mut self, memory: &mut Memory, line: i32, system: &mut T) {
+    fn render_window<T: PixelMapper>(&mut self, memory: &mut Memory, line: i32, pixel_mapper: &mut T) {
         if memory.gpu_cycles.window_line > 143 {
             return;
         }
@@ -430,13 +443,13 @@ impl GPU {
                     0b11 => Color::Black,
                     _ => panic!("impossible"),
                 };
-                system.map_pixel(position as usize, color);
+                pixel_mapper.map_pixel(position as usize, color);
             }
         }
         memory.gpu_cycles.window_line += 1;
     }
 
-    fn render_sprites<T: PixelMapper>(&mut self, memory: &Memory, line: i32, system: &mut T) {
+    fn render_sprites<T: PixelMapper>(&mut self, memory: &Memory, line: i32, pixel_mapper: &mut T) {
         let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
 
         if !lcd_control.contains(LcdControlFlag::SPRITES) {
@@ -542,7 +555,7 @@ impl GPU {
                 let position = line_width + buffer_x;
 
                 // the background should take priorify if the color isn't white
-                if behind_bg && system.get_pixel(position as usize) != Color::White {
+                if behind_bg && pixel_mapper.get_pixel(position as usize) != Color::White {
                     continue;
                 }
 
@@ -559,7 +572,7 @@ impl GPU {
                     0b11 => Color::Black,
                     _ => panic!("impossible"),
                 };
-                system.map_pixel(position as usize, color);
+                pixel_mapper.map_pixel(position as usize, color);
             }
         }
     }

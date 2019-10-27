@@ -135,10 +135,9 @@ pub fn start(rom: Vec<u8>) {
     let (controller_sender, controller_receiver) = mpsc::channel();
     let (frame_sender, frame_receiver) = mpsc::channel::<[u8; 144 * 160 * 3]>();
 
-    let mut emulator = Emulator::from_rom(rom);
-    let mut controller = Controller::new();
-
     thread::spawn(move || {
+        let mut emulator = Emulator::from_rom(rom);
+        let mut controller = Controller::new();
         let mut mapper = Screen::new();
         let mut run = true;
         let frame_rate = 60f64;

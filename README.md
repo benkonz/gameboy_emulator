@@ -4,6 +4,8 @@ This is a GameBoy emulator written in Rust. It can be compiled to native
 and web assembly, see the build section for more details. There are a few
 missing features, such as sound.
 
+The project is currently hosted [here](https://benkonz.github.io/assets/emulator)
+
 ## Screenshots
 
 ![Plant Boy](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/plantboy.png)

@@ -75,8 +75,16 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new() -> Cpu {
+        let mut registers: Registers = Default::default();
+        registers.set_af(0x01B0);
+        registers.set_bc(0x0013);
+        registers.set_de(0x00D8);
+        registers.set_hl(0x014D);
+        registers.pc = 0x0100;
+        registers.sp = 0xFFFE;
+
         Cpu {
-            registers: Default::default(),
+            registers,
             stopped: false,
             halted: false,
             interrupt_enabled: false,

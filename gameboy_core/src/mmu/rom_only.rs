@@ -16,7 +16,7 @@ impl Mbc for RomOnly {
     }
     fn write_byte(&mut self, index: u16, value: u8) {
         match index {
-            0x0000..=0x7FFF => self.rom_banks[index as usize] = value,
+            0x0000..=0x7FFF => (),
             0xA000..=0xBFFF => self.eram_banks[index as usize - 0xA000] = value,
             _ => panic!("index out of range: {:04X}", index),
         }

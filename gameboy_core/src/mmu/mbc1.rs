@@ -21,7 +21,7 @@ impl Mbc for Mbc1 {
                 self.rom_banks[self.selected_rom_bank as usize][index as usize - 0x4000]
             }
             0xA000..=0xBFFF => {
-                if self.external_ram_enabled {
+                if self.external_ram_enabled && self.num_ram_banks > 0 {
                     let selected_bank = if self.in_ram_banking_mode {
                         self.selected_eram_bank as usize
                     } else {
@@ -76,11 +76,13 @@ impl Mbc for Mbc1 {
             }
             0x6000..=0x7FFF => self.in_ram_banking_mode = value & 0x01 == 0x01,
             0xA000..=0xBFFF => {
-                if self.in_ram_banking_mode {
-                    self.eram_banks[self.selected_eram_bank as usize][index as usize - 0xA000] =
-                        value;
-                } else {
-                    self.eram_banks[0][index as usize - 0xA000] = value;
+                if self.num_ram_banks > 0 {
+                    if self.in_ram_banking_mode {
+                        self.eram_banks[self.selected_eram_bank as usize]
+                            [index as usize - 0xA000] = value;
+                    } else {
+                        self.eram_banks[0][index as usize - 0xA000] = value;
+                    }
                 }
             }
             _ => panic!("index out of range: {:04X}", index),

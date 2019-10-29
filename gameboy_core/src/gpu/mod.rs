@@ -49,8 +49,8 @@ impl GPU {
         }
     }
 
-    // return value indicated wheather a vblank has happened
-    // true -> vblank has happened, render the framebuffer
+    // return value indicated whether a vblank has happened
+    // true -> vblank has happened, render the frame buffer
     // false -> no vblank, continue stepping
     pub fn step<T: PixelMapper>(
         &mut self,
@@ -559,7 +559,7 @@ impl GPU {
 
                 let position = line_width + buffer_x;
 
-                // the background should take priorify if the color isn't white
+                // the background should take priority if the color isn't white
                 if behind_bg && pixel_mapper.get_pixel(position as usize) != Color::White {
                     continue;
                 }

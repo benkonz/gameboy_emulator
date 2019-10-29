@@ -1,10 +1,9 @@
 # GameBoy Emulator
 
 This is a GameBoy emulator written in Rust. It can be compiled to native
-and web assembly, see the build section for more details. There are a few
-missing features, such as sound.
+and web assembly, see the build section for more details. Sound not supported.
 
-The project is currently hosted [here](https://benkonz.github.io/assets/emulator)
+The web assembly port is currently hosted [here](https://benkonz.github.io/assets/emulator)
 
 ## Screenshots
 

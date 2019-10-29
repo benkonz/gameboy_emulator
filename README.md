@@ -7,11 +7,25 @@ The web assembly port is currently hosted [here](https://benkonz.github.io/asset
 
 ## Screenshots
 
-![Plant Boy](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/plantboy.png)
+![2048](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/tetris.png)
+![2048](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/mario.png)
 
+![2048](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/pokemon.png)
+![2048](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/megaman.png)
+
+![2048](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/zelda.png)
 ![2048](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/2048.png)
 
-![Oranges](https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/oranges.PNG)
+## Installing
+
+The native version is published to [crates.io](https://crates.io/crates/gameboy_opengl) and can be 
+installed by running:
+
+```text
+cargo install gameboy_opengl
+```
+
+Then you can run it by running: `gameboy_emulator` from your terminal
 
 ## Building from source
 

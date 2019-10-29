@@ -976,8 +976,9 @@ impl Cpu {
             self.interrupt_enabled_counter = 0;
             self.registers.pc -= 1;
         } else {
-            self.halted = true;
-            // TODO: implement the halt bug
+            if self.interrupt_enabled {
+                self.halted = true;
+            }
         }
     }
 

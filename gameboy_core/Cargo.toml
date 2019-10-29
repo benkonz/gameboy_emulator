@@ -1,9 +1,9 @@
 [package]
 name = "gameboy_core"
 version = "0.2.0"
-authors = ["Ben Konz <bkonz@unomaha.edu>"]
+authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
-repository = "https://github.com/bkonzUNOmaha/gameboy_core"
+repository = "https://github.com/benkonz/gameboy_emulator"
 description = "core library to be used for Gameboy emulation"
 
 [dependencies]

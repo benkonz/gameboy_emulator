@@ -40,11 +40,11 @@ impl Mbc for Mbc5 {
                 self.selected_rom_bank =
                     (self.selected_rom_bank & 0xFF) | (self.selected_rom_bank_high << 8);
                 self.selected_rom_bank &= self.num_rom_banks - 1
-            },
+            }
             0x4000..=0x5FFF => {
                 self.selected_eram_bank = value as usize & 0x0F;
                 self.selected_eram_bank &= self.num_ram_banks & 0x01;
-            },
+            }
             0x6000..=0x7FFF => (),
             0xA000..=0xBFFF => {
                 if self.external_ram_enabled {

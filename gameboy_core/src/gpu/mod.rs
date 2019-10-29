@@ -358,7 +358,12 @@ impl GPU {
         }
     }
 
-    fn render_window<T: PixelMapper>(&mut self, memory: &mut Memory, line: i32, pixel_mapper: &mut T) {
+    fn render_window<T: PixelMapper>(
+        &mut self,
+        memory: &mut Memory,
+        line: i32,
+        pixel_mapper: &mut T,
+    ) {
         if memory.gpu_cycles.window_line > 143 {
             return;
         }

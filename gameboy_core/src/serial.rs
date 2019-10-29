@@ -1,16 +1,16 @@
-use mmu::Memory;
 use mmu::interrupt::Interrupt;
+use mmu::Memory;
 
 pub struct Serial {
     serial_cycles: i32,
-    serial_bit: i32
+    serial_bit: i32,
 }
 
 impl Serial {
     pub fn new() -> Serial {
         Serial {
             serial_cycles: 0,
-            serial_bit: 0
+            serial_bit: 0,
         }
     }
 

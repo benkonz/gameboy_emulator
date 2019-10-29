@@ -970,12 +970,14 @@ impl Cpu {
     }
 
     fn halt(&mut self) {
+        // if interrupt_enabled is about to be set, set it and repeat the halt instruction
         if self.interrupt_enabled_counter > 0 {
             self.interrupt_enabled = true;
             self.interrupt_enabled_counter = 0;
             self.registers.pc -= 1;
         } else {
             self.halted = true;
+            // TODO: implement the halt bug
         }
     }
 
@@ -2791,6 +2793,7 @@ impl Cpu {
     }
 
     fn push(&mut self, nn: u16, memory: &mut Memory) {
+        // TODO: should probably just panic if the stack pointer overflows
         self.registers.sp = self.registers.sp.wrapping_sub(2);
         memory.write_word(self.registers.sp, nn);
     }

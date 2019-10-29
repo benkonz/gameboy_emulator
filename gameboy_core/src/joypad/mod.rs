@@ -2,8 +2,8 @@ mod buttons;
 
 use self::buttons::Buttons;
 use button::Button;
-use mmu::Memory;
 use mmu::interrupt::Interrupt;
+use mmu::Memory;
 
 pub struct Controller {
     released: Buttons,

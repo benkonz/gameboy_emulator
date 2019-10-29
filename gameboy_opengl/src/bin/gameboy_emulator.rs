@@ -13,10 +13,10 @@ fn main() {
                 let mut buffer = Vec::new();
                 match file.read_to_end(&mut buffer) {
                     Ok(_) => gameboy_opengl::start(buffer),
-                    Err(_) => eprintln!("Error reading the file")
+                    Err(_) => eprintln!("Error reading the file"),
                 }
-            },
-            Err(_) => eprintln!("Error opening the file")
+            }
+            Err(_) => eprintln!("Error opening the file"),
         }
     } else {
         eprintln!("Incorrect usage. Program must be run with one rom file");

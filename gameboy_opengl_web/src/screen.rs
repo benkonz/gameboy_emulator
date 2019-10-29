@@ -2,13 +2,13 @@ use gameboy_core::emulator::traits::PixelMapper;
 use gameboy_core::Color;
 
 pub struct Screen {
-    pub pixels: Vec<u8>
+    pub pixels: Vec<u8>,
 }
 
 impl Screen {
     pub fn new() -> Screen {
         Screen {
-            pixels: vec![0; 144 * 160 * 3]
+            pixels: vec![0; 144 * 160 * 3],
         }
     }
 

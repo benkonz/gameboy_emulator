@@ -1,13 +1,13 @@
 pub mod traits;
 
-use joypad::Controller;
-use emulator::traits::PixelMapper;
 use cpu::Cpu;
+use emulator::traits::PixelMapper;
 use gpu::GPU;
+use joypad::Controller;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
-use timer::Timer;
 use serial::Serial;
+use timer::Timer;
 
 pub struct Emulator {
     cpu: Cpu,
@@ -56,8 +56,8 @@ impl Emulator {
             Interrupt::Serial => self.cpu.rst_58(&mut self.memory),
             Interrupt::Joypad => self.cpu.rst_60(&mut self.memory),
         }
-
         self.memory.remove_interrupt(interrupt);
+
         self.cpu.halted = false;
     }
 }

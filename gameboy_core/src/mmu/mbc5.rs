@@ -30,7 +30,7 @@ impl Mbc for Mbc5 {
 
     fn write_byte(&mut self, index: u16, value: u8) {
         match index {
-            0x0000..=0x1FFF => self.external_ram_enabled = (value & 0x1F) == 0x0A,
+            0x0000..=0x1FFF => self.external_ram_enabled = (value & 0x0F) == 0x0A,
             0x2000..=0x2FFF => {
                 self.selected_rom_bank = (value as usize) | (self.selected_rom_bank_high << 8);
                 self.selected_rom_bank &= self.num_rom_banks - 1

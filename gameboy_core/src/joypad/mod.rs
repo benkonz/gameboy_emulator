@@ -34,6 +34,7 @@ impl Controller {
     }
 
     pub fn update(&mut self, memory: &mut Memory) {
+        // the interrupts here don't fire correctly
         if memory.are_action_keys_enabled() && self.previously_unset_button_pressed {
             memory.request_interrupt(Interrupt::Joypad);
             self.previously_unset_button_pressed = false;
@@ -49,11 +50,9 @@ impl Controller {
     pub fn press(&mut self, button: Button) {
         let button = button_to_buttons(button);
         if self.released.contains(button) {
-            // was an action button just pressed?
             let action_keys = Buttons::A | Buttons::B | Buttons::START | Buttons::SELECT;
             self.previously_unset_button_pressed = action_keys.contains(button);
 
-            // was a direction button just pressed?
             let direction_keys = Buttons::UP | Buttons::DOWN | Buttons::LEFT | Buttons::RIGHT;
             self.previously_unset_direction_pressed = direction_keys.contains(button);
         }

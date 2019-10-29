@@ -10,7 +10,7 @@ description = "opengl library for use in gameboy emulation with the gameboy_core
 name = "gameboy_emulator"
 
 [dependencies]
-gameboy_core = { path = "../gameboy_core", version = "0.2.0" }
+gameboy_core = { path = "../gameboy_core", version = "0.2" }
 glutin = "0.22.0-alpha3"
 c_str_macro = "1.0"
 

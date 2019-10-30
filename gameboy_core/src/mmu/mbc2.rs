@@ -3,10 +3,9 @@ use std::cmp;
 
 pub struct Mbc2 {
     rom_banks: Vec<[u8; 0x4000]>,
-    eram_banks: Vec<[u8; 0x2000]>,
+    eram: [u8; 0x200],
     num_rom_banks: usize,
     selected_rom_bank: u8,
-    selected_ram_bank: u8,
     external_ram_enabled: bool,
 }
 
@@ -19,7 +18,7 @@ impl Mbc for Mbc2 {
             }
             0xA000..=0xA1FF => {
                 if self.external_ram_enabled {
-                    self.eram_banks[self.selected_ram_bank as usize][index as usize - 0xA000] & 0x0F
+                    self.eram[index as usize - 0xA000] & 0x0F
                 } else {
                     0xFF
                 }
@@ -44,7 +43,7 @@ impl Mbc for Mbc2 {
             0x4000..=0x7FFF => (),
             0xA000..=0xA1FF => {
                 if self.external_ram_enabled {
-                    self.eram_banks[self.selected_ram_bank as usize][index as usize - 0xA000] =
+                    self.eram[index as usize - 0xA000] =
                         value & 0x0F;
                 }
             }
@@ -68,13 +67,11 @@ impl Mbc2 {
             }
         }
 
-        let eram_banks = vec![[0xFF; 0x2000]; 0x200];
         Mbc2 {
             rom_banks,
-            eram_banks,
+            eram: [0xFF; 0x200],
             num_rom_banks,
             selected_rom_bank: 1,
-            selected_ram_bank: 0,
             external_ram_enabled: false,
         }
     }

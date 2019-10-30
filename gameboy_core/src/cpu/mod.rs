@@ -2794,8 +2794,7 @@ impl Cpu {
     }
 
     fn push(&mut self, nn: u16, memory: &mut Memory) {
-        // TODO: should probably just panic if the stack pointer overflows
-        self.registers.sp = self.registers.sp.wrapping_sub(2);
+        self.registers.sp -= 2;
         memory.write_word(self.registers.sp, nn);
     }
 

@@ -84,10 +84,6 @@ impl Memory {
             0x4 => 16,
             _ => panic!("Unknown number of RAM banks"),
         };
-        println!("cartridge type: {:02X}", cartridge_type);
-        println!("rom banks: {}", num_rom_banks);
-        println!("ram banks: {}", num_ram_banks);
-        println!("ram size: {}", ram_size);
 
         let mbc: Box<dyn Mbc> = match cartridge_type {
             0x00 => Box::new(RomOnly::new(&rom[..])),

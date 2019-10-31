@@ -43,8 +43,7 @@ impl Mbc for Mbc2 {
             0x4000..=0x7FFF => (),
             0xA000..=0xA1FF => {
                 if self.external_ram_enabled {
-                    self.eram[index as usize - 0xA000] =
-                        value & 0x0F;
+                    self.eram[index as usize - 0xA000] = value & 0x0F;
                 }
             }
             0xA200..=0xBFFF => (),

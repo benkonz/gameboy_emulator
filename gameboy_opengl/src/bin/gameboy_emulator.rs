@@ -3,8 +3,8 @@ extern crate gameboy_opengl;
 
 use clap::{App, Arg};
 use std::fs::File;
-use std::io::Read;
 use std::io;
+use std::io::Read;
 
 fn main() -> io::Result<()> {
     let matches = App::new("Gameboy Emulator")

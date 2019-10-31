@@ -411,7 +411,7 @@ impl Cpu {
                 let nn = self.get_nn(memory);
                 self.jp_nc_nn(nn);
             }
-            0xD3 => self.undefined(),
+            0xD3 => self.undefined(opcode),
             0xD4 => {
                 let nn = self.get_nn(memory);
                 self.call_nc_nn(nn, memory);
@@ -428,12 +428,12 @@ impl Cpu {
                 let nn = self.get_nn(memory);
                 self.jp_c_nn(nn);
             }
-            0xDB => self.undefined(),
+            0xDB => self.undefined(opcode),
             0xDC => {
                 let nn = self.get_nn(memory);
                 self.call_c_nn(nn, memory);
             }
-            0xDD => self.undefined(),
+            0xDD => self.undefined(opcode),
             0xDE => {
                 let n = self.get_n(memory);
                 self.sbc_a_n(n);
@@ -445,8 +445,8 @@ impl Cpu {
             }
             0xE1 => self.pop_hl(memory),
             0xE2 => self.ldh_a_c(memory),
-            0xE3 => self.undefined(),
-            0xE4 => self.undefined(),
+            0xE3 => self.undefined(opcode),
+            0xE4 => self.undefined(opcode),
             0xE5 => self.push_hl(memory),
             0xE6 => {
                 let n = self.get_n(memory);
@@ -462,9 +462,9 @@ impl Cpu {
                 let nn = self.get_nn(memory);
                 self.ld_nn_a(nn, memory);
             }
-            0xEB => self.undefined(),
-            0xEC => self.undefined(),
-            0xED => self.undefined(),
+            0xEB => self.undefined(opcode),
+            0xEC => self.undefined(opcode),
+            0xED => self.undefined(opcode),
             0xEE => {
                 let n = self.get_n(memory);
                 self.xor_n(n);
@@ -477,7 +477,7 @@ impl Cpu {
             0xF1 => self.pop_af(memory),
             0xF2 => self.ldh_c_a(memory),
             0xF3 => self.di(),
-            0xF4 => self.undefined(),
+            0xF4 => self.undefined(opcode),
             0xF5 => self.push_af(memory),
             0xF6 => {
                 let n = self.get_n(memory);
@@ -494,8 +494,8 @@ impl Cpu {
                 self.ld_a_nn(n, memory);
             }
             0xFB => self.ei(),
-            0xFC => self.undefined(),
-            0xFD => self.undefined(),
+            0xFC => self.undefined(opcode),
+            0xFD => self.undefined(opcode),
             0xFE => {
                 let n = self.get_n(memory);
                 self.cp_n(n);
@@ -1580,8 +1580,8 @@ impl Cpu {
         self.jp_cc_nn(cc, nn);
     }
 
-    fn undefined(&mut self) {
-        panic!("Undefined Opcode!");
+    fn undefined(&mut self, opcode: u8) {
+        println!("Undefined Opcode: {:02X}!", opcode);
     }
 
     fn call_nc_nn(&mut self, nn: u16, memory: &mut Memory) {

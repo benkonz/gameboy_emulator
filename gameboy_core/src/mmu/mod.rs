@@ -157,12 +157,12 @@ impl Memory {
 
     pub fn are_action_keys_enabled(&self) -> bool {
         let joypad_control = self.high_ram[0];
-        joypad_control & 0b0010_0000 == 0
+        joypad_control & 0x30 != 0x20
     }
 
     pub fn are_direction_keys_enabled(&self) -> bool {
         let joypad_control = self.high_ram[0];
-        joypad_control & 0b0001_0000 == 0
+        joypad_control & 0x30 != 0x10
     }
 
     pub fn write_byte(&mut self, index: u16, value: u8) {

@@ -450,6 +450,7 @@ name = "gameboy_opengl"
 version = "0.1.4"
 dependencies = [
  "c_str_macro 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gameboy_core 0.2.0",
  "gl_generator 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glutin 0.22.0-alpha3 (registry+https://github.com/rust-lang/crates.io-index)",

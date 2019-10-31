@@ -1,24 +1,29 @@
+extern crate clap;
 extern crate gameboy_opengl;
 
-use std::env;
+use clap::{App, Arg};
 use std::fs::File;
 use std::io::Read;
+use std::io;
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() == 2 {
-        let filename = &args[1];
-        match File::open(filename) {
-            Ok(ref mut file) => {
-                let mut buffer = Vec::new();
-                match file.read_to_end(&mut buffer) {
-                    Ok(_) => gameboy_opengl::start(buffer),
-                    Err(_) => eprintln!("Error reading the file"),
-                }
-            }
-            Err(_) => eprintln!("Error opening the file"),
-        }
-    } else {
-        eprintln!("Incorrect usage. Program must be run with one rom file");
-    }
+fn main() -> io::Result<()> {
+    let matches = App::new("Gameboy Emulator")
+        .version("0.1.4")
+        .author("Benjamin K. <benkonz@protonmail.com>")
+        .about("Gameboy Emulator written in Rust!")
+        .arg(
+            Arg::with_name("rom filename")
+                .help("rom file to use")
+                .required(true)
+                .index(1),
+        )
+        .get_matches();
+
+    let rom_filename = matches.value_of("rom filename").unwrap();
+    let mut file = File::open(rom_filename)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    gameboy_opengl::start(buffer);
+
+    Ok(())
 }

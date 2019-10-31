@@ -13,6 +13,7 @@ name = "gameboy_emulator"
 gameboy_core = { path = "../gameboy_core", version = "0.2" }
 glutin = "0.22.0-alpha3"
 c_str_macro = "1.0"
+clap = "2.33"
 
 [build-dependencies]
 gl_generator = "0.13"

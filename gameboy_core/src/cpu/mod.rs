@@ -975,10 +975,8 @@ impl Cpu {
             self.interrupt_enabled = true;
             self.interrupt_enabled_counter = 0;
             self.registers.pc -= 1;
-        } else {
-            if self.interrupt_enabled {
-                self.halted = true;
-            }
+        } else if self.interrupt_enabled {
+            self.halted = true;
         }
     }
 

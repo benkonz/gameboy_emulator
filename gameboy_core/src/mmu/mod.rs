@@ -1,3 +1,4 @@
+mod cartridge;
 pub mod gpu_cycles;
 pub mod interrupt;
 mod mbc;
@@ -7,6 +8,7 @@ mod mbc3;
 mod mbc5;
 mod rom_only;
 
+use self::cartridge::Cartridge;
 use self::interrupt::Interrupt;
 use self::mbc::Mbc;
 use self::mbc1::Mbc1;
@@ -60,41 +62,20 @@ pub struct Memory {
 
 impl Memory {
     pub fn from_rom(rom: Vec<u8>) -> Memory {
-        let cartridge_type = rom[0x0147];
-        let rom_size = rom[0x0148];
-        let num_rom_banks = match rom_size {
-            0x0 => 2,
-            0x1 => 4,
-            0x2 => 8,
-            0x3 => 16,
-            0x4 => 32,
-            0x5 => 64,
-            0x6 => 128,
-            0x52 => 72,
-            0x53 => 80,
-            0x54 => 96,
-            _ => panic!("Unknown number of ROM banks"),
-        };
-        let ram_size = rom[0x0149];
-        let num_ram_banks = match ram_size {
-            0x0 => 0,
-            0x1 => 1,
-            0x2 => 1,
-            0x3 => 4,
-            0x4 => 16,
-            _ => panic!("Unknown number of RAM banks"),
-        };
-
-        let mbc: Box<dyn Mbc> = match cartridge_type {
-            0x00 => Box::new(RomOnly::new(&rom[..])),
-            0x01..=0x03 => Box::new(Mbc1::new(num_rom_banks, num_ram_banks, &rom[..])),
-            0x05..=0x09 => Box::new(Mbc2::new(num_rom_banks, &rom[..])),
-            0x0F..=0x13 => Box::new(Mbc3::new(num_rom_banks, num_ram_banks, &rom[..])),
-            0x19..=0x1E => Box::new(Mbc5::new(num_rom_banks, num_ram_banks, &rom[..])),
-            _ => panic!("Unsupported cartridge: {:02X}", cartridge_type),
-        };
-
+        let cartridge = Cartridge::from_rom(rom);
         let high_ram = INITIAL_VALUES_FOR_FFXX;
+
+        let mbc: Box<dyn Mbc> = match cartridge.get_cartridge_type() {
+            0x00 | 0x08 | 0x09 => Box::new(RomOnly::new(cartridge)),
+            0x01 | 0x02 | 0x03 | 0xEA | 0xFF => Box::new(Mbc1::new(cartridge)),
+            0x05 | 0x06 => Box::new(Mbc2::new(cartridge)),
+            0x0F | 0x10 | 0x11 | 0x12 | 0x13 | 0xFC => Box::new(Mbc3::new(cartridge)),
+            0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E => Box::new(Mbc5::new(cartridge)),
+            _ => panic!(
+                "Unsupported cartridge: {:02X}",
+                cartridge.get_cartridge_type()
+            ),
+        };
 
         Memory {
             mbc,

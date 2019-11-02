@@ -1,11 +1,9 @@
+use super::cartridge::Cartridge;
 use super::mbc::Mbc;
-use std::cmp;
 
 pub struct Mbc3 {
-    rom_banks: Vec<[u8; 0x4000]>,
+    cartridge: Cartridge,
     eram_banks: Vec<[u8; 0x2000]>,
-    num_rom_banks: usize,
-    num_ram_banks: usize,
     selected_rom_bank: u8,
     selected_eram_bank: u8,
     external_ram_enabled: bool,
@@ -14,12 +12,17 @@ pub struct Mbc3 {
 impl Mbc for Mbc3 {
     fn read_byte(&self, index: u16) -> u8 {
         match index {
-            0x0000..=0x3FFF => self.rom_banks[0][index as usize],
+            0x0000..=0x3FFF => {
+                let rom = self.cartridge.get_rom();
+                rom[index as usize]
+            }
             0x4000..=0x7FFF => {
-                self.rom_banks[self.selected_rom_bank as usize][index as usize - 0x4000]
+                let rom = self.cartridge.get_rom();
+                let offset = self.selected_rom_bank as usize * 0x4000;
+                rom[index as usize - 0x4000 + offset]
             }
             0xA000..=0xBFFF => {
-                if self.external_ram_enabled {
+                if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
                     self.eram_banks[self.selected_eram_bank as usize][index as usize - 0xA000]
                 } else {
                     0xFF
@@ -39,21 +42,25 @@ impl Mbc for Mbc3 {
                 }
 
                 self.selected_rom_bank = value;
-                self.selected_rom_bank &= (self.num_rom_banks - 1) as u8
+                self.selected_rom_bank &= (self.cartridge.get_rom_banks() - 1) as u8
             }
             0x4000..=0x5FFF => {
                 match value {
                     0x00..=0x07 => {
                         self.selected_eram_bank = value;
-                        self.selected_eram_bank &= (self.num_ram_banks - 1) as u8;
+                        self.selected_eram_bank &= (self.cartridge.get_ram_banks() - 1) as u8;
                     }
-                    0x08..=0x0C => panic!("RTC not implemented!"),
+                    0x08..=0x0C => {
+                        if self.cartridge.has_rtc() {
+                            panic!("RTC not implemented!")
+                        }
+                    }
                     _ => panic!("selecting unknown register: {:02X}", value),
                 };
             }
             0x6000..=0x7FFF => (), // also used for the RTC
             0xA000..=0xBFFF => {
-                if self.external_ram_enabled {
+                if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
                     self.eram_banks[self.selected_eram_bank as usize][index as usize - 0xA000] =
                         value;
                 }
@@ -64,26 +71,12 @@ impl Mbc for Mbc3 {
 }
 
 impl Mbc3 {
-    pub fn new(num_rom_banks: usize, num_ram_banks: usize, rom: &[u8]) -> Mbc3 {
-        let mut rom_banks: Vec<[u8; 0x4000]> = vec![[0; 0x4000]; num_rom_banks];
-        for (i, bank) in rom_banks.iter_mut().enumerate() {
-            let start = i * 0x4000;
-            let end = cmp::min(start + 0x4000, rom.len());
-            bank.copy_from_slice(&rom[start..end]);
-
-            // this, along with the call to min above, prevents us from copying past the length of the rom
-            if end == rom.len() {
-                break;
-            }
-        }
-
-        let eram_banks = vec![[0xFF; 0x2000]; num_ram_banks];
+    pub fn new(cartridge: Cartridge) -> Mbc3 {
+        let eram_banks = vec![[0xFF; 0x2000]; cartridge.get_ram_banks() as usize];
 
         Mbc3 {
-            rom_banks,
+            cartridge,
             eram_banks,
-            num_rom_banks,
-            num_ram_banks,
             selected_rom_bank: 1,
             selected_eram_bank: 0,
             external_ram_enabled: false,

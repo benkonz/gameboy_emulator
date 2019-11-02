@@ -1,11 +1,9 @@
+use super::cartridge::Cartridge;
 use super::mbc::Mbc;
-use std::cmp;
 
 pub struct Mbc1 {
-    rom_banks: Vec<[u8; 0x4000]>,
+    cartridge: Cartridge,
     eram_banks: Vec<[u8; 0x2000]>,
-    num_rom_banks: usize,
-    num_ram_banks: usize,
     selected_rom_bank: u8,
     selected_eram_bank: u8,
     in_ram_banking_mode: bool,
@@ -16,12 +14,17 @@ pub struct Mbc1 {
 impl Mbc for Mbc1 {
     fn read_byte(&self, index: u16) -> u8 {
         match index {
-            0x0000..=0x3FFF => self.rom_banks[0][index as usize],
+            0x0000..=0x3FFF => {
+                let rom = self.cartridge.get_rom();
+                rom[index as usize]
+            }
             0x4000..=0x7FFF => {
-                self.rom_banks[self.selected_rom_bank as usize][index as usize - 0x4000]
+                let rom = self.cartridge.get_rom();
+                let offset = self.selected_rom_bank as usize * 0x4000;
+                rom[index as usize - 0x4000 + offset]
             }
             0xA000..=0xBFFF => {
-                if self.external_ram_enabled && self.num_ram_banks > 0 {
+                if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
                     let selected_bank = if self.in_ram_banking_mode {
                         self.selected_eram_bank as usize
                     } else {
@@ -54,12 +57,12 @@ impl Mbc for Mbc1 {
                     self.selected_rom_bank += 1;
                 }
 
-                self.selected_rom_bank &= (self.num_rom_banks - 1) as u8;
+                self.selected_rom_bank &= (self.cartridge.get_rom_banks() - 1) as u8;
             }
             0x4000..=0x5FFF => {
                 if self.in_ram_banking_mode {
                     self.selected_eram_bank = value & 0x03;
-                    self.selected_eram_bank &= (self.num_ram_banks - 1) as u8;
+                    self.selected_eram_bank &= (self.cartridge.get_ram_banks() - 1) as u8;
                 } else {
                     self.higher_rom_bank_bits = value & 0x03;
                     self.selected_rom_bank = (value & 0x1F) | (self.higher_rom_bank_bits << 5);
@@ -71,12 +74,12 @@ impl Mbc for Mbc1 {
                     {
                         self.selected_rom_bank += 1;
                     }
-                    self.selected_rom_bank &= (self.num_rom_banks - 1) as u8;
+                    self.selected_rom_bank &= (self.cartridge.get_ram_banks() - 1) as u8;
                 }
             }
             0x6000..=0x7FFF => self.in_ram_banking_mode = value & 0x01 == 0x01,
             0xA000..=0xBFFF => {
-                if self.external_ram_enabled && self.num_ram_banks > 0 {
+                if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
                     if self.in_ram_banking_mode {
                         self.eram_banks[self.selected_eram_bank as usize]
                             [index as usize - 0xA000] = value;
@@ -91,26 +94,12 @@ impl Mbc for Mbc1 {
 }
 
 impl Mbc1 {
-    pub fn new(num_rom_banks: usize, num_ram_banks: usize, rom: &[u8]) -> Mbc1 {
-        let mut rom_banks: Vec<[u8; 0x4000]> = vec![[0; 0x4000]; num_rom_banks];
-        for (i, bank) in rom_banks.iter_mut().enumerate() {
-            let start = i * 0x4000;
-            let end = cmp::min(start + 0x4000, rom.len());
-            bank.copy_from_slice(&rom[start..end]);
-
-            // this, along with the call to min above, prevents us from copying past the length of the rom
-            if end == rom.len() {
-                break;
-            }
-        }
-
-        let eram_banks = vec![[0xFF; 0x2000]; num_ram_banks];
+    pub fn new(cartridge: Cartridge) -> Mbc1 {
+        let eram_banks = vec![[0xFF; 0x2000]; cartridge.get_ram_size() as usize];
 
         Mbc1 {
-            rom_banks,
+            cartridge,
             eram_banks,
-            num_rom_banks,
-            num_ram_banks,
             selected_rom_bank: 1,
             selected_eram_bank: 0,
             in_ram_banking_mode: false,

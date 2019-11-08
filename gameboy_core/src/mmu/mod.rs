@@ -1,3 +1,4 @@
+pub mod cartridge;
 pub mod gpu_cycles;
 pub mod interrupt;
 mod mbc;
@@ -5,16 +6,18 @@ mod mbc1;
 mod mbc2;
 mod mbc3;
 mod mbc5;
+mod mbc_type;
 mod rom_only;
 
+use self::cartridge::Cartridge;
 use self::interrupt::Interrupt;
 use self::mbc::Mbc;
 use self::mbc1::Mbc1;
 use self::mbc2::Mbc2;
 use self::mbc3::Mbc3;
 use self::mbc5::Mbc5;
+use self::mbc_type::MbcType;
 use self::rom_only::RomOnly;
-use cartridge::Cartridge;
 use gpu::lcd_control_flag::LcdControlFlag;
 use mmu::gpu_cycles::GpuCycles;
 
@@ -65,23 +68,12 @@ impl Memory {
         // this is necessary, since we don't load the bios
         let high_ram = INITIAL_VALUES_FOR_FFXX;
 
-        // TODO: create a mbc_type enum and extract this logic into the cartridge
-        let mbc: Box<dyn Mbc> = match cartridge.get_cartridge_type() {
-            0x00 | 0x08 | 0x09 => Box::new(RomOnly::new(cartridge)),
-            0x01 | 0x02 | 0x03 | 0xEA | 0xFF => {
-                Box::new(Mbc1::new(cartridge))
-            }
-            0x05 | 0x06 => Box::new(Mbc2::new(cartridge)),
-            0x0F | 0x10 | 0x11 | 0x12 | 0x13 | 0xFC => {
-                Box::new(Mbc3::new(cartridge))
-            }
-            0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E => {
-                Box::new(Mbc5::new(cartridge))
-            }
-            _ => panic!(
-                "Unsupported cartridge: {:02X}",
-                cartridge.get_cartridge_type()
-            ),
+        let mbc: Box<dyn Mbc> = match cartridge.get_mbc_type() {
+            MbcType::RomOnly => Box::new(RomOnly::new(cartridge)),
+            MbcType::Mbc1 => Box::new(Mbc1::new(cartridge)),
+            MbcType::Mbc2 => Box::new(Mbc2::new(cartridge)),
+            MbcType::Mbc3 => Box::new(Mbc3::new(cartridge)),
+            MbcType::Mbc5 => Box::new(Mbc5::new(cartridge)),
         };
 
         Memory {

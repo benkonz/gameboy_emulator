@@ -1,4 +1,4 @@
-use cartridge::Cartridge;
+use super::cartridge::Cartridge;
 
 pub trait Mbc {
     fn read_byte(&self, index: u16) -> u8;

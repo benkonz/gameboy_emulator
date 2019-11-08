@@ -1,5 +1,5 @@
+use super::cartridge::Cartridge;
 use super::mbc::Mbc;
-use cartridge::Cartridge;
 
 pub struct RomOnly {
     cartridge: Cartridge,

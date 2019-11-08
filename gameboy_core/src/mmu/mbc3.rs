@@ -1,5 +1,5 @@
+use super::cartridge::Cartridge;
 use super::mbc::Mbc;
-use cartridge::Cartridge;
 
 pub struct Mbc3 {
     cartridge: Cartridge,
@@ -78,9 +78,7 @@ impl Mbc for Mbc3 {
 }
 
 impl Mbc3 {
-    pub fn new(
-        cartridge: Cartridge,
-    ) -> Mbc3 {
+    pub fn new(cartridge: Cartridge) -> Mbc3 {
         Mbc3 {
             cartridge,
             selected_rom_bank: 1,

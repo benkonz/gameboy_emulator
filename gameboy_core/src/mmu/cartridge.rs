@@ -1,5 +1,6 @@
+use super::mbc_type::MbcType;
+
 pub struct Cartridge {
-    cartridge_type: i32,
     rom_banks: i32,
     ram_banks: i32,
     ram_size: i32,
@@ -8,6 +9,7 @@ pub struct Cartridge {
     rom: Vec<u8>,
     ram: Vec<u8>,
     name: String,
+    mbc_type: MbcType,
 }
 
 impl Cartridge {
@@ -59,8 +61,16 @@ impl Cartridge {
             name_index += 1;
         }
 
+        let mbc_type = match cartridge_type {
+            0x00 | 0x08 | 0x09 => MbcType::RomOnly,
+            0x01 | 0x02 | 0x03 | 0xEA | 0xFF => MbcType::Mbc1,
+            0x05 | 0x06 => MbcType::Mbc2,
+            0x0F | 0x10 | 0x11 | 0x12 | 0x13 | 0xFC => MbcType::Mbc3,
+            0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E => MbcType::Mbc5,
+            _ => panic!("Unsupported cartridge type: {:?}", cartridge_type),
+        };
+
         Cartridge {
-            cartridge_type,
             rom_banks,
             ram_banks,
             ram_size,
@@ -69,6 +79,7 @@ impl Cartridge {
             rom,
             ram,
             name,
+            mbc_type,
         }
     }
 
@@ -108,8 +119,8 @@ impl Cartridge {
         self.ram = ram;
     }
 
-    pub fn get_cartridge_type(&self) -> i32 {
-        self.cartridge_type
+    pub fn get_mbc_type(&self) -> MbcType {
+        self.mbc_type
     }
 
     pub fn get_name(&self) -> &str {

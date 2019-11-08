@@ -1,10 +1,10 @@
 pub mod traits;
 
-use cartridge::Cartridge;
 use cpu::Cpu;
 use emulator::traits::PixelMapper;
 use gpu::GPU;
 use joypad::Controller;
+use mmu::cartridge::Cartridge;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
 use serial::Serial;

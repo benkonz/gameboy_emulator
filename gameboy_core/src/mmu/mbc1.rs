@@ -1,9 +1,8 @@
-use super::cartridge::Cartridge;
 use super::mbc::Mbc;
+use cartridge::Cartridge;
 
 pub struct Mbc1 {
     cartridge: Cartridge,
-    eram_banks: Vec<[u8; 0x2000]>,
     selected_rom_bank: u8,
     selected_eram_bank: u8,
     in_ram_banking_mode: bool,
@@ -30,7 +29,9 @@ impl Mbc for Mbc1 {
                     } else {
                         0
                     };
-                    self.eram_banks[selected_bank][index as usize - 0xA000]
+                    let offset = selected_bank * 0x2000;
+                    let ram = self.cartridge.get_ram();
+                    ram[index as usize - 0xA000 + offset]
                 } else {
                     0xFF
                 }
@@ -80,26 +81,30 @@ impl Mbc for Mbc1 {
             0x6000..=0x7FFF => self.in_ram_banking_mode = value & 0x01 == 0x01,
             0xA000..=0xBFFF => {
                 if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
-                    if self.in_ram_banking_mode {
-                        self.eram_banks[self.selected_eram_bank as usize]
-                            [index as usize - 0xA000] = value;
+                    let selected_bank = if self.in_ram_banking_mode {
+                        self.selected_eram_bank as usize
                     } else {
-                        self.eram_banks[0][index as usize - 0xA000] = value;
-                    }
+                        0
+                    };
+                    let offset = selected_bank * 0x2000;
+                    let address = index as usize - 0xA000 + offset;
+                    let ram = self.cartridge.get_ram_mut();
+                    ram[address] = value;
                 }
             }
             _ => panic!("index out of range: {:04X}", index),
         }
     }
+
+    fn get_cartridge(&self) -> &Cartridge {
+        &self.cartridge
+    }
 }
 
 impl Mbc1 {
     pub fn new(cartridge: Cartridge) -> Mbc1 {
-        let eram_banks = vec![[0xFF; 0x2000]; cartridge.get_ram_size() as usize];
-
         Mbc1 {
             cartridge,
-            eram_banks,
             selected_rom_bank: 1,
             selected_eram_bank: 0,
             in_ram_banking_mode: false,

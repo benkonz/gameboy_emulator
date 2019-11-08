@@ -1,5 +1,6 @@
 pub mod traits;
 
+use cartridge::Cartridge;
 use cpu::Cpu;
 use emulator::traits::PixelMapper;
 use gpu::GPU;
@@ -18,13 +19,13 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn from_rom(rom: Vec<u8>) -> Emulator {
+    pub fn from_cartridge(cartridge: Cartridge) -> Emulator {
         Emulator {
             cpu: Cpu::new(),
             gpu: GPU::new(),
             timer: Timer::new(),
             serial: Serial::new(),
-            memory: Memory::from_rom(rom),
+            memory: Memory::from_cartridge(cartridge),
         }
     }
 
@@ -59,5 +60,9 @@ impl Emulator {
         self.memory.remove_interrupt(interrupt);
 
         self.cpu.halted = false;
+    }
+
+    pub fn get_cartridge(&self) -> &Cartridge {
+        &self.memory.get_cartridge()
     }
 }

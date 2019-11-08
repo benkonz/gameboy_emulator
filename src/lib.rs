@@ -8,6 +8,9 @@ use stdweb::js_export;
 #[cfg(not(target_arch = "wasm32"))]
 extern crate gameboy_opengl;
 
+/// # Safety
+/// 
+/// creates a vector from the pointer and length.
 #[cfg(not(target_arch = "wasm32"))]
 #[no_mangle]
 pub unsafe fn start(pointer: *mut u8, length: usize) {

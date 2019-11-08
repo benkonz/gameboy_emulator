@@ -1,9 +1,8 @@
-use super::cartridge::Cartridge;
 use super::mbc::Mbc;
+use cartridge::Cartridge;
 
 pub struct RomOnly {
     cartridge: Cartridge,
-    eram_banks: [u8; 0x2000],
 }
 
 impl Mbc for RomOnly {
@@ -15,7 +14,8 @@ impl Mbc for RomOnly {
             }
             0xA000..=0xBFFF => {
                 if self.cartridge.get_ram_size() > 0 {
-                    self.eram_banks[index as usize - 0xA000]
+                    let ram = self.cartridge.get_ram();
+                    ram[index as usize - 0xA000]
                 } else {
                     0xFF
                 }
@@ -28,19 +28,21 @@ impl Mbc for RomOnly {
             0x0000..=0x7FFF => (),
             0xA000..=0xBFFF => {
                 if self.cartridge.get_ram_size() > 0 {
-                    self.eram_banks[index as usize - 0xA000] = value
+                    let ram = self.cartridge.get_ram_mut();
+                    ram[index as usize - 0xA000] = value
                 }
             }
             _ => panic!("index out of range: {:04X}", index),
         }
     }
+
+    fn get_cartridge(&self) -> &Cartridge {
+        &self.cartridge
+    }
 }
 
 impl RomOnly {
     pub fn new(cartridge: Cartridge) -> RomOnly {
-        RomOnly {
-            cartridge,
-            eram_banks: [0xFF; 0x2000],
-        }
+        RomOnly { cartridge }
     }
 }

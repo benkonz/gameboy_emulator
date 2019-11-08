@@ -1,9 +1,8 @@
-use super::cartridge::Cartridge;
 use super::mbc::Mbc;
+use cartridge::Cartridge;
 
 pub struct Mbc2 {
     cartridge: Cartridge,
-    eram: [u8; 0x200],
     selected_rom_bank: u8,
     external_ram_enabled: bool,
 }
@@ -22,7 +21,8 @@ impl Mbc for Mbc2 {
             }
             0xA000..=0xA1FF => {
                 if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
-                    self.eram[index as usize - 0xA000] & 0x0F
+                    let ram = self.cartridge.get_ram();
+                    ram[index as usize - 0xA000] & 0x0F
                 } else {
                     0xFF
                 }
@@ -47,20 +47,28 @@ impl Mbc for Mbc2 {
             0x4000..=0x7FFF => (),
             0xA000..=0xA1FF => {
                 if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
-                    self.eram[index as usize - 0xA000] = value & 0x0F;
+                    let address = index as usize - 0xA000;
+                    let ram = self.cartridge.get_ram_mut();
+                    ram[address] = value & 0x0F;
                 }
             }
             0xA200..=0xBFFF => (),
             _ => panic!("index out of range: {:04X}", index),
         }
     }
+
+    fn get_cartridge(&self) -> &Cartridge {
+        &self.cartridge
+    }
 }
 
 impl Mbc2 {
-    pub fn new(cartridge: Cartridge) -> Mbc2 {
+    pub fn new(mut cartridge: Cartridge) -> Mbc2 {
+        // MBC2 has a fixed amount of RAM
+        cartridge.set_ram(vec![0x0F; 0x200]);
+
         Mbc2 {
             cartridge,
-            eram: [0xFF; 0x200],
             selected_rom_bank: 1,
             external_ram_enabled: false,
         }

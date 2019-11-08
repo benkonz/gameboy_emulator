@@ -1,9 +1,8 @@
-use super::cartridge::Cartridge;
 use super::mbc::Mbc;
+use cartridge::Cartridge;
 
 pub struct Mbc3 {
     cartridge: Cartridge,
-    eram_banks: Vec<[u8; 0x2000]>,
     selected_rom_bank: u8,
     selected_eram_bank: u8,
     external_ram_enabled: bool,
@@ -23,7 +22,9 @@ impl Mbc for Mbc3 {
             }
             0xA000..=0xBFFF => {
                 if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
-                    self.eram_banks[self.selected_eram_bank as usize][index as usize - 0xA000]
+                    let ram = self.cartridge.get_ram();
+                    let offset = self.selected_eram_bank as usize * 0x2000;
+                    ram[index as usize - 0xA000 + offset]
                 } else {
                     0xFF
                 }
@@ -61,22 +62,27 @@ impl Mbc for Mbc3 {
             0x6000..=0x7FFF => (), // also used for the RTC
             0xA000..=0xBFFF => {
                 if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
-                    self.eram_banks[self.selected_eram_bank as usize][index as usize - 0xA000] =
-                        value;
+                    let ram = self.cartridge.get_ram_mut();
+                    let offset = self.selected_eram_bank as usize * 0x2000;
+                    let address = index as usize - 0xA000 + offset;
+                    ram[address] = value;
                 }
             }
             _ => panic!("index out of range: {:04X}", index),
         }
     }
+
+    fn get_cartridge(&self) -> &Cartridge {
+        &self.cartridge
+    }
 }
 
 impl Mbc3 {
-    pub fn new(cartridge: Cartridge) -> Mbc3 {
-        let eram_banks = vec![[0xFF; 0x2000]; cartridge.get_ram_banks() as usize];
-
+    pub fn new(
+        cartridge: Cartridge,
+    ) -> Mbc3 {
         Mbc3 {
             cartridge,
-            eram_banks,
             selected_rom_bank: 1,
             selected_eram_bank: 0,
             external_ram_enabled: false,

@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate c_str_macro;
+extern crate directories;
 extern crate gameboy_core;
 extern crate glutin;
 
@@ -7,7 +8,8 @@ mod opengl_rendering_context;
 mod screen;
 mod shader;
 
-use gameboy_core::{Button, Controller, Emulator};
+use directories::BaseDirs;
+use gameboy_core::{Button, Cartridge, Controller, Emulator};
 use glutin::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
@@ -16,6 +18,9 @@ use opengl_rendering_context::types::*;
 use opengl_rendering_context::Gl;
 use screen::Screen;
 use shader::Shader;
+use std::fs;
+use std::fs::OpenOptions;
+use std::io::{Read, Write};
 use std::os::raw::c_void;
 use std::sync::mpsc;
 use std::sync::mpsc::{SendError, TryRecvError};
@@ -133,10 +138,28 @@ pub fn start(rom: Vec<u8>) {
     }
 
     let (controller_sender, controller_receiver) = mpsc::channel();
-    let (frame_sender, frame_receiver) = mpsc::channel::<[u8; 144 * 160 * 3]>();
+    let (frame_sender, frame_receiver) = mpsc::channel();
+    let (end_sender, end_receiver) = mpsc::channel::<bool>();
+    let (cartridge_sender, cartridge_receiver) = mpsc::channel::<(String, bool, Vec<u8>)>();
 
     thread::spawn(move || {
-        let mut emulator = Emulator::from_rom(rom);
+        let mut cartridge = Cartridge::from_rom(rom);
+
+        if let Some(base_dirs) = BaseDirs::new() {
+            let name = cartridge.get_name().to_string();
+            let ram_save_file = base_dirs
+                .config_dir()
+                .join("gameboy_emulator")
+                .join("ram_saves")
+                .join(format!("{}.bin", name));
+
+            if ram_save_file.exists() {
+                let mut file = OpenOptions::new().read(true).open(ram_save_file).unwrap();
+                file.read_exact(cartridge.get_ram_mut()).unwrap();
+            }
+        }
+
+        let mut emulator = Emulator::from_cartridge(cartridge);
         let mut controller = Controller::new();
         let mut mapper = Screen::new();
         let mut run = true;
@@ -145,6 +168,11 @@ pub fn start(rom: Vec<u8>) {
 
         while run {
             let start_time = SystemTime::now();
+            match end_receiver.try_recv() {
+                Ok(_) | Err(TryRecvError::Disconnected) => run = false,
+                _ => (),
+            };
+
             loop {
                 let vblank = emulator.emulate(&mut mapper, &mut controller);
                 if vblank {
@@ -156,6 +184,7 @@ pub fn start(rom: Vec<u8>) {
                 Ok(()) => (),
                 Err(SendError(_)) => run = false,
             };
+
             loop {
                 match controller_receiver.try_recv() {
                     Ok(input) => match input {
@@ -163,7 +192,10 @@ pub fn start(rom: Vec<u8>) {
                         ControllerEvent::Released(button) => controller.release(button),
                     },
                     Err(TryRecvError::Empty) => break,
-                    Err(TryRecvError::Disconnected) => run = false,
+                    Err(TryRecvError::Disconnected) => {
+                        run = false;
+                        break;
+                    }
                 }
             }
             let end_time = SystemTime::now();
@@ -173,6 +205,12 @@ pub fn start(rom: Vec<u8>) {
                 thread::sleep(sleep_duration);
             }
         }
+
+        let cartridge = emulator.get_cartridge();
+        let ram = cartridge.get_ram().to_vec();
+        let name = cartridge.get_name().to_string();
+        let has_battery = cartridge.has_battery();
+        cartridge_sender.send((name, has_battery, ram)).unwrap();
     });
 
     events_loop.run(move |event, _, control_flow| {
@@ -269,14 +307,10 @@ pub fn start(rom: Vec<u8>) {
                     };
 
                     if let Err(SendError(_)) = result {
-                        shader.delete_program(&gl);
                         *control_flow = ControlFlow::Exit;
                     }
                 }
-                WindowEvent::CloseRequested => {
-                    shader.delete_program(&gl);
-                    *control_flow = ControlFlow::Exit;
-                }
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => (),
             },
             _ => (),
@@ -298,11 +332,34 @@ pub fn start(rom: Vec<u8>) {
                 windowed_context.swap_buffers().unwrap()
             }
             Err(TryRecvError::Empty) => (),
-            Err(TryRecvError::Disconnected) => {
-                shader.delete_program(&gl);
-                *control_flow = ControlFlow::Exit;
-            }
+            Err(TryRecvError::Disconnected) => *control_flow = ControlFlow::Exit,
         };
+
+        if *control_flow == ControlFlow::Exit && end_sender.send(true).is_ok() {
+            if let Ok((name, has_battery, ram)) = cartridge_receiver.recv() {
+                if has_battery {
+                    if let Some(base_dir) = BaseDirs::new() {
+                        let rom_path = base_dir
+                            .config_dir()
+                            .join("gameboy_emulator")
+                            .join("ram_saves");
+                        let ram_save_file = rom_path.join(format!("{}.bin", name));
+
+                        if !rom_path.exists() {
+                            fs::create_dir_all(rom_path).unwrap();
+                        }
+
+                        let mut file = OpenOptions::new()
+                            .write(true)
+                            .create(true)
+                            .open(ram_save_file)
+                            .unwrap();
+                        file.write_all(ram.as_ref()).unwrap();
+                    }
+                }
+                shader.delete_program(&gl);
+            }
+        }
     });
 }
 
@@ -310,7 +367,6 @@ fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, frame_buffer: &[u8]) 
     unsafe {
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);
         gl.Clear(opengl_rendering_context::COLOR_BUFFER_BIT);
-
         gl.BindTexture(opengl_rendering_context::TEXTURE_2D, texture);
         gl.TexImage2D(
             opengl_rendering_context::TEXTURE_2D,
@@ -324,9 +380,7 @@ fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, frame_buffer: &[u8]) 
             frame_buffer.as_ptr() as *const c_void,
         );
         gl.GenerateMipmap(opengl_rendering_context::TEXTURE_2D);
-
         gl.ActiveTexture(opengl_rendering_context::TEXTURE0);
-
         shader.use_program(gl);
     }
     let screen_uniform_str = c_str!("screen");

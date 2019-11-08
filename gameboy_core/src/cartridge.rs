@@ -6,6 +6,8 @@ pub struct Cartridge {
     has_rtc: bool,
     has_battery: bool,
     rom: Vec<u8>,
+    ram: Vec<u8>,
+    name: String,
 }
 
 impl Cartridge {
@@ -47,6 +49,16 @@ impl Cartridge {
             _ => false,
         };
 
+        let ram = vec![0xFF; 0x2000 * ram_size as usize];
+
+        let mut name = String::new();
+        let mut name_index = 0x0134;
+        while rom[name_index] != 0x00 && name_index < 0x0143 {
+            let c = rom[name_index] as char;
+            name.push(c);
+            name_index += 1;
+        }
+
         Cartridge {
             cartridge_type,
             rom_banks,
@@ -55,6 +67,8 @@ impl Cartridge {
             has_rtc,
             has_battery,
             rom,
+            ram,
+            name,
         }
     }
 
@@ -79,10 +93,26 @@ impl Cartridge {
     }
 
     pub fn get_rom(&self) -> &[u8] {
-        &self.rom[..]
+        self.rom.as_ref()
+    }
+
+    pub fn get_ram_mut(&mut self) -> &mut [u8] {
+        self.ram.as_mut()
+    }
+
+    pub fn get_ram(&self) -> &[u8] {
+        self.ram.as_ref()
+    }
+
+    pub fn set_ram(&mut self, ram: Vec<u8>) {
+        self.ram = ram;
     }
 
     pub fn get_cartridge_type(&self) -> i32 {
         self.cartridge_type
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
     }
 }

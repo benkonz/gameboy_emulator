@@ -17,9 +17,9 @@
 			<div class="buttons-container">
 				<table>
 					<tr>
-						<td></td>
+						<td><button id="up-left-btn">&nwarr;</button></td>
 						<td><button id="up-btn">&uarr;</button></td>
-						<td></td>
+						<td><button id="up-right-btn">&nearr;</button></td>
 					</tr>
 					<tr>
 						<td><button id="left-btn">&larr;</button></td>
@@ -27,9 +27,9 @@
 						<td><button id="right-btn">&rarr;</button></td>
 					</tr>
 					<tr>
-						<td></td>
+						<td><button id="down-left-btn">&swarr;</button></td>
 						<td><button id="down-btn">&darr;</button></td>
-						<td></td>
+						<td><button id="down-right-btn">&searr;</button></td>
 					</tr>
 				</table>
 			</div>
@@ -79,7 +79,9 @@
 		}
 
 		button {
-			font-size: 24px;
+			font-size: 20px;
+			padding: 10px;
+			touch-action: manipulation;
 		}
 
 		table {
@@ -95,7 +97,7 @@
 			margin-left: auto;
 			margin-right: auto;
 			width: 720px;
-			height: 750px;
+			height: 775px;
 			border: 2px solid black;
 			border-radius: 5px;
 		}

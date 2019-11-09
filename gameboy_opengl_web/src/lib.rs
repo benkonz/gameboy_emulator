@@ -47,6 +47,10 @@ pub fn start(rom: Vec<u8>) {
     let down_btn = document().get_element_by_id("down-btn").unwrap();
     let left_btn = document().get_element_by_id("left-btn").unwrap();
     let right_btn = document().get_element_by_id("right-btn").unwrap();
+    let up_left_btn = document().get_element_by_id("up-left-btn").unwrap();
+    let up_right_btn = document().get_element_by_id("up-right-btn").unwrap();
+    let down_left_btn = document().get_element_by_id("down-left-btn").unwrap();
+    let down_right_btn = document().get_element_by_id("down-right-btn").unwrap();
     let a_btn = document().get_element_by_id("a-btn").unwrap();
     let b_btn = document().get_element_by_id("b-btn").unwrap();
     let start_btn = document().get_element_by_id("start-btn").unwrap();
@@ -132,6 +136,106 @@ pub fn start(rom: Vec<u8>) {
     );
     add_controller_event_listener::<TouchEnd>(
         &right_btn,
+        ControllerEvent::Released(Button::Right),
+        sender.clone(),
+    );
+
+    add_multi_controller_event_listener::<MouseDownEvent>(
+        &up_left_btn,
+        ControllerEvent::Pressed(Button::Up),
+        ControllerEvent::Pressed(Button::Left),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<MouseUpEvent>(
+        &up_left_btn,
+        ControllerEvent::Released(Button::Up),
+        ControllerEvent::Released(Button::Left),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchStart>(
+        &up_left_btn,
+        ControllerEvent::Pressed(Button::Up),
+        ControllerEvent::Pressed(Button::Left),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchEnd>(
+        &up_left_btn,
+        ControllerEvent::Released(Button::Up),
+        ControllerEvent::Released(Button::Left),
+        sender.clone(),
+    );
+
+    add_multi_controller_event_listener::<MouseDownEvent>(
+        &up_right_btn,
+        ControllerEvent::Pressed(Button::Up),
+        ControllerEvent::Pressed(Button::Right),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<MouseUpEvent>(
+        &up_right_btn,
+        ControllerEvent::Released(Button::Up),
+        ControllerEvent::Released(Button::Right),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchStart>(
+        &up_right_btn,
+        ControllerEvent::Pressed(Button::Up),
+        ControllerEvent::Pressed(Button::Right),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchEnd>(
+        &up_right_btn,
+        ControllerEvent::Released(Button::Up),
+        ControllerEvent::Released(Button::Right),
+        sender.clone(),
+    );
+
+    add_multi_controller_event_listener::<MouseDownEvent>(
+        &down_left_btn,
+        ControllerEvent::Pressed(Button::Down),
+        ControllerEvent::Pressed(Button::Left),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<MouseUpEvent>(
+        &down_left_btn,
+        ControllerEvent::Released(Button::Down),
+        ControllerEvent::Released(Button::Left),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchStart>(
+        &down_left_btn,
+        ControllerEvent::Pressed(Button::Down),
+        ControllerEvent::Pressed(Button::Left),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchEnd>(
+        &down_left_btn,
+        ControllerEvent::Released(Button::Down),
+        ControllerEvent::Released(Button::Left),
+        sender.clone(),
+    );
+
+    add_multi_controller_event_listener::<MouseDownEvent>(
+        &down_right_btn,
+        ControllerEvent::Pressed(Button::Down),
+        ControllerEvent::Pressed(Button::Right),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<MouseUpEvent>(
+        &down_right_btn,
+        ControllerEvent::Released(Button::Down),
+        ControllerEvent::Released(Button::Right),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchStart>(
+        &down_right_btn,
+        ControllerEvent::Pressed(Button::Down),
+        ControllerEvent::Pressed(Button::Right),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchEnd>(
+        &down_right_btn,
+        ControllerEvent::Released(Button::Down),
         ControllerEvent::Released(Button::Right),
         sender.clone(),
     );
@@ -351,6 +455,18 @@ fn add_controller_event_listener<T: ConcreteEvent>(
 ) {
     element.add_event_listener(move |_: T| {
         sender.send(controller_event).unwrap();
+    });
+}
+
+fn add_multi_controller_event_listener<T: ConcreteEvent>(
+    element: &Element,
+    first_controller_event: ControllerEvent,
+    second_controller_event: ControllerEvent,
+    sender: mpsc::Sender<ControllerEvent>,
+) {
+    element.add_event_listener(move |_: T| {
+        sender.send(first_controller_event).unwrap();
+        sender.send(second_controller_event).unwrap();
     });
 }
 

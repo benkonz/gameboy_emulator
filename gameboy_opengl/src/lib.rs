@@ -155,7 +155,13 @@ pub fn start(rom: Vec<u8>) {
 
             if ram_save_file.exists() {
                 let mut file = OpenOptions::new().read(true).open(ram_save_file).unwrap();
-                file.read_exact(cartridge.get_ram_mut()).unwrap();
+                if let Ok(metadata) = file.metadata() {
+                    // sometimes two different roms have the same name,
+                    // so we make sure that the ram length is the same before reading
+                    if metadata.len() == cartridge.get_ram().len() as u64 {
+                        file.read_exact(cartridge.get_ram_mut()).unwrap();
+                    }
+                }
             }
         }
 

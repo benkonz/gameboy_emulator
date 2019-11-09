@@ -12,24 +12,21 @@ pub struct Cartridge {
     mbc_type: MbcType,
 }
 
+fn pow2ceil(i: i32) -> i32 {
+    let mut i = i - 1;
+    i |= i >> 1;
+    i |= i >> 2;
+    i |= i >> 4;
+    i |= i >> 8;
+    i += 1;
+    i
+}
+
 impl Cartridge {
     pub fn from_rom(rom: Vec<u8>) -> Cartridge {
         let cartridge_type = i32::from(rom[0x0147]);
 
-        let rom_size = rom[0x0148];
-        let rom_banks = match rom_size {
-            0x0 => 2,
-            0x1 => 4,
-            0x2 => 8,
-            0x3 => 16,
-            0x4 => 32,
-            0x5 => 64,
-            0x6 => 128,
-            0x52 => 72,
-            0x53 => 80,
-            0x54 => 96,
-            _ => panic!("Unknown number of ROM banks"),
-        };
+        let rom_banks = std::cmp::max(pow2ceil(rom.len() as i32 / 0x4000), 2);
 
         let ram_size = i32::from(rom[0x0149]);
         let ram_banks = match ram_size {
@@ -51,7 +48,7 @@ impl Cartridge {
             _ => false,
         };
 
-        let ram = vec![0xFF; 0x2000 * ram_size as usize];
+        let ram = vec![0xFF; 0x8000];
 
         let mut name = String::new();
         let mut name_index = 0x0134;
@@ -69,7 +66,7 @@ impl Cartridge {
             0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E => MbcType::Mbc5,
             _ => panic!("Unsupported cartridge type: {:?}", cartridge_type),
         };
-
+        
         Cartridge {
             rom_banks,
             ram_banks,

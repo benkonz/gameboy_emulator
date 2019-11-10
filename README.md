@@ -10,19 +10,19 @@ The web assembly port is currently hosted [here](https://benkonz.github.io/asset
 
 ## Screenshots
 
-<p float="center">
+<p align="center">
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/tetris.png" height=240 />
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/mario.png" height=240 />
 </p>
-<p float="center">
+<p align="center">
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/pokemon.png" height=240 />
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/megaman.png" height=240 />
 </p>
-<p float="center">
+<p align="center">
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/zelda.png" height=240 />
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/2048.png" height=240 />
 </p>
-<p float="center">
+<p align="center">
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/kirby2.png" height=240 />
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/blaarg_tests.png" height=240 />
 </p>

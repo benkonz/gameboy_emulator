@@ -84,7 +84,11 @@ impl Mbc for Mbc1 {
                     self.selected_rom_bank &= (self.cartridge.get_rom_banks() - 1) as u8;
                 }
             }
-            0x6000..=0x7FFF => self.in_ram_banking_mode = value & 0x01 == 0x01,
+            0x6000..=0x7FFF => {
+                if !(self.cartridge.get_ram_size() != 3 && value & 0x01 != 0) {
+                    self.in_ram_banking_mode = value & 0x01 != 0;
+                }
+            }
             0xA000..=0xBFFF => {
                 if self.external_ram_enabled {
                     let selected_bank = if self.in_ram_banking_mode {

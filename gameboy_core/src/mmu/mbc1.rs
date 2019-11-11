@@ -85,8 +85,8 @@ impl Mbc for Mbc1 {
                 }
             }
             0x6000..=0x7FFF => {
-                if !(self.cartridge.get_ram_size() != 3 && value & 0x01 != 0) {
-                    self.in_ram_banking_mode = value & 0x01 != 0;
+                if !(self.cartridge.get_ram_size() != 3 && (value & 0x01 != 0)) {
+                    self.in_ram_banking_mode = (value & 1) == 1;
                 }
             }
             0xA000..=0xBFFF => {

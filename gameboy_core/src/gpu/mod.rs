@@ -67,7 +67,7 @@ impl GPU {
                 VBLANK => self.step_vblank(memory, cycles),
                 OAM_SCAN => self.step_oam_scan(memory),
                 LCD_TRANSFER => self.step_lcd_transfer(memory, cycles, pixel_mapper),
-                _ => panic!("Impossible"),
+                _ => unreachable!(),
             }
         } else if memory.gpu_cycles.screen_enable_delay_cycles > 0 {
             memory.gpu_cycles.screen_enable_delay_cycles -= cycles;
@@ -346,7 +346,7 @@ impl GPU {
                     0b01 => Color::LightGray,
                     0b10 => Color::DarkGray,
                     0b11 => Color::Black,
-                    _ => panic!("impossible"),
+                    _ => unreachable!(),
                 };
                 pixel_mapper.map_pixel(index, color);
             }
@@ -446,7 +446,7 @@ impl GPU {
                     0b01 => Color::LightGray,
                     0b10 => Color::DarkGray,
                     0b11 => Color::Black,
-                    _ => panic!("impossible"),
+                    _ => unreachable!(),
                 };
                 pixel_mapper.map_pixel(position as usize, color);
             }
@@ -575,7 +575,7 @@ impl GPU {
                     0b01 => Color::LightGray,
                     0b10 => Color::DarkGray,
                     0b11 => Color::Black,
-                    _ => panic!("impossible"),
+                    _ => unreachable!(),
                 };
                 pixel_mapper.map_pixel(position as usize, color);
             }

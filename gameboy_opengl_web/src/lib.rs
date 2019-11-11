@@ -11,6 +11,8 @@ mod webgl_rendering_context;
 
 use gameboy_core::{Button, Cartridge, Controller, Emulator};
 use screen::Screen;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::mpsc;
 use std::sync::mpsc::TryRecvError;
 use stdweb::traits::*;
@@ -25,6 +27,7 @@ use webgl_rendering_context::*;
 
 type Gl = WebGLRenderingContext;
 
+// TODO: move these to inside the start function
 const VERTEX_SOURCE: &str = include_str!("shaders/vertex.glsl");
 const FRAGMENT_SOURCE: &str = include_str!("shaders/fragment.glsl");
 const VERTICIES: [f32; 12] = [
@@ -33,6 +36,7 @@ const VERTICIES: [f32; 12] = [
 const TEXTURE_COORDINATE: [f32; 8] = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
 const INDICIES: [u8; 6] = [0, 1, 3, 1, 2, 3];
 
+// TODO: move this to gameboy_core
 #[derive(Copy, Clone)]
 enum ControllerEvent {
     Pressed(Button),
@@ -41,7 +45,8 @@ enum ControllerEvent {
 
 pub fn start(rom: Vec<u8>) {
     let (sender, receiver) = mpsc::channel::<ControllerEvent>();
-    let (end_sender, end_receiver) = mpsc::channel::<bool>();
+    let run = Rc::new(RefCell::new(true));
+    let should_save_to_local = Rc::new(RefCell::new(false));
 
     let up_btn = document().get_element_by_id("up-btn").unwrap();
     let down_btn = document().get_element_by_id("down-btn").unwrap();
@@ -364,6 +369,7 @@ pub fn start(rom: Vec<u8>) {
         });
     }
 
+    // TODO: move this to another function
     let gl: Gl = canvas.get_context().unwrap();
 
     gl.clear_color(1.0, 0.0, 0.0, 1.0);
@@ -428,9 +434,32 @@ pub fn start(rom: Vec<u8>) {
         cartridge.set_ram(bytes);
     }
 
-    window().add_event_listener(move |_: BeforeUnloadEvent| {
-        end_sender.send(true).unwrap();
-    });
+    {
+        let run = Rc::clone(&run);
+        let should_save_to_local = Rc::clone(&should_save_to_local);
+
+        window().add_event_listener(move |_: BeforeUnloadEvent| {
+            *should_save_to_local.borrow_mut() = true;
+            *run.borrow_mut() = false;
+        });
+    }
+
+    {
+        let should_save_to_local = Rc::clone(&should_save_to_local);
+
+        // stdweb doesn't have support for the viewability api, so we use the js macro
+        let visibility_change_callback = move || {
+            *should_save_to_local.borrow_mut() = true;
+        };
+        js! {
+            document.addEventListener("visibilitychange", function() {
+                if (document.visibilityState == "hidden") {
+                   var visibility_change_callback = @{visibility_change_callback};
+                   visibility_change_callback();
+                }
+            });
+        }
+    }
 
     let emulator = Emulator::from_cartridge(cartridge);
     let screen = Screen::new();
@@ -441,7 +470,8 @@ pub fn start(rom: Vec<u8>) {
         screen,
         controller,
         receiver,
-        end_receiver,
+        Rc::clone(&run),
+        Rc::clone(&should_save_to_local),
         gl,
         shader_program,
         texture,
@@ -499,13 +529,12 @@ fn main_loop(
     mut screen: Screen,
     mut controller: Controller,
     receiver: mpsc::Receiver<ControllerEvent>,
-    end_receiver: mpsc::Receiver<bool>,
+    run: Rc<RefCell<bool>>,
+    should_save_to_local: Rc<RefCell<bool>>,
     gl: Gl,
     shader_program: WebGLProgram,
     texture: WebGLTexture,
 ) {
-    let mut run = true;
-
     loop {
         let vblank = emulator.emulate(&mut screen, &mut controller);
         if vblank {
@@ -519,44 +548,47 @@ fn main_loop(
             Ok(ControllerEvent::Released(button)) => controller.release(button),
             Err(TryRecvError::Empty) => break,
             Err(TryRecvError::Disconnected) => {
-                run = false;
+                *run.borrow_mut() = false;
                 break;
             }
         }
     }
+
+    if *should_save_to_local.borrow() {
+        let cartridge = emulator.get_cartridge();
+
+        if cartridge.has_battery() {
+            save_to_local(&cartridge);
+        }
+
+        *should_save_to_local.borrow_mut() = false;
+    }
+
     let frame_buffer = screen.get_frame_buffer();
     render(&gl, &shader_program, &texture, frame_buffer.as_ref());
 
-    match end_receiver.try_recv() {
-        Ok(_) | Err(TryRecvError::Disconnected) => run = false,
-        _ => (),
-    };
-    if run {
+    if *run.borrow() {
         window().request_animation_frame(move |_| {
             main_loop(
                 emulator,
                 screen,
                 controller,
                 receiver,
-                end_receiver,
+                run,
+                should_save_to_local,
                 gl,
                 shader_program,
                 texture,
             );
         });
-    } else {
-        let cartridge = emulator.get_cartridge();
-        let ram = cartridge.get_ram().to_vec();
-        let name = cartridge.get_name().to_string();
-        let has_battery = cartridge.has_battery();
-        if has_battery {
-            let ram_str: String = ram.iter().map(|byte| format!("{:02x}", byte)).collect();
-            window()
-                .local_storage()
-                .insert(name.as_ref(), &ram_str)
-                .unwrap();
-        }
     }
+}
+
+fn save_to_local(cartridge: &Cartridge) {
+    let ram = cartridge.get_ram();
+    let name = cartridge.get_name();
+    let ram_str: String = ram.iter().map(|byte| format!("{:02x}", byte)).collect();
+    window().local_storage().insert(name, &ram_str).unwrap();
 }
 
 fn render(gl: &Gl, shader_program: &WebGLProgram, texture: &WebGLTexture, frame_buffer: &[u8]) {

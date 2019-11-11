@@ -36,7 +36,7 @@ impl Timer {
                 0b01 => 16,
                 0b10 => 64,
                 0b11 => 256,
-                _ => panic!("impossible"),
+                _ => unreachable!(),
             };
 
             while memory.tima_cycles >= freq {

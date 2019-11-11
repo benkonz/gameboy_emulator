@@ -17,4 +17,4 @@ clap = "2.33"
 directories = "2.0"
 
 [build-dependencies]
-gl_generator = "0.13"
+gl_generator = "0.14"

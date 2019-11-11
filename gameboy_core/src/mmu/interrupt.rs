@@ -1,4 +1,4 @@
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Interrupt {
     Vblank = 1,
     Lcd = 1 << 1,

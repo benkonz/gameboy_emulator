@@ -66,7 +66,7 @@ impl Cartridge {
             0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E => MbcType::Mbc5,
             _ => panic!("Unsupported cartridge type: {:?}", cartridge_type),
         };
-        
+
         Cartridge {
             rom_banks,
             ram_banks,

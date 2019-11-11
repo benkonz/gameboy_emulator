@@ -38,7 +38,7 @@ impl PixelMapper for Screen {
             [178, 178, 178] => Color::LightGray,
             [102, 102, 102] => Color::DarkGray,
             [0, 0, 0] => Color::Black,
-            _ => panic!("this should never happen"),
+            _ => unreachable!(),
         }
     }
 }

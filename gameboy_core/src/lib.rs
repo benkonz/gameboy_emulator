@@ -2,6 +2,7 @@
 extern crate bitflags;
 
 pub mod button;
+pub mod controller_event;
 mod cpu;
 pub mod emulator;
 mod gpu;
@@ -11,6 +12,7 @@ mod serial;
 mod timer;
 
 pub use button::Button;
+pub use controller_event::ControllerEvent;
 pub use emulator::traits::PixelMapper;
 pub use emulator::Emulator;
 pub use gpu::color::Color;

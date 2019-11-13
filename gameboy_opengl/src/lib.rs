@@ -9,7 +9,7 @@ mod screen;
 mod shader;
 
 use directories::BaseDirs;
-use gameboy_core::{Button, Cartridge, Controller, Emulator};
+use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator};
 use glutin::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
@@ -22,46 +22,32 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::os::raw::c_void;
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::mpsc::{SendError, TryRecvError};
 use std::thread;
 use std::time::{Duration, SystemTime};
 use std::{mem, ptr};
 
-enum ControllerEvent {
-    Pressed(Button),
-    Released(Button),
-}
-
-const VERTEX_SOURCE: &str = include_str!("shaders/vertex.glsl");
-const FRAGMENT_SOURCE: &str = include_str!("shaders/fragment.glsl");
-const VERTICIES: [f32; 20] = [
-    1.0, 1.0, 0.0, 1.0, 1.0, 1.0, -1.0, 0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 1.0, 0.0,
-    0.0, 1.0,
-];
-const INDICIES: [u32; 6] = [0, 1, 3, 1, 2, 3];
-
 pub fn start(rom: Vec<u8>) {
     let events_loop = EventLoop::new();
     let window_builder = WindowBuilder::new().with_title("Gameboy Emulator");
-
     let windowed_context = ContextBuilder::new()
         .build_windowed(window_builder, &events_loop)
         .unwrap();
 
     let windowed_context = unsafe { windowed_context.make_current().unwrap() };
-
     let context = windowed_context.context();
-
     let gl = Gl::load_with(|symbol| context.get_proc_address(symbol) as *const _);
 
-    unsafe { gl.ClearColor(0.0, 1.0, 0.0, 1.0) };
-
-    let shader = Shader::new(&gl, VERTEX_SOURCE, FRAGMENT_SOURCE);
-
+    let vertex_source = include_str!("shaders/vertex.glsl");
+    let fragment_source = include_str!("shaders/fragment.glsl");
+    let shader = Shader::new(&gl, vertex_source, fragment_source);
     let (mut vao, mut vbo, mut ebo, mut texture) = (0, 0, 0, 0);
 
     unsafe {
+        gl.ClearColor(0.0, 1.0, 0.0, 1.0);
+        
         //setup vertex data
         gl.GenVertexArrays(1, &mut vao);
         gl.GenBuffers(1, &mut vbo);
@@ -69,19 +55,24 @@ pub fn start(rom: Vec<u8>) {
 
         gl.BindVertexArray(vao);
 
+        let verticies = [
+            1.0, 1.0, 0.0, 1.0, 1.0, 1.0, -1.0, 0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, -1.0,
+            1.0, 0.0, 0.0, 1.0,
+        ];
         gl.BindBuffer(opengl_rendering_context::ARRAY_BUFFER, vbo);
         gl.BufferData(
             opengl_rendering_context::ARRAY_BUFFER,
-            (VERTICIES.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-            VERTICIES.as_ptr() as *const c_void,
+            (verticies.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+            verticies.as_ptr() as *const c_void,
             opengl_rendering_context::STATIC_DRAW,
         );
 
+        let indicies = [0, 1, 3, 1, 2, 3];
         gl.BindBuffer(opengl_rendering_context::ELEMENT_ARRAY_BUFFER, ebo);
         gl.BufferData(
             opengl_rendering_context::ELEMENT_ARRAY_BUFFER,
-            (INDICIES.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-            INDICIES.as_ptr() as *const c_void,
+            (indicies.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+            indicies.as_ptr() as *const c_void,
             opengl_rendering_context::STATIC_DRAW,
         );
 
@@ -145,13 +136,9 @@ pub fn start(rom: Vec<u8>) {
     thread::spawn(move || {
         let mut cartridge = Cartridge::from_rom(rom);
 
-        if let Some(base_dirs) = BaseDirs::new() {
+        if let Some(ram_saves_dir) = get_ram_saves_path() {
             let name = cartridge.get_name().to_string();
-            let ram_save_file = base_dirs
-                .config_dir()
-                .join("gameboy_emulator")
-                .join("ram_saves")
-                .join(format!("{}.bin", name));
+            let ram_save_file = ram_saves_dir.join(format!("{}.bin", name));
 
             if ram_save_file.exists() {
                 let mut file = OpenOptions::new().read(true).open(ram_save_file).unwrap();
@@ -344,15 +331,11 @@ pub fn start(rom: Vec<u8>) {
         if *control_flow == ControlFlow::Exit && end_sender.send(true).is_ok() {
             if let Ok((name, has_battery, ram)) = cartridge_receiver.recv() {
                 if has_battery {
-                    if let Some(base_dir) = BaseDirs::new() {
-                        let rom_path = base_dir
-                            .config_dir()
-                            .join("gameboy_emulator")
-                            .join("ram_saves");
-                        let ram_save_file = rom_path.join(format!("{}.bin", name));
+                    if let Some(ram_saves_path) = get_ram_saves_path() {
+                        let ram_save_file = ram_saves_path.join(format!("{}.bin", name));
 
-                        if !rom_path.exists() {
-                            fs::create_dir_all(rom_path).unwrap();
+                        if !ram_saves_path.exists() {
+                            fs::create_dir_all(ram_saves_path).unwrap();
                         }
 
                         let mut file = OpenOptions::new()
@@ -369,7 +352,18 @@ pub fn start(rom: Vec<u8>) {
     });
 }
 
+fn get_ram_saves_path() -> Option<PathBuf> {
+    let base_dir = BaseDirs::new()?;
+    let path_buf = base_dir
+        .config_dir()
+        .join("gameboy_emulator")
+        .join("ram_saves");
+    Some(path_buf)
+}
+
 fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, frame_buffer: &[u8]) {
+    let screen_uniform_str = c_str!("screen");
+
     unsafe {
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);
         gl.Clear(opengl_rendering_context::COLOR_BUFFER_BIT);
@@ -388,9 +382,7 @@ fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, frame_buffer: &[u8]) 
         gl.GenerateMipmap(opengl_rendering_context::TEXTURE_2D);
         gl.ActiveTexture(opengl_rendering_context::TEXTURE0);
         shader.use_program(gl);
-    }
-    let screen_uniform_str = c_str!("screen");
-    unsafe {
+
         let screen_uniform = gl.GetUniformLocation(shader.program, screen_uniform_str.as_ptr());
         gl.Uniform1i(screen_uniform, 0);
     }

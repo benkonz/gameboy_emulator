@@ -9,7 +9,7 @@ extern crate gameboy_core;
 mod screen;
 mod webgl_rendering_context;
 
-use gameboy_core::{Button, Cartridge, Controller, Emulator};
+use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator};
 use screen::Screen;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -25,22 +25,6 @@ use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
 use webgl_rendering_context::*;
 
 type Gl = WebGLRenderingContext;
-
-// TODO: move these to inside the start function
-const VERTEX_SOURCE: &str = include_str!("shaders/vertex.glsl");
-const FRAGMENT_SOURCE: &str = include_str!("shaders/fragment.glsl");
-const VERTICIES: [f32; 12] = [
-    1.0, 1.0, 0.0, 1.0, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, 1.0, 0.0,
-];
-const TEXTURE_COORDINATE: [f32; 8] = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
-const INDICIES: [u8; 6] = [0, 1, 3, 1, 2, 3];
-
-// TODO: move this to gameboy_core
-#[derive(Copy, Clone)]
-enum ControllerEvent {
-    Pressed(Button),
-    Released(Button),
-}
 
 pub fn start(rom: Vec<u8>) {
     let (sender, receiver) = mpsc::channel::<ControllerEvent>();
@@ -60,279 +44,19 @@ pub fn start(rom: Vec<u8>) {
     let start_btn = document().get_element_by_id("start-btn").unwrap();
     let select_btn = document().get_element_by_id("select-btn").unwrap();
 
-    add_controller_event_listener::<MouseDownEvent>(
-        &up_btn,
-        ControllerEvent::Pressed(Button::Up),
-        sender.clone(),
-    );
-    add_controller_event_listener::<MouseUpEvent>(
-        &up_btn,
-        ControllerEvent::Released(Button::Up),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchStart>(
-        &up_btn,
-        ControllerEvent::Pressed(Button::Up),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchEnd>(
-        &up_btn,
-        ControllerEvent::Released(Button::Up),
-        sender.clone(),
-    );
+    add_button_event_listeners(&up_btn, Button::Up, sender.clone());
+    add_button_event_listeners(&down_btn, Button::Down, sender.clone());
+    add_button_event_listeners(&left_btn, Button::Left, sender.clone());
+    add_button_event_listeners(&right_btn, Button::Right, sender.clone());
+    add_button_event_listeners(&start_btn, Button::Start, sender.clone());
+    add_button_event_listeners(&select_btn, Button::Select, sender.clone());
+    add_button_event_listeners(&a_btn, Button::A, sender.clone());
+    add_button_event_listeners(&b_btn, Button::B, sender.clone());
 
-    add_controller_event_listener::<MouseDownEvent>(
-        &down_btn,
-        ControllerEvent::Pressed(Button::Down),
-        sender.clone(),
-    );
-    add_controller_event_listener::<MouseUpEvent>(
-        &down_btn,
-        ControllerEvent::Released(Button::Down),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchStart>(
-        &down_btn,
-        ControllerEvent::Pressed(Button::Down),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchEnd>(
-        &down_btn,
-        ControllerEvent::Released(Button::Down),
-        sender.clone(),
-    );
-
-    add_controller_event_listener::<MouseDownEvent>(
-        &left_btn,
-        ControllerEvent::Pressed(Button::Left),
-        sender.clone(),
-    );
-    add_controller_event_listener::<MouseUpEvent>(
-        &left_btn,
-        ControllerEvent::Released(Button::Left),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchStart>(
-        &left_btn,
-        ControllerEvent::Pressed(Button::Left),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchEnd>(
-        &left_btn,
-        ControllerEvent::Released(Button::Left),
-        sender.clone(),
-    );
-
-    add_controller_event_listener::<MouseDownEvent>(
-        &right_btn,
-        ControllerEvent::Pressed(Button::Right),
-        sender.clone(),
-    );
-    add_controller_event_listener::<MouseUpEvent>(
-        &right_btn,
-        ControllerEvent::Released(Button::Right),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchStart>(
-        &right_btn,
-        ControllerEvent::Pressed(Button::Right),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchEnd>(
-        &right_btn,
-        ControllerEvent::Released(Button::Right),
-        sender.clone(),
-    );
-
-    add_multi_controller_event_listener::<MouseDownEvent>(
-        &up_left_btn,
-        ControllerEvent::Pressed(Button::Up),
-        ControllerEvent::Pressed(Button::Left),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<MouseUpEvent>(
-        &up_left_btn,
-        ControllerEvent::Released(Button::Up),
-        ControllerEvent::Released(Button::Left),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<TouchStart>(
-        &up_left_btn,
-        ControllerEvent::Pressed(Button::Up),
-        ControllerEvent::Pressed(Button::Left),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<TouchEnd>(
-        &up_left_btn,
-        ControllerEvent::Released(Button::Up),
-        ControllerEvent::Released(Button::Left),
-        sender.clone(),
-    );
-
-    add_multi_controller_event_listener::<MouseDownEvent>(
-        &up_right_btn,
-        ControllerEvent::Pressed(Button::Up),
-        ControllerEvent::Pressed(Button::Right),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<MouseUpEvent>(
-        &up_right_btn,
-        ControllerEvent::Released(Button::Up),
-        ControllerEvent::Released(Button::Right),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<TouchStart>(
-        &up_right_btn,
-        ControllerEvent::Pressed(Button::Up),
-        ControllerEvent::Pressed(Button::Right),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<TouchEnd>(
-        &up_right_btn,
-        ControllerEvent::Released(Button::Up),
-        ControllerEvent::Released(Button::Right),
-        sender.clone(),
-    );
-
-    add_multi_controller_event_listener::<MouseDownEvent>(
-        &down_left_btn,
-        ControllerEvent::Pressed(Button::Down),
-        ControllerEvent::Pressed(Button::Left),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<MouseUpEvent>(
-        &down_left_btn,
-        ControllerEvent::Released(Button::Down),
-        ControllerEvent::Released(Button::Left),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<TouchStart>(
-        &down_left_btn,
-        ControllerEvent::Pressed(Button::Down),
-        ControllerEvent::Pressed(Button::Left),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<TouchEnd>(
-        &down_left_btn,
-        ControllerEvent::Released(Button::Down),
-        ControllerEvent::Released(Button::Left),
-        sender.clone(),
-    );
-
-    add_multi_controller_event_listener::<MouseDownEvent>(
-        &down_right_btn,
-        ControllerEvent::Pressed(Button::Down),
-        ControllerEvent::Pressed(Button::Right),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<MouseUpEvent>(
-        &down_right_btn,
-        ControllerEvent::Released(Button::Down),
-        ControllerEvent::Released(Button::Right),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<TouchStart>(
-        &down_right_btn,
-        ControllerEvent::Pressed(Button::Down),
-        ControllerEvent::Pressed(Button::Right),
-        sender.clone(),
-    );
-    add_multi_controller_event_listener::<TouchEnd>(
-        &down_right_btn,
-        ControllerEvent::Released(Button::Down),
-        ControllerEvent::Released(Button::Right),
-        sender.clone(),
-    );
-
-    add_controller_event_listener::<MouseDownEvent>(
-        &a_btn,
-        ControllerEvent::Pressed(Button::A),
-        sender.clone(),
-    );
-    add_controller_event_listener::<MouseUpEvent>(
-        &a_btn,
-        ControllerEvent::Released(Button::A),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchStart>(
-        &a_btn,
-        ControllerEvent::Pressed(Button::A),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchEnd>(
-        &a_btn,
-        ControllerEvent::Released(Button::A),
-        sender.clone(),
-    );
-
-    add_controller_event_listener::<MouseDownEvent>(
-        &b_btn,
-        ControllerEvent::Pressed(Button::B),
-        sender.clone(),
-    );
-    add_controller_event_listener::<MouseUpEvent>(
-        &b_btn,
-        ControllerEvent::Released(Button::B),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchStart>(
-        &b_btn,
-        ControllerEvent::Pressed(Button::B),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchEnd>(
-        &b_btn,
-        ControllerEvent::Released(Button::B),
-        sender.clone(),
-    );
-
-    add_controller_event_listener::<MouseDownEvent>(
-        &start_btn,
-        ControllerEvent::Pressed(Button::Start),
-        sender.clone(),
-    );
-    add_controller_event_listener::<MouseUpEvent>(
-        &start_btn,
-        ControllerEvent::Released(Button::Start),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchStart>(
-        &start_btn,
-        ControllerEvent::Pressed(Button::Start),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchEnd>(
-        &start_btn,
-        ControllerEvent::Released(Button::Start),
-        sender.clone(),
-    );
-
-    add_controller_event_listener::<MouseDownEvent>(
-        &select_btn,
-        ControllerEvent::Pressed(Button::Select),
-        sender.clone(),
-    );
-    add_controller_event_listener::<MouseUpEvent>(
-        &select_btn,
-        ControllerEvent::Released(Button::Select),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchStart>(
-        &select_btn,
-        ControllerEvent::Pressed(Button::Select),
-        sender.clone(),
-    );
-    add_controller_event_listener::<TouchEnd>(
-        &select_btn,
-        ControllerEvent::Released(Button::Select),
-        sender.clone(),
-    );
-
-    let canvas: CanvasElement = document()
-        .get_element_by_id("canvas")
-        .unwrap()
-        .try_into()
-        .unwrap();
+    add_multi_button_event_listeners(&up_left_btn, Button::Up, Button::Left, sender.clone());
+    add_multi_button_event_listeners(&up_right_btn, Button::Up, Button::Right, sender.clone());
+    add_multi_button_event_listeners(&down_left_btn, Button::Down, Button::Left, sender.clone());
+    add_multi_button_event_listeners(&down_right_btn, Button::Down, Button::Right, sender.clone());
 
     {
         let sender = sender.clone();
@@ -368,33 +92,50 @@ pub fn start(rom: Vec<u8>) {
         });
     }
 
+    let canvas: CanvasElement = document()
+        .get_element_by_id("canvas")
+        .unwrap()
+        .try_into()
+        .unwrap();
+
     // TODO: move this to another function
     let gl: Gl = canvas.get_context().unwrap();
 
     gl.clear_color(1.0, 0.0, 0.0, 1.0);
     gl.clear(Gl::COLOR_BUFFER_BIT);
 
-    let verticies = TypedArray::<f32>::from(VERTICIES.as_ref()).buffer();
+    let verticies: [f32; 12] = [
+        1.0, 1.0, 0.0, 1.0, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, 1.0, 0.0,
+    ];
+    let vertex_array = TypedArray::<f32>::from(verticies.as_ref()).buffer();
     let vertex_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&vertex_buffer));
-    gl.buffer_data_1(Gl::ARRAY_BUFFER, Some(&verticies), Gl::STATIC_DRAW);
+    gl.buffer_data_1(Gl::ARRAY_BUFFER, Some(&vertex_array), Gl::STATIC_DRAW);
 
-    let textures = TypedArray::<f32>::from(TEXTURE_COORDINATE.as_ref()).buffer();
+    let texture_coordinate: [f32; 8] = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
+    let texture_array = TypedArray::<f32>::from(texture_coordinate.as_ref()).buffer();
     let texture_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&texture_buffer));
-    gl.buffer_data_1(Gl::ARRAY_BUFFER, Some(&textures), Gl::STATIC_DRAW);
+    gl.buffer_data_1(Gl::ARRAY_BUFFER, Some(&texture_array), Gl::STATIC_DRAW);
 
-    let indicies = TypedArray::<u8>::from(INDICIES.as_ref()).buffer();
+    let indicies: [u8; 6] = [0, 1, 3, 1, 2, 3];
+    let indicies_array = TypedArray::<u8>::from(indicies.as_ref()).buffer();
     let index_buffer = gl.create_buffer().unwrap();
     gl.bind_buffer(Gl::ELEMENT_ARRAY_BUFFER, Some(&index_buffer));
-    gl.buffer_data_1(Gl::ELEMENT_ARRAY_BUFFER, Some(&indicies), Gl::STATIC_DRAW);
+    gl.buffer_data_1(
+        Gl::ELEMENT_ARRAY_BUFFER,
+        Some(&indicies_array),
+        Gl::STATIC_DRAW,
+    );
 
-    let vert_shader = match compile_shader(&gl, Gl::VERTEX_SHADER, VERTEX_SOURCE) {
+    let vertex_source: &str = include_str!("shaders/vertex.glsl");
+    let vert_shader = match compile_shader(&gl, Gl::VERTEX_SHADER, vertex_source) {
         Ok(shader) => shader,
         Err(msg) => panic!(msg),
     };
 
-    let frag_shader = match compile_shader(&gl, Gl::FRAGMENT_SHADER, FRAGMENT_SOURCE) {
+    let fragment_source: &str = include_str!("shaders/fragment.glsl");
+    let frag_shader = match compile_shader(&gl, Gl::FRAGMENT_SHADER, fragment_source) {
         Ok(shader) => shader,
         Err(msg) => panic!(msg),
     };
@@ -474,6 +215,33 @@ pub fn start(rom: Vec<u8>) {
     );
 }
 
+fn add_button_event_listeners(
+    element: &Element,
+    button: Button,
+    sender: mpsc::Sender<ControllerEvent>,
+) {
+    add_controller_event_listener::<MouseDownEvent>(
+        element,
+        ControllerEvent::Pressed(button),
+        sender.clone(),
+    );
+    add_controller_event_listener::<MouseUpEvent>(
+        element,
+        ControllerEvent::Released(button),
+        sender.clone(),
+    );
+    add_controller_event_listener::<TouchStart>(
+        element,
+        ControllerEvent::Pressed(button),
+        sender.clone(),
+    );
+    add_controller_event_listener::<TouchEnd>(
+        element,
+        ControllerEvent::Released(button),
+        sender.clone(),
+    );
+}
+
 fn add_controller_event_listener<T: ConcreteEvent>(
     element: &Element,
     controller_event: ControllerEvent,
@@ -482,6 +250,38 @@ fn add_controller_event_listener<T: ConcreteEvent>(
     element.add_event_listener(move |_: T| {
         sender.send(controller_event).unwrap();
     });
+}
+
+fn add_multi_button_event_listeners(
+    element: &Element,
+    first_button: Button,
+    second_button: Button,
+    sender: mpsc::Sender<ControllerEvent>,
+) {
+    add_multi_controller_event_listener::<MouseDownEvent>(
+        element,
+        ControllerEvent::Pressed(first_button),
+        ControllerEvent::Pressed(second_button),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<MouseUpEvent>(
+        element,
+        ControllerEvent::Released(first_button),
+        ControllerEvent::Released(second_button),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchStart>(
+        element,
+        ControllerEvent::Pressed(first_button),
+        ControllerEvent::Pressed(second_button),
+        sender.clone(),
+    );
+    add_multi_controller_event_listener::<TouchEnd>(
+        element,
+        ControllerEvent::Released(first_button),
+        ControllerEvent::Released(second_button),
+        sender.clone(),
+    );
 }
 
 fn add_multi_controller_event_listener<T: ConcreteEvent>(

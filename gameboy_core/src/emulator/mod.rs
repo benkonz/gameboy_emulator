@@ -19,7 +19,6 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    // TODO: now that we have a getter for the cartridge, change this back to from_rom(rom: Vec<u8>)
     pub fn from_cartridge(cartridge: Cartridge) -> Emulator {
         Emulator {
             cpu: Cpu::new(),

@@ -374,4 +374,8 @@ impl Memory {
     pub fn get_cartridge(&self) -> &Cartridge {
         &self.mbc.get_cartridge()
     }
+
+    pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
+        self.mbc.set_ram_change_callback(f);
+    }
 }

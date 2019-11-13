@@ -19,6 +19,7 @@ pub struct Emulator {
 }
 
 impl Emulator {
+    // TODO: now that we have a getter for the cartridge, change this back to from_rom(rom: Vec<u8>)
     pub fn from_cartridge(cartridge: Cartridge) -> Emulator {
         Emulator {
             cpu: Cpu::new(),
@@ -64,5 +65,9 @@ impl Emulator {
 
     pub fn get_cartridge(&self) -> &Cartridge {
         &self.memory.get_cartridge()
+    }
+
+    pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
+        self.memory.set_ram_change_callback(f);
     }
 }

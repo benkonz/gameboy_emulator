@@ -5,6 +5,7 @@ pub struct Mbc2 {
     cartridge: Cartridge,
     selected_rom_bank: u8,
     external_ram_enabled: bool,
+    ram_change_callback: Box<dyn FnMut(usize, u8)>,
 }
 
 impl Mbc for Mbc2 {
@@ -54,6 +55,8 @@ impl Mbc for Mbc2 {
                     let address = index as usize - 0xA000;
                     let ram = self.cartridge.get_ram_mut();
                     ram[address] = value & 0x0F;
+
+                    (self.ram_change_callback)(address, value & 0x0F);
                 }
             }
             0xA200..=0xBFFF => (),
@@ -63,6 +66,10 @@ impl Mbc for Mbc2 {
 
     fn get_cartridge(&self) -> &Cartridge {
         &self.cartridge
+    }
+
+    fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
+        self.ram_change_callback = f;
     }
 }
 
@@ -75,6 +82,7 @@ impl Mbc2 {
             cartridge,
             selected_rom_bank: 1,
             external_ram_enabled: false,
+            ram_change_callback: Box::new(|_, _| {}),
         }
     }
 }

@@ -3,6 +3,7 @@ use super::mbc::Mbc;
 
 pub struct RomOnly {
     cartridge: Cartridge,
+    ram_change_callback: Box<dyn FnMut(usize, u8)>,
 }
 
 impl Mbc for RomOnly {
@@ -29,7 +30,10 @@ impl Mbc for RomOnly {
             0xA000..=0xBFFF => {
                 if self.cartridge.get_ram_size() > 0 {
                     let ram = self.cartridge.get_ram_mut();
-                    ram[index as usize - 0xA000] = value
+                    let address = index as usize - 0xA000;
+                    ram[address] = value;
+
+                    (self.ram_change_callback)(address, value);
                 }
             }
             _ => panic!("index out of range: {:04X}", index),
@@ -39,10 +43,17 @@ impl Mbc for RomOnly {
     fn get_cartridge(&self) -> &Cartridge {
         &self.cartridge
     }
+
+    fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
+        self.ram_change_callback = f;
+    }
 }
 
 impl RomOnly {
     pub fn new(cartridge: Cartridge) -> RomOnly {
-        RomOnly { cartridge }
+        RomOnly {
+            cartridge,
+            ram_change_callback: Box::new(|_, _| {}),
+        }
     }
 }

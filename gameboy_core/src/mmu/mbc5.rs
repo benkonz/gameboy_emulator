@@ -7,6 +7,7 @@ pub struct Mbc5 {
     selected_rom_bank_high: i32,
     selected_eram_bank: i32,
     external_ram_enabled: bool,
+    ram_change_callback: Box<dyn FnMut(usize, u8)>,
 }
 
 impl Mbc for Mbc5 {
@@ -58,6 +59,8 @@ impl Mbc for Mbc5 {
                     let offset = self.selected_eram_bank as usize;
                     let address = index as usize - 0xA000 + offset;
                     ram[address] = value;
+
+                    (self.ram_change_callback)(address, value);
                 }
             }
             _ => panic!("index out of range: {:04X}", index),
@@ -66,6 +69,10 @@ impl Mbc for Mbc5 {
 
     fn get_cartridge(&self) -> &Cartridge {
         &self.cartridge
+    }
+
+    fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
+        self.ram_change_callback = f;
     }
 }
 
@@ -77,6 +84,7 @@ impl Mbc5 {
             selected_rom_bank_high: 0,
             selected_eram_bank: 0,
             external_ram_enabled: false,
+            ram_change_callback: Box::new(|_, _| {}),
         }
     }
 }

@@ -18,8 +18,7 @@ use std::sync::mpsc::TryRecvError;
 use stdweb::traits::*;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{
-    BeforeUnloadEvent, ConcreteEvent, KeyDownEvent, KeyUpEvent, MouseDownEvent, MouseUpEvent,
-    TouchEnd, TouchStart,
+    ConcreteEvent, KeyDownEvent, KeyUpEvent, MouseDownEvent, MouseUpEvent, TouchEnd, TouchStart,
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
@@ -434,44 +433,41 @@ pub fn start(rom: Vec<u8>) {
         cartridge.set_ram(bytes);
     }
 
-    {
-        let run = Rc::clone(&run);
-        let should_save_to_local = Rc::clone(&should_save_to_local);
-
-        window().add_event_listener(move |_: BeforeUnloadEvent| {
-            *should_save_to_local.borrow_mut() = true;
-            *run.borrow_mut() = false;
-        });
-    }
-
-    {
-        let should_save_to_local = Rc::clone(&should_save_to_local);
-
-        // stdweb doesn't have support for the viewability api, so we use the js macro
-        let visibility_change_callback = move || {
-            *should_save_to_local.borrow_mut() = true;
-        };
-        js! {
-            document.addEventListener("visibilitychange", function() {
-                if (document.visibilityState == "hidden") {
-                   var visibility_change_callback = @{visibility_change_callback};
-                   visibility_change_callback();
-                }
-            });
-        }
-    }
-
-    let emulator = Emulator::from_cartridge(cartridge);
+    let mut emulator = Emulator::from_cartridge(cartridge);
     let screen = Screen::new();
     let controller = Controller::new();
+
+    let has_battery = emulator.get_cartridge().has_battery();
+    let ram = emulator.get_cartridge().get_ram().to_vec();
+    let ram_str: Rc<RefCell<String>> = Rc::new(RefCell::new(
+        ram.iter().map(|byte| format!("{:02x}", byte)).collect(),
+    ));
+    {
+        let should_save_to_local = should_save_to_local.clone();
+        let ram_str = ram_str.clone();
+        emulator.set_ram_change_callback(Box::new(move |address, value| {
+            if has_battery {
+                let byte_chars: Vec<char> = format!("{:02x}", value).chars().collect();
+                let (first, second) = (byte_chars[0] as u8, byte_chars[1] as u8);
+                unsafe {
+                    let mut ram_str_ref = ram_str.borrow_mut();
+                    let bytes = ram_str_ref.as_bytes_mut();
+                    bytes[address * 2] = first;
+                    bytes[address * 2 + 1] = second;
+                }
+                *should_save_to_local.borrow_mut() = true;
+            }
+        }));
+    }
 
     main_loop(
         emulator,
         screen,
         controller,
         receiver,
-        Rc::clone(&run),
-        Rc::clone(&should_save_to_local),
+        run.clone(),
+        should_save_to_local.clone(),
+        ram_str.clone(),
         gl,
         shader_program,
         texture,
@@ -531,6 +527,7 @@ fn main_loop(
     receiver: mpsc::Receiver<ControllerEvent>,
     run: Rc<RefCell<bool>>,
     should_save_to_local: Rc<RefCell<bool>>,
+    ram_str: Rc<RefCell<String>>,
     gl: Gl,
     shader_program: WebGLProgram,
     texture: WebGLTexture,
@@ -555,12 +552,11 @@ fn main_loop(
     }
 
     if *should_save_to_local.borrow() {
-        let cartridge = emulator.get_cartridge();
-
-        if cartridge.has_battery() {
-            save_to_local(&cartridge);
-        }
-
+        let name = emulator.get_cartridge().get_name();
+        window()
+            .local_storage()
+            .insert(&name, &ram_str.borrow())
+            .unwrap();
         *should_save_to_local.borrow_mut() = false;
     }
 
@@ -576,19 +572,13 @@ fn main_loop(
                 receiver,
                 run,
                 should_save_to_local,
+                ram_str,
                 gl,
                 shader_program,
                 texture,
             );
         });
     }
-}
-
-fn save_to_local(cartridge: &Cartridge) {
-    let ram = cartridge.get_ram();
-    let name = cartridge.get_name();
-    let ram_str: String = ram.iter().map(|byte| format!("{:02x}", byte)).collect();
-    window().local_storage().insert(name, &ram_str).unwrap();
 }
 
 fn render(gl: &Gl, shader_program: &WebGLProgram, texture: &WebGLTexture, frame_buffer: &[u8]) {

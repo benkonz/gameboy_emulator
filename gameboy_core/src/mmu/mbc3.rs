@@ -6,6 +6,7 @@ pub struct Mbc3 {
     selected_rom_bank: u8,
     selected_eram_bank: u8,
     external_ram_enabled: bool,
+    ram_change_callback: Box<dyn FnMut(usize, u8)>,
 }
 
 impl Mbc for Mbc3 {
@@ -66,6 +67,8 @@ impl Mbc for Mbc3 {
                     let offset = self.selected_eram_bank as usize * 0x2000;
                     let address = index as usize - 0xA000 + offset;
                     ram[address] = value;
+
+                    (self.ram_change_callback)(address, value);
                 }
             }
             _ => panic!("index out of range: {:04X}", index),
@@ -74,6 +77,10 @@ impl Mbc for Mbc3 {
 
     fn get_cartridge(&self) -> &Cartridge {
         &self.cartridge
+    }
+
+    fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
+        self.ram_change_callback = f;
     }
 }
 
@@ -84,6 +91,7 @@ impl Mbc3 {
             selected_rom_bank: 1,
             selected_eram_bank: 0,
             external_ram_enabled: false,
+            ram_change_callback: Box::new(|_, _| {}),
         }
     }
 }

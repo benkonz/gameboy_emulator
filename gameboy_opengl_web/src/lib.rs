@@ -27,7 +27,7 @@ use webgl_rendering_context::*;
 type Gl = WebGLRenderingContext;
 
 pub fn start(rom: Vec<u8>) {
-    let (sender, receiver) = mpsc::channel::<ControllerEvent>();
+    let (sender, receiver) = mpsc::channel();
     let run = Rc::new(RefCell::new(true));
     let should_save_to_local = Rc::new(RefCell::new(false));
 

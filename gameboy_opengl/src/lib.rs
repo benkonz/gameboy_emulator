@@ -18,16 +18,26 @@ use opengl_rendering_context::types::*;
 use opengl_rendering_context::Gl;
 use screen::Screen;
 use shader::Shader;
+use std::cell::RefCell;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::raw::c_void;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::mpsc;
 use std::sync::mpsc::{SendError, TryRecvError};
 use std::thread;
 use std::time::{Duration, SystemTime};
 use std::{mem, ptr};
+
+const VERTEX_SOURCE: &str = include_str!("shaders/vertex.glsl");
+const FRAGMENT_SOURCE: &str = include_str!("shaders/fragment.glsl");
+const VERTICIES: [f32; 20] = [
+    1.0, 1.0, 0.0, 1.0, 1.0, 1.0, -1.0, 0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 1.0, 0.0,
+    0.0, 1.0,
+];
+const INDICIES: [u32; 6] = [0, 1, 3, 1, 2, 3];
 
 pub fn start(rom: Vec<u8>) {
     let events_loop = EventLoop::new();
@@ -40,14 +50,11 @@ pub fn start(rom: Vec<u8>) {
     let context = windowed_context.context();
     let gl = Gl::load_with(|symbol| context.get_proc_address(symbol) as *const _);
 
-    let vertex_source = include_str!("shaders/vertex.glsl");
-    let fragment_source = include_str!("shaders/fragment.glsl");
-    let shader = Shader::new(&gl, vertex_source, fragment_source);
+    let shader = Shader::new(&gl, VERTEX_SOURCE, FRAGMENT_SOURCE);
     let (mut vao, mut vbo, mut ebo, mut texture) = (0, 0, 0, 0);
 
     unsafe {
         gl.ClearColor(0.0, 1.0, 0.0, 1.0);
-        
         //setup vertex data
         gl.GenVertexArrays(1, &mut vao);
         gl.GenBuffers(1, &mut vbo);
@@ -55,24 +62,19 @@ pub fn start(rom: Vec<u8>) {
 
         gl.BindVertexArray(vao);
 
-        let verticies = [
-            1.0, 1.0, 0.0, 1.0, 1.0, 1.0, -1.0, 0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, -1.0,
-            1.0, 0.0, 0.0, 1.0,
-        ];
         gl.BindBuffer(opengl_rendering_context::ARRAY_BUFFER, vbo);
         gl.BufferData(
             opengl_rendering_context::ARRAY_BUFFER,
-            (verticies.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-            verticies.as_ptr() as *const c_void,
+            (VERTICIES.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+            VERTICIES.as_ptr() as *const c_void,
             opengl_rendering_context::STATIC_DRAW,
         );
 
-        let indicies = [0, 1, 3, 1, 2, 3];
         gl.BindBuffer(opengl_rendering_context::ELEMENT_ARRAY_BUFFER, ebo);
         gl.BufferData(
             opengl_rendering_context::ELEMENT_ARRAY_BUFFER,
-            (indicies.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-            indicies.as_ptr() as *const c_void,
+            (INDICIES.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+            INDICIES.as_ptr() as *const c_void,
             opengl_rendering_context::STATIC_DRAW,
         );
 
@@ -130,87 +132,110 @@ pub fn start(rom: Vec<u8>) {
 
     let (controller_sender, controller_receiver) = mpsc::channel();
     let (frame_sender, frame_receiver) = mpsc::channel();
-    let (end_sender, end_receiver) = mpsc::channel::<bool>();
-    let (cartridge_sender, cartridge_receiver) = mpsc::channel::<(String, bool, Vec<u8>)>();
+    let (end_sender, end_receiver) = mpsc::channel();
+    {
+        thread::spawn(move || {
+            let mut cartridge = Cartridge::from_rom(rom);
 
-    thread::spawn(move || {
-        let mut cartridge = Cartridge::from_rom(rom);
-
-        if let Some(ram_saves_dir) = get_ram_saves_path() {
-            let name = cartridge.get_name().to_string();
-            let ram_save_file = ram_saves_dir.join(format!("{}.bin", name));
-
-            if ram_save_file.exists() {
-                let mut file = OpenOptions::new().read(true).open(ram_save_file).unwrap();
-                if let Ok(metadata) = file.metadata() {
-                    // sometimes two different roms have the same name,
-                    // so we make sure that the ram length is the same before reading
-                    if metadata.len() == cartridge.get_ram().len() as u64 {
-                        file.read_exact(cartridge.get_ram_mut()).unwrap();
+            if let Some(ram_saves_dir) = get_ram_saves_path() {
+                let ram_save_file = ram_saves_dir.join(format!("{}.bin", cartridge.get_name()));
+                if ram_save_file.exists() {
+                    let mut ram_save_file =
+                        OpenOptions::new().read(true).open(ram_save_file).unwrap();
+                    if let Ok(metadata) = ram_save_file.metadata() {
+                        // sometimes two different roms have the same name,
+                        // so we make sure that the ram length is the same before reading
+                        if metadata.len() == cartridge.get_ram().len() as u64 {
+                            ram_save_file.read_exact(cartridge.get_ram_mut()).unwrap();
+                        }
                     }
                 }
             }
-        }
+            let mut emulator = Emulator::from_cartridge(cartridge);
 
-        let mut emulator = Emulator::from_cartridge(cartridge);
-        let mut controller = Controller::new();
-        let mut mapper = Screen::new();
-        let mut run = true;
-        let frame_rate = 60f64;
-        let frame_duration = Duration::from_secs_f64(1f64 / frame_rate);
-
-        while run {
-            let start_time = SystemTime::now();
-            match end_receiver.try_recv() {
-                Ok(_) | Err(TryRecvError::Disconnected) => run = false,
-                _ => (),
-            };
-
-            loop {
-                let vblank = emulator.emulate(&mut mapper, &mut controller);
-                if vblank {
-                    break;
+            let mut ram_save_file = None;
+            if let Some(ram_saves_path) = get_ram_saves_path() {
+                if !ram_saves_path.exists() {
+                    fs::create_dir_all(&ram_saves_path).unwrap();
                 }
+                let ram_save_file_path =
+                    ram_saves_path.join(format!("{}.bin", emulator.get_cartridge().get_name()));
+
+                ram_save_file = Some(
+                    OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .open(ram_save_file_path)
+                        .unwrap(),
+                )
             }
 
-            match frame_sender.send(mapper.get_frame_buffer().clone()) {
-                Ok(()) => (),
-                Err(SendError(_)) => run = false,
-            };
-
-            loop {
-                match controller_receiver.try_recv() {
-                    Ok(input) => match input {
-                        ControllerEvent::Pressed(button) => controller.press(button),
-                        ControllerEvent::Released(button) => controller.release(button),
-                    },
-                    Err(TryRecvError::Empty) => break,
-                    Err(TryRecvError::Disconnected) => {
-                        run = false;
+            let ram_changed = Rc::new(RefCell::new(true));
+            {
+                let ram_changed = ram_changed.clone();
+                emulator.set_ram_change_callback(Box::new(move |_, _| {
+                    *ram_changed.borrow_mut() = true;
+                }));
+            }
+            let mut controller = Controller::new();
+            let mut screen = Screen::new();
+            let frame_rate = 60f64;
+            let frame_duration = Duration::from_secs_f64(1f64 / frame_rate);
+            'game_loop: loop {
+                let start_time = SystemTime::now();
+                loop {
+                    let vblank = emulator.emulate(&mut screen, &mut controller);
+                    if vblank {
                         break;
                     }
                 }
-            }
-            let end_time = SystemTime::now();
-            let last_frame_duration = end_time.duration_since(start_time).unwrap();
-            if frame_duration >= last_frame_duration {
-                let sleep_duration = frame_duration - last_frame_duration;
-                thread::sleep(sleep_duration);
-            }
-        }
 
-        let cartridge = emulator.get_cartridge();
-        let ram = cartridge.get_ram().to_vec();
-        let name = cartridge.get_name().to_string();
-        let has_battery = cartridge.has_battery();
-        cartridge_sender.send((name, has_battery, ram)).unwrap();
-    });
+                match frame_sender.send(screen.get_frame_buffer().clone()) {
+                    Ok(()) => (),
+                    Err(SendError(_)) => break 'game_loop,
+                };
+                loop {
+                    match controller_receiver.try_recv() {
+                        Ok(input) => match input {
+                            ControllerEvent::Pressed(button) => controller.press(button),
+                            ControllerEvent::Released(button) => controller.release(button),
+                        },
+                        Err(TryRecvError::Empty) => break,
+                        Err(TryRecvError::Disconnected) => break 'game_loop,
+                    }
+                }
+                match end_receiver.try_recv() {
+                    Ok(_) | Err(TryRecvError::Disconnected) => break 'game_loop,
+                    _ => (),
+                }
+                if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
+                    if let Some(ref mut ram_save_file) = ram_save_file {
+                        let ram = emulator.get_cartridge().get_ram();
+                        ram_save_file.seek(SeekFrom::Start(0)).unwrap();
+                        ram_save_file.write_all(ram).unwrap();
+                    }
+                    *ram_changed.borrow_mut() = false;
+                }
+
+                let end_time = SystemTime::now();
+                let last_frame_duration = end_time.duration_since(start_time).unwrap();
+                if frame_duration >= last_frame_duration {
+                    let sleep_duration = frame_duration - last_frame_duration;
+                    thread::sleep(sleep_duration);
+                }
+            }
+        });
+    }
 
     events_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
         match event {
-            Event::LoopDestroyed => return,
+            Event::LoopDestroyed => {
+                end_sender.send(true).unwrap();
+                shader.delete_program(&gl);
+                return;
+            }
             Event::WindowEvent { ref event, .. } => match event {
                 WindowEvent::KeyboardInput { input, .. } => {
                     let result = match input {
@@ -325,30 +350,10 @@ pub fn start(rom: Vec<u8>) {
                 windowed_context.swap_buffers().unwrap()
             }
             Err(TryRecvError::Empty) => (),
-            Err(TryRecvError::Disconnected) => *control_flow = ControlFlow::Exit,
-        };
-
-        if *control_flow == ControlFlow::Exit && end_sender.send(true).is_ok() {
-            if let Ok((name, has_battery, ram)) = cartridge_receiver.recv() {
-                if has_battery {
-                    if let Some(ram_saves_path) = get_ram_saves_path() {
-                        let ram_save_file = ram_saves_path.join(format!("{}.bin", name));
-
-                        if !ram_saves_path.exists() {
-                            fs::create_dir_all(ram_saves_path).unwrap();
-                        }
-
-                        let mut file = OpenOptions::new()
-                            .write(true)
-                            .create(true)
-                            .open(ram_save_file)
-                            .unwrap();
-                        file.write_all(ram.as_ref()).unwrap();
-                    }
-                }
-                shader.delete_program(&gl);
+            Err(TryRecvError::Disconnected) => {
+                *control_flow = ControlFlow::Exit;
             }
-        }
+        };
     });
 }
 

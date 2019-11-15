@@ -1,5 +1,7 @@
 # GameBoy Emulator
 
+![crates.io](https://img.shields.io/crates/v/gameboy_opengl)
+
 This is a GameBoy emulator written in Rust. It can be compiled to native
 and web assembly, see the build section for more details. Sound not supported.
 

@@ -63,4 +63,4 @@ cargo-web deploy --release
 ```
 
 use your favorite static file server to serve the files generated in the
-`lib/target/deploy` directory. You can also run `cargo-web start --release`, to serve the files locally.
+`target/deploy` directory. You can also run `cargo-web start --release`, to serve the files locally.

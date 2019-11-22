@@ -39,20 +39,24 @@ const CB_INSTRUCTION_TIMINGS: [i32; 256] = [
 
 pub struct Cpu {
     registers: Registers,
-    pub stopped: bool,
     pub halted: bool,
     pub interrupt_enabled: bool,
     interrupt_enabled_counter: u8,
     new_interrupt_enabled: bool,
-    pub cycles: u64,
-    pub instruction_cycle: i32,
+    instruction_cycle: i32,
     jump_taken: bool,
+    is_cgb: bool,
+    cgb_speed: bool,
 }
 
 impl Cpu {
-    pub fn new() -> Cpu {
+    pub fn new(is_cgb: bool) -> Cpu {
         let mut registers: Registers = Default::default();
-        registers.set_af(0x01B0);
+        if is_cgb {
+            registers.set_af(0x11B0);
+        } else {
+            registers.set_af(0x01B0);
+        }
         registers.set_bc(0x0013);
         registers.set_de(0x00D8);
         registers.set_hl(0x014D);
@@ -61,14 +65,14 @@ impl Cpu {
 
         Cpu {
             registers,
-            stopped: false,
             halted: false,
             interrupt_enabled: false,
             interrupt_enabled_counter: 0,
             new_interrupt_enabled: false,
-            cycles: 0,
             instruction_cycle: 0,
             jump_taken: false,
+            is_cgb,
+            cgb_speed: false,
         }
     }
 
@@ -88,7 +92,7 @@ impl Cpu {
 
     pub fn step(&mut self, memory: &mut Memory) -> i32 {
         self.instruction_cycle = 0;
-        if !self.halted && !self.stopped {
+        if !self.halted {
             if self.interrupt_enabled_counter > 0 {
                 self.interrupt_enabled_counter -= 1;
             }
@@ -111,7 +115,11 @@ impl Cpu {
             self.instruction_cycle = 4;
         }
 
-        self.instruction_cycle
+        if self.cgb_speed {
+            self.instruction_cycle * 2
+        } else {
+            self.instruction_cycle
+        }
     }
 
     fn execute_opcode(&mut self, opcode: u8, memory: &mut Memory) {
@@ -144,7 +152,7 @@ impl Cpu {
                 self.ld_c_n(n);
             }
             0x0F => self.rrc_a(),
-            0x10 => self.stop(),
+            0x10 => self.stop(memory),
             0x11 => {
                 let nn = self.get_nn(memory);
                 self.ld_de_nn(nn);
@@ -560,9 +568,20 @@ impl Cpu {
         self.registers.c = self.ld_r_n(n);
     }
 
-    fn stop(&mut self) {
-        // gameboy un-stops itself when any button is pressed
-        self.stopped = true;
+    fn stop(&mut self, memory: &mut Memory) {
+        if self.is_cgb {
+            let current_key1 = memory.get_key1();
+
+            if current_key1 & 1 == 1 {
+                self.cgb_speed = !self.cgb_speed;
+
+                if self.cgb_speed {
+                    memory.set_key1(0x80);
+                } else {
+                    memory.set_key1(0x00);
+                }
+            }
+        }
     }
 
     fn ld_de_nn(&mut self, nn: u16) {

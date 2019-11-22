@@ -20,12 +20,13 @@ pub struct Emulator {
 
 impl Emulator {
     pub fn from_cartridge(cartridge: Cartridge) -> Emulator {
+        let is_cgb = cartridge.is_cgb();
         Emulator {
-            cpu: Cpu::new(),
-            gpu: GPU::new(),
+            cpu: Cpu::new(is_cgb),
+            gpu: GPU::new(is_cgb),
             timer: Timer::new(),
             serial: Serial::new(),
-            memory: Memory::from_cartridge(cartridge),
+            memory: Memory::from_cartridge(cartridge, is_cgb),
         }
     }
 

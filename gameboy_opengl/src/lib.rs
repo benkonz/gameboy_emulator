@@ -218,6 +218,7 @@ pub fn start(rom: Vec<u8>) {
                 }
 
                 let end_time = SystemTime::now();
+                // TODO: unwrap failing here
                 let last_frame_duration = end_time.duration_since(start_time).unwrap();
                 if frame_duration >= last_frame_duration {
                     let sleep_duration = frame_duration - last_frame_duration;

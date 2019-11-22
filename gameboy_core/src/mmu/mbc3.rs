@@ -48,16 +48,16 @@ impl Mbc for Mbc3 {
             }
             0x4000..=0x5FFF => {
                 match value {
-                    0x00..=0x07 => {
+                    0x00..=0x03 => {
                         self.selected_eram_bank = value;
                         self.selected_eram_bank &= (self.cartridge.get_ram_banks() - 1) as u8;
                     }
                     0x08..=0x0C => {
                         if self.cartridge.has_rtc() {
-                            panic!("RTC not implemented!")
+                            // TODO: ADD RTC FUNCTIONALITY
                         }
                     }
-                    _ => panic!("selecting unknown register: {:02X}", value),
+                    _ => (),
                 };
             }
             0x6000..=0x7FFF => (), // also used for the RTC

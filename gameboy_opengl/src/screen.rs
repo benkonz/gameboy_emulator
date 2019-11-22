@@ -1,4 +1,4 @@
-use gameboy_core::{Color, PixelMapper};
+use gameboy_core::{CGBColor, Color, PixelMapper};
 
 pub struct Screen {
     frame_buffer: [u8; 144 * 160 * 3],
@@ -16,6 +16,10 @@ impl Screen {
     }
 }
 
+fn cgb_color_to_byte(color: u8) -> u8 {
+    ((color as u16) * 0xFF / 0x1F) as u8
+}
+
 impl PixelMapper for Screen {
     fn map_pixel(&mut self, pixel: usize, color: Color) {
         let color_bytes: [u8; 3] = match color {
@@ -30,14 +34,15 @@ impl PixelMapper for Screen {
         }
     }
 
-    fn get_pixel(&self, pixel: usize) -> Color {
-        let offset = pixel * 3;
-        match self.frame_buffer[offset..offset + 3] {
-            [255, 255, 255] => Color::White,
-            [178, 178, 178] => Color::LightGray,
-            [102, 102, 102] => Color::DarkGray,
-            [0, 0, 0] => Color::Black,
-            _ => unreachable!(),
+    fn cgb_map_pixel(&mut self, pixel: usize, color: CGBColor) {
+        let color_bytes = [
+            cgb_color_to_byte(color.red),
+            cgb_color_to_byte(color.green),
+            cgb_color_to_byte(color.blue),
+        ];
+
+        for (i, byte) in color_bytes.iter().enumerate() {
+            self.frame_buffer[pixel * 3 + i] = *byte;
         }
     }
 }

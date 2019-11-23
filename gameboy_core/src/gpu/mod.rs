@@ -115,8 +115,8 @@ impl GPU {
             memory.compare_ly_to_lyc();
 
             if self.is_cgb && memory.is_hdma_enabled() {
-                let cycles = memory.do_hdma();
-                memory.gpu_cycles.cycles_counter += cycles;
+                let _cycles = memory.do_hdma();
+                // memory.gpu_cycles.cycles_counter += cycles;
             }
 
             if memory.scan_line == 144 {

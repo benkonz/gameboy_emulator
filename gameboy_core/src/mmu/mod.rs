@@ -431,11 +431,11 @@ impl Memory {
             self.hdma_enabled = true;
             self.high_ram[0xFF55 - 0xFF00] = value & 0x7F;
             if self.lcd_status_mode == 0 {
-                let cycles = self.do_hdma();
+                let _cycles = self.do_hdma();
                 // self.gpu_cycles.cycles_counter += cycles;
             }
         } else {
-            let cycles = self.do_gdma(value);
+            let _cycles = self.do_gdma(value);
             // self.gpu_cycles.cycles_counter += cycles;
         }
     }
@@ -713,7 +713,7 @@ impl Memory {
             } else {
                 self.cgb_sprite_palettes[pal as usize][index as usize].blue = blue;
                 self.cgb_sprite_palettes[pal as usize][index as usize].green =
-                    (self.cgb_background_palettes[pal as usize][index as usize].green & 0x07)
+                    (self.cgb_sprite_palettes[pal as usize][index as usize].green & 0x07)
                         | half_green_hi;
             }
         } else {
@@ -728,7 +728,7 @@ impl Memory {
             } else {
                 self.cgb_sprite_palettes[pal as usize][index as usize].red = red;
                 self.cgb_sprite_palettes[pal as usize][index as usize].green =
-                    (self.cgb_background_palettes[pal as usize][index as usize].green & 0x18)
+                    (self.cgb_sprite_palettes[pal as usize][index as usize].green & 0x18)
                         | half_green_low;
             }
         }

@@ -10,6 +10,7 @@ mod mbc_type;
 mod rom_only;
 
 use self::cartridge::Cartridge;
+use self::gpu_cycles::GpuCycles;
 use self::interrupt::Interrupt;
 use self::mbc::Mbc;
 use self::mbc1::Mbc1;
@@ -18,11 +19,10 @@ use self::mbc3::Mbc3;
 use self::mbc5::Mbc5;
 use self::mbc_type::MbcType;
 use self::rom_only::RomOnly;
+use bit_utils;
 use gpu::cgb_color::CGBColor;
 use gpu::lcd_control_flag::LcdControlFlag;
-use mmu::gpu_cycles::GpuCycles;
 
-// TODO: add all IO Register INDEX's here
 const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
 const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
 
@@ -71,14 +71,11 @@ pub struct Memory {
     oam: [u8; 0x100],
     high_ram: [u8; 0x100],
     joypad_state: u8,
-    // TODO: move all of the GPU functionality into it's own memory module
     pub scan_line: u8,
     pub irq48_signal: u8,
     pub screen_disabled: bool,
     pub lcd_status_mode: u8,
-    // TODO make this private with a getter
     pub gpu_cycles: GpuCycles,
-    // TODO make this into a private struct
     pub div_cycles: i32,
     pub tima_cycles: i32,
     is_cgb: bool,
@@ -139,7 +136,7 @@ impl Memory {
             irq48_signal: 0,
             screen_disabled: false,
             lcd_status_mode: 1,
-            gpu_cycles: Default::default(),
+            gpu_cycles: GpuCycles::new(),
             div_cycles: 0,
             tima_cycles: 0,
             is_cgb,
@@ -349,10 +346,10 @@ impl Memory {
         };
     }
 
-    fn do_lcd_control_write(&mut self, value: u8) {
-        let current_lcdc = LcdControlFlag::from_bits_truncate(self.read_byte(0xFF40));
+    pub fn do_lcd_control_write(&mut self, value: u8) {
+        let current_lcdc = LcdControlFlag::from_bits_truncate(self.get_lcdc_from_memory());
         let new_lcdc = LcdControlFlag::from_bits_truncate(value);
-        self.high_ram[0xFF40 - 0xFF00] = value;
+        self.set_lcdc_from_memory(value);
 
         if !current_lcdc.contains(LcdControlFlag::WINDOW)
             && new_lcdc.contains(LcdControlFlag::WINDOW)
@@ -367,53 +364,110 @@ impl Memory {
         }
     }
 
-    fn do_lcd_status_write(&mut self, value: u8) {
-        let current_stat = self.read_byte(0xFF41) & 0x07;
+    pub fn do_lcd_status_write(&mut self, value: u8) {
+        let current_stat = self.get_lcdc_from_memory() & 0x07;
         let new_stat = (value & 0x78) | (current_stat & 0x07);
         self.set_lcd_status_from_memory(new_stat);
-        let lcd_control = LcdControlFlag::from_bits_truncate(self.read_byte(0xFF40));
+        let lcd_control = LcdControlFlag::from_bits_truncate(self.get_lcdc_from_memory());
         let mut signal = self.irq48_signal;
         let mode = self.lcd_status_mode;
         signal &= (new_stat >> 3) & 0x0F;
         self.irq48_signal = signal;
 
         if lcd_control.contains(LcdControlFlag::DISPLAY) {
-            if new_stat & 0b0000_1000 == 0b0000_1000 && mode == 0 {
+            if bit_utils::is_set(new_stat, 3) && mode == 0 {
                 if signal == 0 {
                     self.request_interrupt(Interrupt::Lcd);
                 }
                 signal |= 0b01;
             }
 
-            if new_stat & 0b0001_0000 == 0b0001_0000 && mode == 1 {
+            if bit_utils::is_set(new_stat, 4) && mode == 1 {
                 if signal == 0 {
                     self.request_interrupt(Interrupt::Lcd);
                 }
                 signal |= 0b10;
             }
 
-            if new_stat & 0b0010_0000 == 0b0010_0000 && mode == 2 && signal == 0 {
+            if bit_utils::is_set(new_stat, 5) && mode == 2 && signal == 0 {
                 self.request_interrupt(Interrupt::Lcd);
             }
             self.compare_ly_to_lyc();
         }
     }
 
-    fn do_scanline_write(&mut self, value: u8) {
+    pub fn do_scanline_write(&mut self, value: u8) {
         let current_ly = self.scan_line;
-        if current_ly & 0b1000_0000 == 0b1000_0000 && value & 0b1000_0000 != 0b1000_0000 {
+        if bit_utils::is_set(current_ly, 7) && !bit_utils::is_set(value, 7) {
             self.disable_screen();
         }
     }
 
-    fn do_lyc_write(&mut self, value: u8) {
-        let current_lyc = self.read_byte(0xFF45);
+    pub fn do_lyc_write(&mut self, value: u8) {
+        let current_lyc = self.get_lyc_from_memory();
         if current_lyc != value {
-            self.high_ram[0xFF45 - 0xFF00] = value;
-            let lcd_control = LcdControlFlag::from_bits_truncate(self.read_byte(0xFF40));
+            self.set_lyc_from_memory(value);
+            let lcd_control = LcdControlFlag::from_bits_truncate(self.get_lcdc_from_memory());
             if lcd_control.contains(LcdControlFlag::DISPLAY) {
                 self.compare_ly_to_lyc();
             }
+        }
+    }
+
+    pub fn do_dma_transfer(&mut self, data: u8) {
+        let address = 0x100 * u16::from(data);
+        if address >= 0x8000 && address < 0xE000 {
+            for i in 0..0xA0 {
+                let value = self.read_byte(address + i);
+                self.write_byte(0xFE00 + i, value);
+            }
+        }
+    }
+
+    pub fn compare_ly_to_lyc(&mut self) {
+        if !self.screen_disabled {
+            let lyc = self.get_lyc_from_memory();
+            let mut stat = self.get_lcd_status_from_memory();
+
+            if lyc == self.scan_line {
+                stat |= 0b0000_0100;
+                if bit_utils::is_set(stat, 6) {
+                    if self.irq48_signal == 0 {
+                        self.request_interrupt(Interrupt::Lcd);
+                    }
+                    self.irq48_signal |= 0b0000_1000;
+                }
+            } else {
+                stat &= 0b1111_1011;
+                self.irq48_signal &= 0b1111_0111;
+            }
+            self.set_lcd_status_from_memory(stat);
+        }
+    }
+
+    pub fn enable_screen(&mut self) {
+        if self.screen_disabled {
+            self.gpu_cycles.screen_enable_delay_cycles = 244;
+        }
+    }
+
+    pub fn disable_screen(&mut self) {
+        self.screen_disabled = true;
+        let mut stat = self.get_lcd_status_from_memory();
+        stat &= 0x7C;
+        self.set_lcd_status_from_memory(stat);
+        self.lcd_status_mode = 0;
+        self.gpu_cycles.cycles_counter = 0;
+        self.gpu_cycles.aux_cycles_counter = 0;
+        self.scan_line = 0;
+        self.irq48_signal = 0;
+    }
+
+    pub fn reset_window_line(&mut self) {
+        let wy = self.get_window_line_from_memory();
+
+        if (self.gpu_cycles.window_line == 0) && (self.scan_line < 144) && (self.scan_line > wy) {
+            self.gpu_cycles.window_line = 144;
         }
     }
 
@@ -421,22 +475,20 @@ impl Memory {
         self.hdma_bytes = 16 + ((value & 0x7F) as i32 * 16);
 
         if self.hdma_enabled {
-            if value & 0b1000_0000 == 0b1000_0000 {
+            if bit_utils::is_set(value, 7) {
                 self.high_ram[0xFF55 - 0xFF00] = value & 0x7F;
             } else {
                 self.high_ram[0xFF55 - 0xFF00] = 0xFF;
                 self.hdma_enabled = false;
             }
-        } else if value & 0b1000_0000 == 0b1000_0000 {
+        } else if bit_utils::is_set(value, 7) {
             self.hdma_enabled = true;
             self.high_ram[0xFF55 - 0xFF00] = value & 0x7F;
             if self.lcd_status_mode == 0 {
                 let _cycles = self.do_hdma();
-                // self.gpu_cycles.cycles_counter += cycles;
             }
         } else {
             let _cycles = self.do_gdma(value);
-            // self.gpu_cycles.cycles_counter += cycles;
         }
     }
 
@@ -494,21 +546,95 @@ impl Memory {
         1 + 8 * ((value & 0x7F) as i32 * 4) // TODO: this needs to be the right timing
     }
 
+    fn update_color_palette(&mut self, background: bool, value: u8) {
+        let hl = bit_utils::is_set(value, 0);
+        let index = (value >> 1) & 0x03;
+        let pal = (value >> 3) & 0x07;
+        let color = if background {
+            self.cgb_background_palettes[pal as usize][index as usize]
+        } else {
+            self.cgb_sprite_palettes[pal as usize][index as usize]
+        };
+
+        let final_value = if hl {
+            let blue = (color.blue & 0x1F) << 2;
+            let half_green_hi = (color.green >> 3) & 0x03;
+            (blue | half_green_hi) & 0x7F
+        } else {
+            let half_green_low = (color.green & 0x07) << 5;
+            let red = color.red & 0x1F;
+            (red | half_green_low)
+        };
+
+        if background {
+            self.high_ram[0xFF69 - 0xFF00] = final_value;
+        } else {
+            self.high_ram[0xFF6B - 0xFF00] = final_value;
+        }
+    }
+
+    fn set_color_palette(&mut self, background: bool, value: u8) {
+        let mut ps = if background {
+            self.get_background_palette_index()
+        } else {
+            self.get_sprite_palette_index()
+        };
+        let hl = bit_utils::is_set(ps, 0);
+        let index = (ps >> 1) & 0x03;
+        let pal = (ps >> 3) & 0x07;
+        let increment = bit_utils::is_set(ps, 7);
+
+        if increment {
+            let mut address = ps & 0x3F;
+            address += 1;
+            address &= 0x3F;
+            ps = (ps & 0x80) | address;
+            if background {
+                self.set_background_palette_index(ps);
+            } else {
+                self.set_sprite_palette_index(ps);
+            }
+            self.update_color_palette(background, ps);
+        }
+
+        if hl {
+            let blue = (value >> 2) & 0x1F;
+            let half_green_hi = (value & 0x03) << 3;
+
+            if background {
+                self.cgb_background_palettes[pal as usize][index as usize].blue = blue;
+                self.cgb_background_palettes[pal as usize][index as usize].green =
+                    (self.cgb_background_palettes[pal as usize][index as usize].green & 0x07)
+                        | half_green_hi;
+            } else {
+                self.cgb_sprite_palettes[pal as usize][index as usize].blue = blue;
+                self.cgb_sprite_palettes[pal as usize][index as usize].green =
+                    (self.cgb_sprite_palettes[pal as usize][index as usize].green & 0x07)
+                        | half_green_hi;
+            }
+        } else {
+            let half_green_low = (value >> 5) & 0x07;
+            let red = value & 0x1F;
+
+            if background {
+                self.cgb_background_palettes[pal as usize][index as usize].red = red;
+                self.cgb_background_palettes[pal as usize][index as usize].green =
+                    (self.cgb_background_palettes[pal as usize][index as usize].green & 0x18)
+                        | half_green_low;
+            } else {
+                self.cgb_sprite_palettes[pal as usize][index as usize].red = red;
+                self.cgb_sprite_palettes[pal as usize][index as usize].green =
+                    (self.cgb_sprite_palettes[pal as usize][index as usize].green & 0x18)
+                        | half_green_low;
+            }
+        }
+    }
+
     pub fn read_cgb_lcd_ram(&self, address: u16, force_bank1: bool) -> u8 {
         if force_bank1 || self.vram_bank == 1 {
             self.vram[address as usize - 0x8000 + 0x2000]
         } else {
             self.read_byte(address)
-        }
-    }
-
-    fn do_dma_transfer(&mut self, data: u8) {
-        let address = 0x100 * u16::from(data);
-        if address >= 0x8000 && address < 0xE000 {
-            for i in 0..0xA0 {
-                let value = self.read_byte(address + i);
-                self.write_byte(0xFE00 + i, value);
-            }
         }
     }
 
@@ -560,61 +686,6 @@ impl Memory {
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
 
-    pub fn get_lcd_status_from_memory(&self) -> u8 {
-        self.high_ram[0xFF41 - 0xFF00]
-    }
-
-    pub fn set_lcd_status_from_memory(&mut self, value: u8) {
-        self.high_ram[0xFF41 - 0xFF00] = value;
-    }
-
-    pub fn compare_ly_to_lyc(&mut self) {
-        if !self.screen_disabled {
-            let lyc = self.read_byte(0xFF45);
-            let mut stat = self.get_lcd_status_from_memory();
-
-            if lyc == self.scan_line {
-                stat |= 0b0000_0100;
-                if stat & 0b0100_0000 == 0b0100_0000 {
-                    if self.irq48_signal == 0 {
-                        self.request_interrupt(Interrupt::Lcd);
-                    }
-                    self.irq48_signal |= 0b0000_1000;
-                }
-            } else {
-                stat &= 0b1111_1011;
-                self.irq48_signal &= 0b1111_0111;
-            }
-            self.set_lcd_status_from_memory(stat);
-        }
-    }
-
-    pub fn enable_screen(&mut self) {
-        if self.screen_disabled {
-            self.gpu_cycles.screen_enable_delay_cycles = 244;
-        }
-    }
-
-    pub fn disable_screen(&mut self) {
-        self.screen_disabled = true;
-        let mut stat = self.read_byte(0xFF41);
-        stat &= 0x7C;
-        self.set_lcd_status_from_memory(stat);
-        self.lcd_status_mode = 0;
-        self.gpu_cycles.cycles_counter = 0;
-        self.gpu_cycles.aux_cycles_counter = 0;
-        self.scan_line = 0;
-        self.irq48_signal = 0;
-    }
-
-    pub fn reset_window_line(&mut self) {
-        let wy = self.read_byte(0xFF4A);
-
-        if (self.gpu_cycles.window_line == 0) && (self.scan_line < 144) && (self.scan_line > wy) {
-            self.gpu_cycles.window_line = 144;
-        }
-    }
-
     pub fn get_div_from_memory(&self) -> u8 {
         self.high_ram[0xFF04 - 0xFF00]
     }
@@ -649,88 +720,51 @@ impl Memory {
         self.high_ram[0xFF4D - 0xFF00] = value;
     }
 
+    pub fn get_lcd_status_from_memory(&self) -> u8 {
+        self.high_ram[0xFF41 - 0xFF00]
+    }
+
+    pub fn set_lcd_status_from_memory(&mut self, value: u8) {
+        self.high_ram[0xFF41 - 0xFF00] = value;
+    }
+
+    pub fn get_lcdc_from_memory(&self) -> u8 {
+        self.high_ram[0xFF40 - 0xFF00]
+    }
+
+    pub fn set_lcdc_from_memory(&mut self, value: u8) {
+        self.high_ram[0xFF40 - 0xFF00] = value;
+    }
+
+    pub fn get_window_line_from_memory(&self) -> u8 {
+        self.high_ram[0xFF4A - 0xFF00]
+    }
+
+    pub fn get_lyc_from_memory(&self) -> u8 {
+        self.high_ram[0xFF45 - 0xFF00]
+    }
+
+    pub fn set_lyc_from_memory(&mut self, value: u8) {
+        self.high_ram[0xFF45 - 0xFF00] = value;
+    }
+
+    pub fn get_background_palette_index(&self) -> u8 {
+        self.high_ram[0xFF68 - 0xFF00]
+    }
+
+    pub fn set_background_palette_index(&mut self, value: u8) {
+        self.high_ram[0xFF68 - 0xFF00] = value;
+    }
+
+    pub fn get_sprite_palette_index(&self) -> u8 {
+        self.high_ram[0xFF6A - 0xFF00]
+    }
+
+    pub fn set_sprite_palette_index(&mut self, value: u8) {
+        self.high_ram[0xFF6A - 0xFF00] = value;
+    }
+
     pub fn is_hdma_enabled(&self) -> bool {
         self.hdma_enabled
-    }
-
-    fn update_color_palette(&mut self, background: bool, value: u8) {
-        let hl = value & 1 == 1;
-        let index = (value >> 1) & 0x03;
-        let pal = (value >> 3) & 0x07;
-        let color = if background {
-            self.cgb_background_palettes[pal as usize][index as usize]
-        } else {
-            self.cgb_sprite_palettes[pal as usize][index as usize]
-        };
-
-        let final_value = if hl {
-            let blue = (color.blue & 0x1F) << 2;
-            let half_green_hi = (color.green >> 3) & 0x03;
-            (blue | half_green_hi) & 0x7F
-        } else {
-            let half_green_low = (color.green & 0x07) << 5;
-            let red = color.red & 0x1F;
-            (red | half_green_low)
-        };
-
-        if background {
-            self.high_ram[0xFF69 - 0xFF00] = final_value;
-        } else {
-            self.high_ram[0xFF6B - 0xFF00] = final_value;
-        }
-    }
-
-    fn set_color_palette(&mut self, background: bool, value: u8) {
-        let ps_addr = if background {
-            0xFF68 - 0xFF00
-        } else {
-            0xFF6A - 0xFF00
-        };
-        let mut ps = self.high_ram[ps_addr];
-        let hl = ps & 1 == 1;
-        let index = (ps >> 1) & 0x03;
-        let pal = (ps >> 3) & 0x07;
-        let increment = ps & 0b1000_0000 == 0b1000_0000;
-
-        if increment {
-            let mut address = ps & 0x3F;
-            address += 1;
-            address &= 0x3F;
-            ps = (ps & 0x80) | address;
-            self.high_ram[ps_addr] = ps;
-            self.update_color_palette(background, ps);
-        }
-
-        if hl {
-            let blue = (value >> 2) & 0x1F;
-            let half_green_hi = (value & 0x03) << 3;
-
-            if background {
-                self.cgb_background_palettes[pal as usize][index as usize].blue = blue;
-                self.cgb_background_palettes[pal as usize][index as usize].green =
-                    (self.cgb_background_palettes[pal as usize][index as usize].green & 0x07)
-                        | half_green_hi;
-            } else {
-                self.cgb_sprite_palettes[pal as usize][index as usize].blue = blue;
-                self.cgb_sprite_palettes[pal as usize][index as usize].green =
-                    (self.cgb_sprite_palettes[pal as usize][index as usize].green & 0x07)
-                        | half_green_hi;
-            }
-        } else {
-            let half_green_low = (value >> 5) & 0x07;
-            let red = value & 0x1F;
-
-            if background {
-                self.cgb_background_palettes[pal as usize][index as usize].red = red;
-                self.cgb_background_palettes[pal as usize][index as usize].green =
-                    (self.cgb_background_palettes[pal as usize][index as usize].green & 0x18)
-                        | half_green_low;
-            } else {
-                self.cgb_sprite_palettes[pal as usize][index as usize].red = red;
-                self.cgb_sprite_palettes[pal as usize][index as usize].green =
-                    (self.cgb_sprite_palettes[pal as usize][index as usize].green & 0x18)
-                        | half_green_low;
-            }
-        }
     }
 }

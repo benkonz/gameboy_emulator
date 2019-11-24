@@ -8,11 +8,11 @@ use self::cgb_color::CGBColor;
 use self::color::Color;
 use self::lcd_control_flag::LcdControlFlag;
 use self::sprite_attributes::SpriteAttributes;
+use bit_utils;
 use emulator::traits::PixelMapper;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
 
-// TODO: move these to the MMU as pub const
 const SPRITES_START_INDEX: u16 = 0xFE00;
 const LCD_CONTROL_INDEX: u16 = 0xFF40;
 const LCD_INDEX: u16 = 0xFF41;
@@ -33,23 +33,23 @@ const GAMEBOY_WIDTH: i32 = 160;
 const GAMEBOY_HEIGHT: i32 = 144;
 
 pub struct GPU {
-    tile_cycles_counter: i32,
-    vblank_line: i32,
-    scan_line_transferred: bool,
-    hide_frames: i32,
     is_cgb: bool,
     background: [u8; (GAMEBOY_HEIGHT * GAMEBOY_WIDTH) as usize],
+    hide_frames: i32,
+    scan_line_transferred: bool,
+    vblank_line: i32,
+    tile_cycles_counter: i32,
 }
 
 impl GPU {
     pub fn new(is_cgb: bool) -> GPU {
         GPU {
-            tile_cycles_counter: 0,
-            vblank_line: 0,
-            hide_frames: 0,
-            scan_line_transferred: false,
             is_cgb,
             background: [0; (GAMEBOY_WIDTH * GAMEBOY_HEIGHT) as usize],
+            hide_frames: 0,
+            scan_line_transferred: false,
+            vblank_line: 0,
+            tile_cycles_counter: 0,
         }
     }
 
@@ -77,21 +77,21 @@ impl GPU {
             memory.gpu_cycles.screen_enable_delay_cycles -= cycles;
 
             if memory.gpu_cycles.screen_enable_delay_cycles <= 0 {
-                memory.gpu_cycles.screen_enable_delay_cycles = 0;
-                memory.screen_disabled = false;
                 self.hide_frames = 3;
+                self.vblank_line = 0;
+                self.tile_cycles_counter = 0;
+                memory.screen_disabled = false;
                 memory.lcd_status_mode = 0;
+                memory.scan_line = 0;
+                memory.irq48_signal = 0;
+                memory.gpu_cycles.screen_enable_delay_cycles = 0;
                 memory.gpu_cycles.cycles_counter = 0;
                 memory.gpu_cycles.aux_cycles_counter = 0;
-                memory.scan_line = 0;
                 memory.gpu_cycles.window_line = 0;
-                self.vblank_line = 0;
                 memory.gpu_cycles.pixel_counter = 0;
-                self.tile_cycles_counter = 0;
-                memory.irq48_signal = 0;
 
                 let stat = memory.get_lcd_status_from_memory();
-                if stat & 0b0010_0000 == 0b0010_0000 {
+                if bit_utils::is_set(stat, 5) {
                     memory.request_interrupt(Interrupt::Lcd);
                     memory.irq48_signal |= 0b0000_0100;
                 }
@@ -128,9 +128,9 @@ impl GPU {
 
                 memory.irq48_signal &= 0x09;
                 let stat = memory.get_lcd_status_from_memory();
-                if stat & 0b0001_0000 == 0b0001_0000 {
-                    if memory.irq48_signal & 0b0000_0001 != 0b0000_0001
-                        && memory.irq48_signal & 0b0000_1000 != 0b0000_1000
+                if bit_utils::is_set(stat, 4) {
+                    if !bit_utils::is_set(memory.irq48_signal, 0)
+                        && !bit_utils::is_set(memory.irq48_signal, 3)
                     {
                         memory.request_interrupt(Interrupt::Lcd);
                     }
@@ -149,7 +149,7 @@ impl GPU {
                 memory.irq48_signal &= 0x09;
                 let stat = memory.get_lcd_status_from_memory();
 
-                if stat & 0b0010_0000 == 0b0010_0000 {
+                if bit_utils::is_set(stat, 5) {
                     if memory.irq48_signal == 0 {
                         memory.request_interrupt(Interrupt::Lcd);
                     }
@@ -190,7 +190,7 @@ impl GPU {
 
             memory.irq48_signal &= 0x0A;
             let stat = memory.get_lcd_status_from_memory();
-            if stat & 0b0010_0000 == 0b0010_0000 {
+            if bit_utils::is_set(stat, 5) {
                 if memory.irq48_signal == 0 {
                     memory.request_interrupt(Interrupt::Lcd);
                 }
@@ -204,8 +204,8 @@ impl GPU {
         if memory.gpu_cycles.cycles_counter >= 80 {
             memory.gpu_cycles.cycles_counter -= 80;
             memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | 0b11;
-            self.scan_line_transferred = false;
             memory.irq48_signal &= 0x08;
+            self.scan_line_transferred = false;
             self.update_stat_register(memory);
         }
     }
@@ -253,8 +253,8 @@ impl GPU {
 
             memory.irq48_signal &= 0x08;
             let stat = memory.get_lcd_status_from_memory();
-            if stat & 0b0000_1000 == 0b0000_1000 {
-                if memory.irq48_signal & 0b0000_1000 != 0b0000_1000 {
+            if bit_utils::is_set(stat, 3) {
+                if !bit_utils::is_set(memory.irq48_signal, 3) {
                     memory.request_interrupt(Interrupt::Lcd);
                 }
                 memory.irq48_signal |= 0b0000_0001;
@@ -344,27 +344,27 @@ impl GPU {
                     0
                 };
                 let cgb_tile_pal = if self.is_cgb {
-                    cgb_tile_attrs & 0b0000_0111
+                    cgb_tile_attrs & 0b111
                 } else {
                     0
                 };
                 let cgb_tile_bank = if self.is_cgb {
-                    cgb_tile_attrs & 0b0000_1000 == 0b0000_1000
+                    bit_utils::is_set(cgb_tile_attrs, 3)
                 } else {
                     false
                 };
                 let cgb_tile_xflip = if self.is_cgb {
-                    cgb_tile_attrs & 0b0010_0000 == 0b0010_0000
+                    bit_utils::is_set(cgb_tile_attrs, 5)
                 } else {
                     false
                 };
                 let cgb_tile_yflip = if self.is_cgb {
-                    cgb_tile_attrs & 0b0100_0000 == 0b0100_0000
+                    bit_utils::is_set(cgb_tile_attrs, 6)
                 } else {
                     false
                 };
                 let cgb_tile_priority = if self.is_cgb {
-                    cgb_tile_attrs & 0b1000_0000 == 0b1000_0000
+                    bit_utils::is_set(cgb_tile_attrs, 7)
                 } else {
                     false
                 };
@@ -391,19 +391,15 @@ impl GPU {
                 if self.is_cgb && cgb_tile_xflip {
                     pixel_x_in_tile = 7 - pixel_x_in_tile;
                 }
-                let pixel_x_in_tile_bit = 0x1 << (7 - pixel_x_in_tile) as u8;
+                let pixel_x_in_tile_bit = 1 << (7 - pixel_x_in_tile) as u8;
 
-                let mut pixel = if byte1 & pixel_x_in_tile_bit != 0 {
-                    1
-                } else {
-                    0
-                };
-
-                pixel |= if byte2 & pixel_x_in_tile_bit != 0 {
-                    2
-                } else {
-                    0
-                };
+                let mut pixel = 0;
+                if byte1 & pixel_x_in_tile_bit != 0 {
+                    pixel |= 1;
+                }
+                if byte2 & pixel_x_in_tile_bit != 0 {
+                    pixel |= 2;
+                }
 
                 let index = (line_width + screen_pixel_x) as usize;
                 self.background[index] = pixel & 0x03;
@@ -504,27 +500,27 @@ impl GPU {
                 0
             };
             let cgb_tile_pal = if self.is_cgb {
-                cgb_tile_attrs & 0b0000_0111
+                cgb_tile_attrs & 0b111
             } else {
                 0
             };
             let cgb_tile_bank = if self.is_cgb {
-                cgb_tile_attrs & 0b0000_1000 == 0b0000_1000
+                bit_utils::is_set(cgb_tile_attrs, 3)
             } else {
                 false
             };
             let cgb_tile_xflip = if self.is_cgb {
-                cgb_tile_attrs & 0b0010_0000 == 0b0010_0000
+                bit_utils::is_set(cgb_tile_attrs, 5)
             } else {
                 false
             };
             let cgb_tile_yflip = if self.is_cgb {
-                cgb_tile_attrs & 0b0100_0000 == 0b0100_0000
+                bit_utils::is_set(cgb_tile_attrs, 6)
             } else {
                 false
             };
             let cgb_tile_priority = if self.is_cgb {
-                cgb_tile_attrs & 0b1000_0000 == 0b1000_0000
+                bit_utils::is_set(cgb_tile_attrs, 7)
             } else {
                 false
             };
@@ -559,15 +555,13 @@ impl GPU {
                 } else {
                     pixelx as u8
                 };
-                let mut pixel = if (byte1 & (0x1 << (7 - pixelx_pos))) != 0 {
-                    1
-                } else {
-                    0
-                };
-                pixel |= if (byte2 & (0x1 << (7 - pixelx_pos))) != 0 {
-                    2
-                } else {
-                    1
+
+                let mut pixel = 0;
+                if (byte1 & (0x1 << (7 - pixelx_pos))) != 0 {
+                    pixel |= 1;
+                }
+                if (byte2 & (0x1 << (7 - pixelx_pos))) != 0 {
+                    pixel |= 2;
                 };
 
                 let position = (line_width + buffer_x) as usize;
@@ -676,30 +670,17 @@ impl GPU {
             };
 
             for pixelx in 0..8 {
-                let mut pixel = if xflip {
-                    if byte1 & (0x01 << pixelx) != 0 {
-                        1
-                    } else {
-                        0
-                    }
-                } else if byte1 & (0x01 << (7 - pixelx)) != 0 {
-                    1
-                } else {
-                    0
-                };
-
-                pixel |= if xflip {
-                    if byte2 & (0x01 << pixelx) != 0 {
-                        2
-                    } else {
-                        0
-                    }
-                } else if byte2 & (0x01 << (7 - pixelx)) != 0 {
-                    2
-                } else {
-                    0
-                };
-
+                let mut pixel = 0;
+                if (xflip && (byte1 & (0x01 << pixelx) != 0))
+                    || (byte1 & (0x01 << (7 - pixelx)) != 0)
+                {
+                    pixel |= 1;
+                }
+                if (xflip && (byte2 & (0x01 << pixelx) != 0))
+                    || (byte2 & (0x01 << (7 - pixelx)) != 0)
+                {
+                    pixel |= 2;
+                }
                 if pixel == 0 {
                     continue;
                 }
@@ -712,7 +693,7 @@ impl GPU {
                 let position = (line_width + buffer_x) as usize;
                 let background_color = self.background[position];
 
-                if self.is_cgb && background_color & 0b0100 == 0b0100 {
+                if self.is_cgb && bit_utils::is_set(background_color, 2) {
                     continue;
                 }
 

@@ -671,16 +671,23 @@ impl GPU {
 
             for pixelx in 0..8 {
                 let mut pixel = 0;
-                if (xflip && (byte1 & (0x01 << pixelx) != 0))
-                    || (byte1 & (0x01 << (7 - pixelx)) != 0)
-                {
+
+                if xflip {
+                    if byte1 & (0x01 << pixelx) != 0 {
+                        pixel |= 1;
+                    }
+                } else if byte1 & (0x01 << (7 - pixelx)) != 0 {
                     pixel |= 1;
                 }
-                if (xflip && (byte2 & (0x01 << pixelx) != 0))
-                    || (byte2 & (0x01 << (7 - pixelx)) != 0)
-                {
+
+                if xflip {
+                    if byte2 & (0x01 << pixelx) != 0 {
+                        pixel |= 2;
+                    }
+                } else if byte2 & (0x01 << (7 - pixelx)) != 0 {
                     pixel |= 2;
                 }
+                
                 if pixel == 0 {
                     continue;
                 }

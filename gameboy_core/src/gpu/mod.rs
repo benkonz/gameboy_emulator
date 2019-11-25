@@ -496,32 +496,32 @@ impl GPU {
             };
 
             let cgb_tile_attrs = if self.is_cgb {
-                memory.read_cgb_lcd_ram((map + y_32 + x) as u16, true)
+                BgAttributes::from_bits_truncate(memory.read_cgb_lcd_ram((map + y_32 + x) as u16, true))
             } else {
-                0
+                BgAttributes::empty()
             };
             let cgb_tile_pal = if self.is_cgb {
-                cgb_tile_attrs & 0b111
+                cgb_tile_attrs.bits() & 0b111
             } else {
                 0
             };
             let cgb_tile_bank = if self.is_cgb {
-                bit_utils::is_set(cgb_tile_attrs, 3)
+                cgb_tile_attrs.contains(BgAttributes::VRAM_BANK)
             } else {
                 false
             };
             let cgb_tile_xflip = if self.is_cgb {
-                bit_utils::is_set(cgb_tile_attrs, 5)
+                cgb_tile_attrs.contains(BgAttributes::XFLIP)
             } else {
                 false
             };
             let cgb_tile_yflip = if self.is_cgb {
-                bit_utils::is_set(cgb_tile_attrs, 6)
+                cgb_tile_attrs.contains(BgAttributes::YFLIP)
             } else {
                 false
             };
             let cgb_tile_priority = if self.is_cgb {
-                bit_utils::is_set(cgb_tile_attrs, 7)
+                cgb_tile_attrs.contains(BgAttributes::BG_PRIORITY)
             } else {
                 false
             };

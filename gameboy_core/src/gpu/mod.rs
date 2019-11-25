@@ -1,7 +1,6 @@
 pub mod cgb_color;
 pub mod color;
 pub mod lcd_control_flag;
-pub mod lcd_status_flag;
 mod sprite_attributes;
 
 use self::cgb_color::CGBColor;

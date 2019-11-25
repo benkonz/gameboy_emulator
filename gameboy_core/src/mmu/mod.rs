@@ -664,7 +664,7 @@ impl Memory {
         let check = interrupt_enable & interrupt_flags;
 
         for (i, interrupt) in interrupts.iter().enumerate() {
-            if check & (1 << i) != 0 {
+            if bit_utils::is_set(check, i as u8) {
                 let interrupt = interrupt.clone();
                 return Some(interrupt);
             }

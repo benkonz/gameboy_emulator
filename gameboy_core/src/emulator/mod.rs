@@ -59,7 +59,6 @@ impl Emulator {
             Interrupt::Joypad => self.cpu.rst_60(&mut self.memory),
         }
         self.memory.remove_interrupt(interrupt);
-
         self.cpu.halted = false;
     }
 

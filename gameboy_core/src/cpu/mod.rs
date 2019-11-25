@@ -1625,7 +1625,8 @@ impl Cpu {
 
     fn ret_i(&mut self, memory: &Memory) {
         self.registers.pc = self.pop(memory);
-        self.interrupt_enabled = true;
+        self.interrupt_enabled_counter = 2;
+        self.new_interrupt_enabled = true;
     }
 
     fn jp_c_nn(&mut self, nn: u16) {

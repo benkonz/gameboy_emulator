@@ -74,10 +74,7 @@ impl Mbc for Mbc2 {
 }
 
 impl Mbc2 {
-    pub fn new(mut cartridge: Cartridge) -> Mbc2 {
-        // MBC2 has a fixed amount of RAM
-        cartridge.set_ram(vec![0x0F; 0x200]);
-
+    pub fn new(cartridge: Cartridge) -> Mbc2 {
         Mbc2 {
             cartridge,
             selected_rom_bank: 1,

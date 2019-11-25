@@ -49,8 +49,6 @@ impl Cartridge {
             _ => false,
         };
 
-        let ram = vec![0xFF; 0x20000];
-
         let mut name = String::new();
         let mut name_index = 0x0134;
         while rom[name_index] != 0x00 && name_index < 0x0143 {
@@ -69,6 +67,12 @@ impl Cartridge {
         };
 
         let is_cgb = rom[0x0143] == 0xC0 || rom[0x0143] == 0x80;
+
+        let ram = match mbc_type {
+            MbcType::Mbc2 => vec![0x0F; 0x200],
+            MbcType::Mbc5 => vec![0xFF; 0x20000],
+            _ => vec![0xFF; 0x8000]
+        };
 
         Cartridge {
             rom_banks,

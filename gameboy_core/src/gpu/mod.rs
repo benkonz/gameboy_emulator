@@ -1,8 +1,10 @@
+mod bg_attributes;
 pub mod cgb_color;
 pub mod color;
 pub mod lcd_control_flag;
 mod sprite_attributes;
 
+use self::bg_attributes::BgAttributes;
 use self::cgb_color::CGBColor;
 use self::color::Color;
 use self::lcd_control_flag::LcdControlFlag;
@@ -338,32 +340,32 @@ impl GPU {
                 };
 
                 let cgb_tile_attrs = if self.is_cgb {
-                    memory.read_cgb_lcd_ram(map_tile_addr, true)
+                    BgAttributes::from_bits_truncate(memory.read_cgb_lcd_ram(map_tile_addr, true))
                 } else {
-                    0
+                    BgAttributes::empty()
                 };
                 let cgb_tile_pal = if self.is_cgb {
-                    cgb_tile_attrs & 0b111
+                    cgb_tile_attrs.bits() & 0b111
                 } else {
                     0
                 };
                 let cgb_tile_bank = if self.is_cgb {
-                    bit_utils::is_set(cgb_tile_attrs, 3)
+                    cgb_tile_attrs.contains(BgAttributes::VRAM_BANK)
                 } else {
                     false
                 };
                 let cgb_tile_xflip = if self.is_cgb {
-                    bit_utils::is_set(cgb_tile_attrs, 5)
+                    cgb_tile_attrs.contains(BgAttributes::XFLIP)
                 } else {
                     false
                 };
                 let cgb_tile_yflip = if self.is_cgb {
-                    bit_utils::is_set(cgb_tile_attrs, 6)
+                    cgb_tile_attrs.contains(BgAttributes::YFLIP)
                 } else {
                     false
                 };
                 let cgb_tile_priority = if self.is_cgb {
-                    bit_utils::is_set(cgb_tile_attrs, 7)
+                    cgb_tile_attrs.contains(BgAttributes::BG_PRIORITY)
                 } else {
                     false
                 };
@@ -686,7 +688,6 @@ impl GPU {
                 } else if byte2 & (0x01 << (7 - pixelx)) != 0 {
                     pixel |= 2;
                 }
-                
                 if pixel == 0 {
                     continue;
                 }

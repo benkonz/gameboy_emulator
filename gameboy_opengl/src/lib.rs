@@ -1,5 +1,3 @@
-#[macro_use]
-extern crate c_str_macro;
 extern crate directories;
 extern crate gameboy_core;
 extern crate glutin;
@@ -19,6 +17,7 @@ use opengl_rendering_context::Gl;
 use screen::Screen;
 use shader::Shader;
 use std::cell::RefCell;
+use std::ffi::CString;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -370,7 +369,7 @@ fn get_ram_saves_path() -> Option<PathBuf> {
 }
 
 fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, frame_buffer: &[u8]) {
-    let screen_uniform_str = c_str!("screen");
+    let screen_uniform_str = CString::new("string").unwrap();
 
     unsafe {
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);

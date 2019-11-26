@@ -35,11 +35,34 @@ const GAMEBOY_HEIGHT: i32 = 144;
 
 pub struct GPU {
     is_cgb: bool,
-    background: [u8; (GAMEBOY_HEIGHT * GAMEBOY_WIDTH) as usize],
+    background: [i32; (GAMEBOY_HEIGHT * GAMEBOY_WIDTH) as usize],
     hide_frames: i32,
     scan_line_transferred: bool,
     vblank_line: i32,
     tile_cycles_counter: i32,
+}
+
+fn gb_color_from_palette(palette: u8, pixel: i32) -> Color {
+    let color_bits = (palette >> (pixel * 2)) & 0x03;
+    match color_bits {
+        0b00 => Color::White,
+        0b01 => Color::LightGray,
+        0b10 => Color::DarkGray,
+        0b11 => Color::Black,
+        _ => unreachable!(),
+    }
+}
+
+fn cgb_color_to_byte(color: u8) -> u8 {
+    ((color as u16) * 0xFF / 0x1F) as u8
+}
+
+fn cgb_color_to_rgb_color(color: CGBColor) -> CGBColor {
+    CGBColor {
+        red: cgb_color_to_byte(color.red),
+        green: cgb_color_to_byte(color.green),
+        blue: cgb_color_to_byte(color.blue),
+    }
 }
 
 impl GPU {
@@ -411,17 +434,10 @@ impl GPU {
                     }
                     let color =
                         memory.cgb_background_palettes[cgb_tile_pal as usize][pixel as usize];
-                    pixel_mapper.cgb_map_pixel(index, color);
+                    pixel_mapper.cgb_map_pixel(index, cgb_color_to_rgb_color(color));
                 } else {
                     let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
-                    let color_bits = (palette >> (pixel * 2)) & 0x03;
-                    let color = match color_bits {
-                        0b00 => Color::White,
-                        0b01 => Color::LightGray,
-                        0b10 => Color::DarkGray,
-                        0b11 => Color::Black,
-                        _ => unreachable!(),
-                    };
+                    let color = gb_color_from_palette(palette, pixel);
                     pixel_mapper.map_pixel(index, color);
                 }
             }
@@ -496,7 +512,9 @@ impl GPU {
             };
 
             let cgb_tile_attrs = if self.is_cgb {
-                BgAttributes::from_bits_truncate(memory.read_cgb_lcd_ram((map + y_32 + x) as u16, true))
+                BgAttributes::from_bits_truncate(
+                    memory.read_cgb_lcd_ram((map + y_32 + x) as u16, true),
+                )
             } else {
                 BgAttributes::empty()
             };
@@ -574,17 +592,10 @@ impl GPU {
                     }
                     let color =
                         memory.cgb_background_palettes[cgb_tile_pal as usize][pixel as usize];
-                    pixel_mapper.cgb_map_pixel(position, color);
+                    pixel_mapper.cgb_map_pixel(position, cgb_color_to_rgb_color(color));
                 } else {
                     let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
-                    let color_bits = (palette >> (pixel * 2)) & 0x03;
-                    let color = match color_bits {
-                        0b00 => Color::White,
-                        0b01 => Color::LightGray,
-                        0b10 => Color::DarkGray,
-                        0b11 => Color::Black,
-                        _ => unreachable!(),
-                    };
+                    let color = gb_color_from_palette(palette, pixel);
                     pixel_mapper.map_pixel(position, color);
                 }
             }
@@ -700,7 +711,7 @@ impl GPU {
                 let position = (line_width + buffer_x) as usize;
                 let background_color = self.background[position];
 
-                if self.is_cgb && bit_utils::is_set(background_color, 2) {
+                if self.is_cgb && bit_utils::is_set(background_color as u8, 2) {
                     continue;
                 }
 
@@ -710,21 +721,14 @@ impl GPU {
 
                 if self.is_cgb {
                     let color = memory.cgb_sprite_palettes[cgb_tile_pal as usize][pixel as usize];
-                    pixel_mapper.cgb_map_pixel(position, color);
+                    pixel_mapper.cgb_map_pixel(position, cgb_color_to_rgb_color(color));
                 } else {
                     let palette = if sprite_pallette {
                         memory.read_byte(OBJECT_PALETTE_1_INDEX)
                     } else {
                         memory.read_byte(OBJECT_PALETTE_0_INDEX)
                     };
-                    let color_bits = (palette >> (pixel * 2)) & 0x03;
-                    let color = match color_bits {
-                        0b00 => Color::White,
-                        0b01 => Color::LightGray,
-                        0b10 => Color::DarkGray,
-                        0b11 => Color::Black,
-                        _ => unreachable!(),
-                    };
+                    let color = gb_color_from_palette(palette, pixel);
                     pixel_mapper.map_pixel(position, color);
                 }
             }

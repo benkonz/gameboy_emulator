@@ -71,7 +71,7 @@ impl Cartridge {
         let ram = match mbc_type {
             MbcType::Mbc2 => vec![0x0F; 0x200],
             MbcType::Mbc5 => vec![0xFF; 0x20000],
-            _ => vec![0xFF; 0x8000]
+            _ => vec![0xFF; 0x8000],
         };
 
         Cartridge {

@@ -39,8 +39,8 @@ const CB_INSTRUCTION_TIMINGS: [i32; 256] = [
 
 pub struct Cpu {
     registers: Registers,
-    pub halted: bool,
-    pub interrupt_enabled: bool,
+    halted: bool,
+    interrupt_enabled: bool,
     interrupt_enabled_counter: u8,
     new_interrupt_enabled: bool,
     instruction_cycle: i32,
@@ -74,6 +74,18 @@ impl Cpu {
             is_cgb,
             cgb_speed: false,
         }
+    }
+
+    pub fn unhalt(&mut self) {
+        self.halted = false;
+    }
+
+    pub fn are_interrupts_enabled(&self) -> bool {
+        self.interrupt_enabled
+    }
+
+    pub fn disable_interrupts(&mut self) {
+        self.interrupt_enabled = false;
     }
 
     fn get_n(&mut self, memory: &Memory) -> u8 {

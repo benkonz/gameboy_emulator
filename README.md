@@ -5,13 +5,17 @@
 This is a GameBoy emulator written in Rust. It can be compiled to native
 and web assembly, see the build section for more details. Sound not supported.
 
-Emulator supports several hardware types, sprites, and saving
-to browser local storage (web) and user config directories (native)
+Emulator supports several hardware types, gameboy color emulation (very experemental),
+sprites, and saving to browser local storage (web) and user config directories (native)
 
 The web assembly port is currently hosted [here](https://benkonz.github.io/assets/emulator)
 
 ## Screenshots
 
+<p align="center">
+    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/pokemon_crystal.png" height=240 />
+    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/super_mario.png" height=240 />
+</p>
 <p align="center">
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/tetris.png" height=240 />
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/mario.png" height=240 />
@@ -22,7 +26,7 @@ The web assembly port is currently hosted [here](https://benkonz.github.io/asset
 </p>
 <p align="center">
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/zelda.png" height=240 />
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/2048.png" height=240 />
+    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/metroid.png" height=240 />
 </p>
 <p align="center">
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/kirby2.png" height=240 />

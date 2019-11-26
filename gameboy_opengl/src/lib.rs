@@ -190,9 +190,18 @@ pub fn start(rom: Vec<u8>) {
                     }
                 }
 
+                if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
+                    if let Some(ref mut ram_save_file) = ram_save_file {
+                        let ram = emulator.get_cartridge().get_ram();
+                        ram_save_file.seek(SeekFrom::Start(0)).unwrap();
+                        ram_save_file.write_all(ram).unwrap();
+                    }
+                    *ram_changed.borrow_mut() = false;
+                }
+
                 match frame_sender.send(screen.get_frame_buffer().clone()) {
                     Ok(()) => (),
-                    Err(SendError(_)) => break 'game_loop,
+                    Err(SendError(_)) => break,
                 };
                 loop {
                     match controller_receiver.try_recv() {
@@ -205,20 +214,14 @@ pub fn start(rom: Vec<u8>) {
                     }
                 }
                 match end_receiver.try_recv() {
-                    Ok(_) | Err(TryRecvError::Disconnected) => break 'game_loop,
+                    Ok(_) | Err(TryRecvError::Disconnected) => break,
                     _ => (),
-                }
-                if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
-                    if let Some(ref mut ram_save_file) = ram_save_file {
-                        let ram = emulator.get_cartridge().get_ram();
-                        ram_save_file.seek(SeekFrom::Start(0)).unwrap();
-                        ram_save_file.write_all(ram).unwrap();
-                    }
-                    *ram_changed.borrow_mut() = false;
                 }
 
                 let end_time = SystemTime::now();
-                let last_frame_duration = end_time.duration_since(start_time).unwrap();
+                let last_frame_duration = end_time
+                    .duration_since(start_time)
+                    .unwrap_or_else(|_| Duration::new(0, 0));
                 if frame_duration >= last_frame_duration {
                     let sleep_duration = frame_duration - last_frame_duration;
                     thread::sleep(sleep_duration);

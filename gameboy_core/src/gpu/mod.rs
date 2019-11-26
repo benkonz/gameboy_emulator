@@ -1,22 +1,24 @@
+mod bg_attributes;
+pub mod cgb_color;
 pub mod color;
 pub mod lcd_control_flag;
-pub mod lcd_status_flag;
 mod sprite_attributes;
 
+use self::bg_attributes::BgAttributes;
+use self::cgb_color::CGBColor;
 use self::color::Color;
 use self::lcd_control_flag::LcdControlFlag;
 use self::sprite_attributes::SpriteAttributes;
+use bit_utils;
 use emulator::traits::PixelMapper;
 use mmu::interrupt::Interrupt;
 use mmu::Memory;
 
-// TODO: move these to the MMU as pub const
 const SPRITES_START_INDEX: u16 = 0xFE00;
 const LCD_CONTROL_INDEX: u16 = 0xFF40;
 const LCD_INDEX: u16 = 0xFF41;
 const SCROLL_Y_INDEX: u16 = 0xFF42;
 const SCROLL_X_INDEX: u16 = 0xFF43;
-const _LYC_INDEX: u16 = 0xFF45;
 const BACKGROUND_PALETTE_INDEX: u16 = 0xFF47;
 const OBJECT_PALETTE_0_INDEX: u16 = 0xFF48;
 const OBJECT_PALETTE_1_INDEX: u16 = 0xFF49;
@@ -32,20 +34,46 @@ const GAMEBOY_WIDTH: i32 = 160;
 const GAMEBOY_HEIGHT: i32 = 144;
 
 pub struct GPU {
-    tile_cycles_counter: i32,
-    vblank_line: i32,
-    scan_line_transferred: bool,
+    is_cgb: bool,
+    background: [i32; (GAMEBOY_HEIGHT * GAMEBOY_WIDTH) as usize],
     hide_frames: i32,
+    scan_line_transferred: bool,
+    vblank_line: i32,
+    tile_cycles_counter: i32,
+}
+
+fn gb_color_from_palette(palette: u8, pixel: i32) -> Color {
+    let color_bits = (palette >> (pixel * 2)) & 0x03;
+    match color_bits {
+        0b00 => Color::White,
+        0b01 => Color::LightGray,
+        0b10 => Color::DarkGray,
+        0b11 => Color::Black,
+        _ => unreachable!(),
+    }
+}
+
+fn cgb_color_to_byte(color: u8) -> u8 {
+    ((color as u16) * 0xFF / 0x1F) as u8
+}
+
+fn cgb_color_to_rgb_color(color: CGBColor) -> CGBColor {
+    CGBColor {
+        red: cgb_color_to_byte(color.red),
+        green: cgb_color_to_byte(color.green),
+        blue: cgb_color_to_byte(color.blue),
+    }
 }
 
 impl GPU {
-    // TODO: make a background color map that we use to check bg priority
-    pub fn new() -> GPU {
+    pub fn new(is_cgb: bool) -> GPU {
         GPU {
-            tile_cycles_counter: 0,
-            vblank_line: 0,
+            is_cgb,
+            background: [0; (GAMEBOY_WIDTH * GAMEBOY_HEIGHT) as usize],
             hide_frames: 0,
             scan_line_transferred: false,
+            vblank_line: 0,
+            tile_cycles_counter: 0,
         }
     }
 
@@ -73,21 +101,21 @@ impl GPU {
             memory.gpu_cycles.screen_enable_delay_cycles -= cycles;
 
             if memory.gpu_cycles.screen_enable_delay_cycles <= 0 {
-                memory.gpu_cycles.screen_enable_delay_cycles = 0;
-                memory.screen_disabled = false;
                 self.hide_frames = 3;
+                self.vblank_line = 0;
+                self.tile_cycles_counter = 0;
+                memory.screen_disabled = false;
                 memory.lcd_status_mode = 0;
+                memory.scan_line = 0;
+                memory.irq48_signal = 0;
+                memory.gpu_cycles.screen_enable_delay_cycles = 0;
                 memory.gpu_cycles.cycles_counter = 0;
                 memory.gpu_cycles.aux_cycles_counter = 0;
-                memory.scan_line = 0;
                 memory.gpu_cycles.window_line = 0;
-                self.vblank_line = 0;
                 memory.gpu_cycles.pixel_counter = 0;
-                self.tile_cycles_counter = 0;
-                memory.irq48_signal = 0;
 
                 let stat = memory.get_lcd_status_from_memory();
-                if stat & 0b0010_0000 == 0b0010_0000 {
+                if bit_utils::is_set(stat, 5) {
                     memory.request_interrupt(Interrupt::Lcd);
                     memory.irq48_signal |= 0b0000_0100;
                 }
@@ -110,6 +138,11 @@ impl GPU {
             memory.scan_line += 1;
             memory.compare_ly_to_lyc();
 
+            if self.is_cgb && memory.is_hdma_enabled() {
+                let _cycles = memory.do_hdma();
+                // memory.gpu_cycles.cycles_counter += cycles;
+            }
+
             if memory.scan_line == 144 {
                 memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | VBLANK;
                 self.vblank_line = 0;
@@ -119,9 +152,9 @@ impl GPU {
 
                 memory.irq48_signal &= 0x09;
                 let stat = memory.get_lcd_status_from_memory();
-                if stat & 0b0001_0000 == 0b0001_0000 {
-                    if memory.irq48_signal & 0b0000_0001 != 0b0000_0001
-                        && memory.irq48_signal & 0b0000_1000 != 0b0000_1000
+                if bit_utils::is_set(stat, 4) {
+                    if !bit_utils::is_set(memory.irq48_signal, 0)
+                        && !bit_utils::is_set(memory.irq48_signal, 3)
                     {
                         memory.request_interrupt(Interrupt::Lcd);
                     }
@@ -140,7 +173,7 @@ impl GPU {
                 memory.irq48_signal &= 0x09;
                 let stat = memory.get_lcd_status_from_memory();
 
-                if stat & 0b0010_0000 == 0b0010_0000 {
+                if bit_utils::is_set(stat, 5) {
                     if memory.irq48_signal == 0 {
                         memory.request_interrupt(Interrupt::Lcd);
                     }
@@ -181,7 +214,7 @@ impl GPU {
 
             memory.irq48_signal &= 0x0A;
             let stat = memory.get_lcd_status_from_memory();
-            if stat & 0b0010_0000 == 0b0010_0000 {
+            if bit_utils::is_set(stat, 5) {
                 if memory.irq48_signal == 0 {
                     memory.request_interrupt(Interrupt::Lcd);
                 }
@@ -195,8 +228,8 @@ impl GPU {
         if memory.gpu_cycles.cycles_counter >= 80 {
             memory.gpu_cycles.cycles_counter -= 80;
             memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | 0b11;
-            self.scan_line_transferred = false;
             memory.irq48_signal &= 0x08;
+            self.scan_line_transferred = false;
             self.update_stat_register(memory);
         }
     }
@@ -244,8 +277,8 @@ impl GPU {
 
             memory.irq48_signal &= 0x08;
             let stat = memory.get_lcd_status_from_memory();
-            if stat & 0b0000_1000 == 0b0000_1000 {
-                if memory.irq48_signal & 0b0000_1000 != 0b0000_1000 {
+            if bit_utils::is_set(stat, 3) {
+                if !bit_utils::is_set(memory.irq48_signal, 3) {
                     memory.request_interrupt(Interrupt::Lcd);
                 }
                 memory.irq48_signal |= 0b0000_0001;
@@ -267,7 +300,16 @@ impl GPU {
             let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
             for x in 0..GAMEBOY_WIDTH {
                 let index = (line_width + x) as usize;
-                pixel_mapper.map_pixel(index, Color::White);
+                if self.is_cgb {
+                    let white = CGBColor {
+                        red: 0,
+                        green: 0,
+                        blue: 0,
+                    };
+                    pixel_mapper.cgb_map_pixel(index, white);
+                } else {
+                    pixel_mapper.map_pixel(index, Color::White);
+                }
             }
         }
     }
@@ -286,7 +328,7 @@ impl GPU {
         let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
         let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
 
-        if lcd_control.contains(LcdControlFlag::DISPLAY) {
+        if self.is_cgb || lcd_control.contains(LcdControlFlag::DISPLAY) {
             let tile_start_addr = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
                 0x8000
             } else {
@@ -305,6 +347,7 @@ impl GPU {
             let line_scrolled_32 = (i32::from(line_scrolled) / 8) * 32;
             let tile_pixel_y = i32::from(line_scrolled % 8);
             let tile_pixel_y_2 = tile_pixel_y * 2;
+            let tile_pixel_y_flip_2 = (7 - tile_pixel_y) * 2;
 
             for offset_x in offset_x_start..offset_x_end {
                 let screen_pixel_x = (screen_tile * 8) + offset_x;
@@ -319,41 +362,100 @@ impl GPU {
                     (i32::from(memory.read_byte(map_tile_addr) as i8) + 128)
                 };
 
+                let cgb_tile_attrs = if self.is_cgb {
+                    BgAttributes::from_bits_truncate(memory.read_cgb_lcd_ram(map_tile_addr, true))
+                } else {
+                    BgAttributes::empty()
+                };
+                let cgb_tile_pal = if self.is_cgb {
+                    cgb_tile_attrs.bits() & 0b111
+                } else {
+                    0
+                };
+                let cgb_tile_bank = if self.is_cgb {
+                    cgb_tile_attrs.contains(BgAttributes::VRAM_BANK)
+                } else {
+                    false
+                };
+                let cgb_tile_xflip = if self.is_cgb {
+                    cgb_tile_attrs.contains(BgAttributes::XFLIP)
+                } else {
+                    false
+                };
+                let cgb_tile_yflip = if self.is_cgb {
+                    cgb_tile_attrs.contains(BgAttributes::YFLIP)
+                } else {
+                    false
+                };
+                let cgb_tile_priority = if self.is_cgb {
+                    cgb_tile_attrs.contains(BgAttributes::BG_PRIORITY)
+                } else {
+                    false
+                };
                 let map_tile_16 = map_tile * 16;
-                let tile_address = (tile_start_addr + map_tile_16 + tile_pixel_y_2) as u16;
-                let byte1 = memory.read_byte(tile_address);
-                let byte2 = memory.read_byte(tile_address + 1);
-                let pixel_x_in_tile = i32::from(map_tile_offset_x);
-                let pixel_x_in_tile_bit = 0x1 << (7 - pixel_x_in_tile) as u8;
-
-                let mut pixel_data = if byte1 & pixel_x_in_tile_bit != 0 {
-                    1
+                let final_pixely_2 = if self.is_cgb && cgb_tile_yflip {
+                    tile_pixel_y_flip_2
                 } else {
-                    0
+                    tile_pixel_y_2
                 };
+                let tile_address = (tile_start_addr + map_tile_16 + final_pixely_2) as u16;
 
-                pixel_data |= if byte2 & pixel_x_in_tile_bit != 0 {
-                    2
+                let (byte1, byte2) = if self.is_cgb && cgb_tile_bank {
+                    (
+                        memory.read_cgb_lcd_ram(tile_address, true),
+                        memory.read_cgb_lcd_ram(tile_address + 1, true),
+                    )
                 } else {
-                    0
+                    (
+                        memory.read_byte(tile_address),
+                        memory.read_byte(tile_address + 1),
+                    )
                 };
+                let mut pixel_x_in_tile = i32::from(map_tile_offset_x);
+                if self.is_cgb && cgb_tile_xflip {
+                    pixel_x_in_tile = 7 - pixel_x_in_tile;
+                }
+                let pixel_x_in_tile_bit = 1 << (7 - pixel_x_in_tile) as u8;
+
+                let mut pixel = 0;
+                if byte1 & pixel_x_in_tile_bit != 0 {
+                    pixel |= 1;
+                }
+                if byte2 & pixel_x_in_tile_bit != 0 {
+                    pixel |= 2;
+                }
 
                 let index = (line_width + screen_pixel_x) as usize;
-                let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
-                let color_bits = (palette >> (pixel_data * 2)) & 0x03;
-                let color = match color_bits {
-                    0b00 => Color::White,
-                    0b01 => Color::LightGray,
-                    0b10 => Color::DarkGray,
-                    0b11 => Color::Black,
-                    _ => unreachable!(),
-                };
-                pixel_mapper.map_pixel(index, color);
+                self.background[index] = pixel & 0x03;
+
+                if self.is_cgb {
+                    if cgb_tile_priority && (pixel != 0) {
+                        self.background[index] |= 0b0100;
+                    }
+                    let color =
+                        memory.cgb_background_palettes[cgb_tile_pal as usize][pixel as usize];
+                    pixel_mapper.cgb_map_pixel(index, cgb_color_to_rgb_color(color));
+                } else {
+                    let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
+                    let color = gb_color_from_palette(palette, pixel);
+                    pixel_mapper.map_pixel(index, color);
+                }
             }
         } else {
             for x in 0..GAMEBOY_WIDTH {
                 let index = (line_width + x) as usize;
-                pixel_mapper.map_pixel(index, Color::White);
+                self.background[index] = 0;
+
+                if self.is_cgb {
+                    let white = CGBColor {
+                        red: 0,
+                        green: 0,
+                        blue: 0,
+                    };
+                    pixel_mapper.cgb_map_pixel(index, white);
+                } else {
+                    pixel_mapper.map_pixel(index, Color::White);
+                }
             }
         }
     }
@@ -369,19 +471,16 @@ impl GPU {
         }
 
         let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
-
         if !lcd_control.contains(LcdControlFlag::WINDOW) {
             return;
         }
 
         let wx = i32::from(memory.read_byte(WINDOW_X_INDEX)) - 7;
-
         if wx > 159 {
             return;
         }
 
         let wy = i32::from(memory.read_byte(WINDOW_Y_INDEX));
-
         if (wy > 143) || (wy > line) {
             return;
         }
@@ -402,6 +501,7 @@ impl GPU {
         let y_32 = (line_adjusted / 8) * 32;
         let pixely = line_adjusted % 8;
         let pixely_2 = pixely * 2;
+        let pixely_2_flip = (7 - pixely) * 2;
         let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
 
         for x in 0..32 {
@@ -411,44 +511,93 @@ impl GPU {
                 (i32::from(memory.read_byte((map + y_32 + x) as u16) as i8) + 128)
             };
 
+            let cgb_tile_attrs = if self.is_cgb {
+                BgAttributes::from_bits_truncate(
+                    memory.read_cgb_lcd_ram((map + y_32 + x) as u16, true),
+                )
+            } else {
+                BgAttributes::empty()
+            };
+            let cgb_tile_pal = if self.is_cgb {
+                cgb_tile_attrs.bits() & 0b111
+            } else {
+                0
+            };
+            let cgb_tile_bank = if self.is_cgb {
+                cgb_tile_attrs.contains(BgAttributes::VRAM_BANK)
+            } else {
+                false
+            };
+            let cgb_tile_xflip = if self.is_cgb {
+                cgb_tile_attrs.contains(BgAttributes::XFLIP)
+            } else {
+                false
+            };
+            let cgb_tile_yflip = if self.is_cgb {
+                cgb_tile_attrs.contains(BgAttributes::YFLIP)
+            } else {
+                false
+            };
+            let cgb_tile_priority = if self.is_cgb {
+                cgb_tile_attrs.contains(BgAttributes::BG_PRIORITY)
+            } else {
+                false
+            };
             let map_offset_x = x * 8;
             let tile_16 = tile * 16;
-            let tile_address = (tiles + tile_16 + pixely_2) as u16;
-            let byte1 = memory.read_byte(tile_address);
-            let byte2 = memory.read_byte(tile_address + 1);
+            let final_pixely_2 = if self.is_cgb && cgb_tile_yflip {
+                pixely_2_flip
+            } else {
+                pixely_2
+            };
+            let tile_address = (tiles + tile_16 + final_pixely_2) as u16;
+            let (byte1, byte2) = if self.is_cgb && cgb_tile_bank {
+                (
+                    memory.read_cgb_lcd_ram(tile_address, true),
+                    memory.read_cgb_lcd_ram(tile_address + 1, true),
+                )
+            } else {
+                (
+                    memory.read_byte(tile_address),
+                    memory.read_byte(tile_address + 1),
+                )
+            };
 
             for pixelx in 0..8 {
                 let buffer_x = map_offset_x + pixelx + wx;
-
                 if buffer_x < 0 || buffer_x >= GAMEBOY_WIDTH {
                     continue;
                 }
 
-                let pixelx_pos = pixelx as u8;
-
-                let mut pixel = if (byte1 & (0x1 << (7 - pixelx_pos))) != 0 {
-                    1
+                let pixelx_pos = if self.is_cgb && cgb_tile_xflip {
+                    7 - pixelx as u8
                 } else {
-                    0
+                    pixelx as u8
                 };
 
-                pixel |= if (byte2 & (0x1 << (7 - pixelx_pos))) != 0 {
-                    2
+                let mut pixel = 0;
+                if (byte1 & (0x1 << (7 - pixelx_pos))) != 0 {
+                    pixel |= 1;
+                }
+                if (byte2 & (0x1 << (7 - pixelx_pos))) != 0 {
+                    pixel |= 2;
+                };
+
+                let position = (line_width + buffer_x) as usize;
+                self.background[position] = pixel & 0x03;
+
+                if self.is_cgb {
+                    if cgb_tile_priority && pixel != 0 {
+                        self.background[position] |= 0b0100;
+                    }
+                    let color =
+                        memory.cgb_background_palettes[cgb_tile_pal as usize][pixel as usize];
+                    pixel_mapper.cgb_map_pixel(position, cgb_color_to_rgb_color(color));
                 } else {
-                    1
-                };
-
-                let position = line_width + buffer_x;
-                let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
-                let color_bits = (palette >> (pixel * 2)) & 0x03;
-                let color = match color_bits {
-                    0b00 => Color::White,
-                    0b01 => Color::LightGray,
-                    0b10 => Color::DarkGray,
-                    0b11 => Color::Black,
-                    _ => unreachable!(),
-                };
-                pixel_mapper.map_pixel(position as usize, color);
+                    let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
+                    let color = gb_color_from_palette(palette, pixel);
+                    pixel_mapper.map_pixel(position, color);
+                }
             }
         }
         memory.gpu_cycles.window_line += 1;
@@ -471,14 +620,13 @@ impl GPU {
 
         for sprite in (0..40).rev() {
             let sprite_4 = sprite * 4;
-            let sprite_y = i32::from(memory.read_byte(SPRITES_START_INDEX + sprite_4)) - 16;
 
+            let sprite_y = i32::from(memory.read_byte(SPRITES_START_INDEX + sprite_4)) - 16;
             if (sprite_y > line) || (sprite_y + sprite_height) <= line {
                 continue;
             }
 
             let sprite_x = i32::from(memory.read_byte(SPRITES_START_INDEX + sprite_4 + 1)) - 8;
-
             if (sprite_x < -7) || (sprite_x >= GAMEBOY_WIDTH) {
                 continue;
             }
@@ -497,6 +645,8 @@ impl GPU {
             let xflip = sprite_flags.contains(SpriteAttributes::X_FLIP);
             let yflip = sprite_flags.contains(SpriteAttributes::Y_FLIP);
             let behind_bg = sprite_flags.contains(SpriteAttributes::BACKGROUND_PRIORITY);
+            let cgb_tile_bank = sprite_flags.contains(SpriteAttributes::VRAM_BANK);
+            let cgb_tile_pal = sprite_flags.bits() & 0x07;
             let tiles = 0x8000;
 
             let pixel_y = if yflip {
@@ -517,67 +667,70 @@ impl GPU {
                     (pixel_y * 2, 0)
                 };
 
-            let tile_address = tiles + sprite_tile_16 + pixel_y_2 + offset;
+            let tile_address = (tiles + sprite_tile_16 + pixel_y_2 + offset) as u16;
 
-            let byte1 = memory.read_byte(tile_address as u16);
-            let byte2 = memory.read_byte(tile_address as u16 + 1);
+            let (byte1, byte2) = if self.is_cgb && cgb_tile_bank {
+                (
+                    memory.read_cgb_lcd_ram(tile_address, true),
+                    memory.read_cgb_lcd_ram(tile_address + 1, true),
+                )
+            } else {
+                (
+                    memory.read_byte(tile_address),
+                    memory.read_byte(tile_address + 1),
+                )
+            };
 
             for pixelx in 0..8 {
-                let mut pixel = if xflip {
+                let mut pixel = 0;
+
+                if xflip {
                     if byte1 & (0x01 << pixelx) != 0 {
-                        1
-                    } else {
-                        0
+                        pixel |= 1;
                     }
                 } else if byte1 & (0x01 << (7 - pixelx)) != 0 {
-                    1
-                } else {
-                    0
-                };
+                    pixel |= 1;
+                }
 
-                pixel |= if xflip {
+                if xflip {
                     if byte2 & (0x01 << pixelx) != 0 {
-                        2
-                    } else {
-                        0
+                        pixel |= 2;
                     }
                 } else if byte2 & (0x01 << (7 - pixelx)) != 0 {
-                    2
-                } else {
-                    0
-                };
-
+                    pixel |= 2;
+                }
                 if pixel == 0 {
                     continue;
                 }
 
                 let buffer_x = sprite_x + pixelx as i32;
-
                 if buffer_x < 0 || buffer_x >= GAMEBOY_WIDTH {
                     continue;
                 }
 
-                let position = line_width + buffer_x;
+                let position = (line_width + buffer_x) as usize;
+                let background_color = self.background[position];
 
-                // the background should take priority if the color isn't white
-                if behind_bg && pixel_mapper.get_pixel(position as usize) != Color::White {
+                if self.is_cgb && bit_utils::is_set(background_color as u8, 2) {
                     continue;
                 }
 
-                let palette = if sprite_pallette {
-                    memory.read_byte(OBJECT_PALETTE_1_INDEX)
+                if behind_bg && (background_color & 0x03) != 0 {
+                    continue;
+                }
+
+                if self.is_cgb {
+                    let color = memory.cgb_sprite_palettes[cgb_tile_pal as usize][pixel as usize];
+                    pixel_mapper.cgb_map_pixel(position, cgb_color_to_rgb_color(color));
                 } else {
-                    memory.read_byte(OBJECT_PALETTE_0_INDEX)
-                };
-                let color_bits = (palette >> (pixel * 2)) & 0x03;
-                let color = match color_bits {
-                    0b00 => Color::White,
-                    0b01 => Color::LightGray,
-                    0b10 => Color::DarkGray,
-                    0b11 => Color::Black,
-                    _ => unreachable!(),
-                };
-                pixel_mapper.map_pixel(position as usize, color);
+                    let palette = if sprite_pallette {
+                        memory.read_byte(OBJECT_PALETTE_1_INDEX)
+                    } else {
+                        memory.read_byte(OBJECT_PALETTE_0_INDEX)
+                    };
+                    let color = gb_color_from_palette(palette, pixel);
+                    pixel_mapper.map_pixel(position, color);
+                }
             }
         }
     }

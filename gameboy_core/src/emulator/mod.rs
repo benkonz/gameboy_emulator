@@ -20,12 +20,13 @@ pub struct Emulator {
 
 impl Emulator {
     pub fn from_cartridge(cartridge: Cartridge) -> Emulator {
+        let is_cgb = cartridge.is_cgb();
         Emulator {
-            cpu: Cpu::new(),
-            gpu: GPU::new(),
+            cpu: Cpu::new(is_cgb),
+            gpu: GPU::new(is_cgb),
             timer: Timer::new(),
             serial: Serial::new(),
-            memory: Memory::from_cartridge(cartridge),
+            memory: Memory::from_cartridge(cartridge, is_cgb),
         }
     }
 
@@ -40,7 +41,7 @@ impl Emulator {
     }
 
     fn handle_interrupts(&mut self) {
-        if self.cpu.interrupt_enabled {
+        if self.cpu.are_interrupts_enabled() {
             if let Some(interrupt) = self.memory.get_interrupts() {
                 self.process_interrupt(interrupt);
             }
@@ -48,7 +49,7 @@ impl Emulator {
     }
 
     fn process_interrupt(&mut self, interrupt: Interrupt) {
-        self.cpu.interrupt_enabled = false;
+        self.cpu.disable_interrupts();
 
         match interrupt {
             Interrupt::Vblank => self.cpu.rst_40(&mut self.memory),
@@ -58,8 +59,7 @@ impl Emulator {
             Interrupt::Joypad => self.cpu.rst_60(&mut self.memory),
         }
         self.memory.remove_interrupt(interrupt);
-
-        self.cpu.halted = false;
+        self.cpu.unhalt();
     }
 
     pub fn get_cartridge(&self) -> &Cartridge {

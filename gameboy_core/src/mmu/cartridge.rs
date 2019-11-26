@@ -10,6 +10,7 @@ pub struct Cartridge {
     ram: Vec<u8>,
     name: String,
     mbc_type: MbcType,
+    is_cgb: bool,
 }
 
 fn pow2ceil(i: i32) -> i32 {
@@ -48,8 +49,6 @@ impl Cartridge {
             _ => false,
         };
 
-        let ram = vec![0xFF; 0x8000];
-
         let mut name = String::new();
         let mut name_index = 0x0134;
         while rom[name_index] != 0x00 && name_index < 0x0143 {
@@ -67,6 +66,14 @@ impl Cartridge {
             _ => panic!("Unsupported cartridge type: {:?}", cartridge_type),
         };
 
+        let is_cgb = rom[0x0143] == 0xC0 || rom[0x0143] == 0x80;
+
+        let ram = match mbc_type {
+            MbcType::Mbc2 => vec![0x0F; 0x200],
+            MbcType::Mbc5 => vec![0xFF; 0x20000],
+            _ => vec![0xFF; 0x8000],
+        };
+
         Cartridge {
             rom_banks,
             ram_banks,
@@ -77,6 +84,7 @@ impl Cartridge {
             ram,
             name,
             mbc_type,
+            is_cgb,
         }
     }
 
@@ -122,5 +130,9 @@ impl Cartridge {
 
     pub fn get_name(&self) -> &str {
         &self.name
+    }
+
+    pub fn is_cgb(&self) -> bool {
+        self.is_cgb
     }
 }

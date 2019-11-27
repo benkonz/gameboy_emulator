@@ -66,12 +66,10 @@ impl Mbc for Mbc3 {
         match index {
             0x0000..=0x1FFF => self.external_ram_enabled = (value & 0x0F) == 0x0A,
             0x2000..=0x3FFF => {
-                let mut value = value & 0b0111_1111;
-                if value == 0 {
-                    value = 1;
+                self.selected_rom_bank = value & 0x7F;
+                if self.selected_rom_bank == 0 {
+                    self.selected_rom_bank = 1;
                 }
-
-                self.selected_rom_bank = value;
                 self.selected_rom_bank &= (self.cartridge.get_rom_banks() - 1) as u8
             }
             0x4000..=0x5FFF => {

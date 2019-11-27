@@ -35,14 +35,14 @@ const GAMEBOY_HEIGHT: i32 = 144;
 
 pub struct GPU {
     is_cgb: bool,
-    background: [i32; (GAMEBOY_HEIGHT * GAMEBOY_WIDTH) as usize],
+    background: [u8; (GAMEBOY_HEIGHT * GAMEBOY_WIDTH) as usize],
     hide_frames: i32,
     scan_line_transferred: bool,
     vblank_line: i32,
     tile_cycles_counter: i32,
 }
 
-fn gb_color_from_palette(palette: u8, pixel: i32) -> Color {
+fn gb_color_from_palette(palette: u8, pixel: u8) -> Color {
     let color_bits = (palette >> (pixel * 2)) & 0x03;
     match color_bits {
         0b00 => Color::White,

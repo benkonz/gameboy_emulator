@@ -1,5 +1,7 @@
 use super::cartridge::Cartridge;
 use super::mbc::Mbc;
+use bit_utils;
+use emulator::traits::RTC;
 
 pub struct Mbc3 {
     cartridge: Cartridge,
@@ -7,6 +9,23 @@ pub struct Mbc3 {
     selected_eram_bank: u8,
     external_ram_enabled: bool,
     ram_change_callback: Box<dyn FnMut(usize, u8)>,
+    rtc: Box<dyn RTC>,
+    rtc_last_time: u64,
+    rtc_register_select: u8,
+    use_rtc_for_ram: bool,
+    rtc_latch_data: u8,
+    // RTC Latch
+    rtc_latch_seconds: u8,
+    rtc_latch_minutes: u8,
+    rtc_latch_hours: u8,
+    rtc_latch_days_low: u8,
+    rtc_latch_days_high: u8,
+    // RTC
+    rtc_seconds: u8,
+    rtc_minutes: u8,
+    rtc_hours: u8,
+    rtc_days_low: u8,
+    rtc_days_high: u8,
 }
 
 impl Mbc for Mbc3 {
@@ -22,7 +41,16 @@ impl Mbc for Mbc3 {
                 rom[index as usize - 0x4000 + offset]
             }
             0xA000..=0xBFFF => {
-                if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
+                if self.use_rtc_for_ram && self.external_ram_enabled {
+                    match self.rtc_register_select {
+                        0x08 => self.rtc_latch_seconds,
+                        0x09 => self.rtc_latch_minutes,
+                        0x0A => self.rtc_latch_hours,
+                        0x0B => self.rtc_latch_days_low,
+                        0x0C => self.rtc_latch_days_high,
+                        _ => 0xFF,
+                    }
+                } else if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
                     let ram = self.cartridge.get_ram();
                     let offset = self.selected_eram_bank as usize * 0x2000;
                     ram[index as usize - 0xA000 + offset]
@@ -51,23 +79,40 @@ impl Mbc for Mbc3 {
                     0x00..=0x03 => {
                         self.selected_eram_bank = value;
                         self.selected_eram_bank &= (self.cartridge.get_ram_banks() - 1) as u8;
+                        self.use_rtc_for_ram = false;
                     }
                     0x08..=0x0C => {
-                        if self.cartridge.has_rtc() {
-                            // TODO: ADD RTC FUNCTIONALITY
+                        if self.cartridge.has_rtc() && self.external_ram_enabled {
+                            self.rtc_register_select = value;
+                            self.use_rtc_for_ram = true;
                         }
                     }
                     _ => (),
                 };
             }
-            0x6000..=0x7FFF => (), // also used for the RTC
+            0x6000..=0x7FFF => {
+                if self.cartridge.has_rtc() {
+                    if self.rtc_latch_data == 0 && value == 1 {
+                        self.update_rtc_latch();
+                    }
+                    self.rtc_latch_data = value;
+                }
+            }
             0xA000..=0xBFFF => {
-                if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
+                if self.use_rtc_for_ram && self.external_ram_enabled && self.cartridge.has_rtc() {
+                    match self.rtc_register_select {
+                        0x08 => self.rtc_seconds = value,
+                        0x09 => self.rtc_minutes = value,
+                        0x0A => self.rtc_hours = value,
+                        0x0B => self.rtc_days_low = value,
+                        0x0C => self.rtc_days_high = (self.rtc_days_high & 0x80) | (value & 0xC1),
+                        _ => (),
+                    }
+                } else if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
                     let ram = self.cartridge.get_ram_mut();
                     let offset = self.selected_eram_bank as usize * 0x2000;
                     let address = index as usize - 0xA000 + offset;
                     ram[address] = value;
-
                     (self.ram_change_callback)(address, value);
                 }
             }
@@ -85,13 +130,73 @@ impl Mbc for Mbc3 {
 }
 
 impl Mbc3 {
-    pub fn new(cartridge: Cartridge) -> Mbc3 {
+    pub fn new(cartridge: Cartridge, rtc: Box<dyn RTC>) -> Mbc3 {
         Mbc3 {
             cartridge,
             selected_rom_bank: 1,
             selected_eram_bank: 0,
             external_ram_enabled: false,
             ram_change_callback: Box::new(|_, _| {}),
+            rtc,
+            rtc_last_time: 0,
+            use_rtc_for_ram: false,
+            rtc_register_select: 0,
+            rtc_latch_data: 0,
+            rtc_latch_seconds: 0,
+            rtc_latch_minutes: 0,
+            rtc_latch_hours: 0,
+            rtc_latch_days_low: 0,
+            rtc_latch_days_high: 0,
+            rtc_seconds: 0,
+            rtc_minutes: 0,
+            rtc_hours: 0,
+            rtc_days_low: 0,
+            rtc_days_high: 0,
         }
+    }
+
+    fn update_rtc_latch(&mut self) {
+        if !bit_utils::is_set(self.rtc_days_high, 6) {
+            let current_time_secs = self.rtc.get_current_time();
+            let mut difference = current_time_secs - self.rtc_last_time;
+            self.rtc_last_time = current_time_secs;
+            if difference > 0 {
+                self.rtc_seconds += (difference % 60) as u8;
+                if self.rtc_seconds > 59 {
+                    self.rtc_seconds -= 60;
+                    self.rtc_minutes += 1;
+                }
+                difference /= 60;
+                self.rtc_minutes += (difference % 60) as u8;
+                if self.rtc_minutes > 59 {
+                    self.rtc_minutes -= 60;
+                    self.rtc_hours += 1;
+                }
+                difference /= 60;
+                self.rtc_hours += (difference % 24) as u8;
+                let mut rtc_days = 0;
+                if self.rtc_hours > 23 {
+                    self.rtc_hours -= 24;
+                    rtc_days += 1;
+                }
+                difference /= 24;
+                rtc_days += self.rtc_days_low as u16 + ((self.rtc_days_high as u16) & 0x01);
+                rtc_days += difference as u16;
+                if rtc_days > 511 {
+                    rtc_days %= 512;
+                    // set the carry flag and clear the rest of the bits
+                    self.rtc_days_high |= 0x80;
+                    self.rtc_days_high &= 0xC0;
+                }
+                self.rtc_days_low = (rtc_days & 0xFF) as u8;
+                self.rtc_days_high |= ((rtc_days & 0x100) >> 8) as u8;
+            }
+        }
+
+        self.rtc_latch_seconds = self.rtc_seconds;
+        self.rtc_latch_minutes = self.rtc_minutes;
+        self.rtc_latch_hours = self.rtc_hours;
+        self.rtc_latch_days_low = self.rtc_days_low;
+        self.rtc_latch_days_high = self.rtc_days_high;
     }
 }

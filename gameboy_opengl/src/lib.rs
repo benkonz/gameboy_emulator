@@ -2,6 +2,7 @@ extern crate directories;
 extern crate gameboy_core;
 extern crate glutin;
 
+mod native_rtc;
 mod opengl_rendering_context;
 mod screen;
 mod shader;
@@ -12,6 +13,7 @@ use glutin::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEv
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
 use glutin::ContextBuilder;
+use native_rtc::NativeRTC;
 use opengl_rendering_context::types::*;
 use opengl_rendering_context::Gl;
 use screen::Screen;
@@ -150,7 +152,8 @@ pub fn start(rom: Vec<u8>) {
                     }
                 }
             }
-            let mut emulator = Emulator::from_cartridge(cartridge);
+            let rtc = Box::new(NativeRTC::new());
+            let mut emulator = Emulator::from_cartridge(cartridge, rtc);
 
             let mut ram_save_file = None;
             if let Some(ram_saves_path) = get_ram_saves_path() {

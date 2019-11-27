@@ -8,6 +8,7 @@ extern crate gameboy_core;
 
 mod screen;
 mod webgl_rendering_context;
+mod web_rtc;
 
 use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator};
 use screen::Screen;
@@ -23,6 +24,7 @@ use stdweb::web::event::{
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
 use webgl_rendering_context::*;
+use web_rtc::WebRTC;
 
 type Gl = WebGLRenderingContext;
 
@@ -174,7 +176,8 @@ pub fn start(rom: Vec<u8>) {
         cartridge.set_ram(bytes);
     }
 
-    let mut emulator = Emulator::from_cartridge(cartridge);
+    let rtc = Box::new(WebRTC::new());
+    let mut emulator = Emulator::from_cartridge(cartridge, rtc);
     let screen = Screen::new();
     let controller = Controller::new();
 

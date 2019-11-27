@@ -14,7 +14,7 @@ mod timer;
 
 pub use button::Button;
 pub use controller_event::ControllerEvent;
-pub use emulator::traits::PixelMapper;
+pub use emulator::traits::{PixelMapper, RTC};
 pub use emulator::Emulator;
 pub use gpu::cgb_color::CGBColor;
 pub use gpu::color::Color;

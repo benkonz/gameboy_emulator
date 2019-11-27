@@ -22,6 +22,7 @@ use self::rom_only::RomOnly;
 use bit_utils;
 use gpu::cgb_color::CGBColor;
 use gpu::lcd_control_flag::LcdControlFlag;
+use emulator::traits::RTC;
 
 const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
 const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
@@ -64,6 +65,7 @@ const INITIAL_VALUES_FOR_COLOR_FFXX: [u8; 0x100] = [
     0x98, 0xD1, 0x71, 0x02, 0x4D, 0x01, 0xC1, 0xFF, 0x0D, 0x00, 0xD3, 0x05, 0xF9, 0x00, 0x0B, 0x00,
 ];
 
+// TODO: give this a type param for the RTC trait
 pub struct Memory {
     mbc: Box<dyn Mbc>,
     wram: Vec<u8>,
@@ -90,7 +92,7 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn from_cartridge(cartridge: Cartridge, is_cgb: bool) -> Memory {
+    pub fn from_cartridge(cartridge: Cartridge, rtc: Box<dyn RTC>, is_cgb: bool) -> Memory {
         // set the initial values for the IO memory into high-ram
         // this is necessary, since we don't load the bios
         let high_ram = if is_cgb {
@@ -103,7 +105,7 @@ impl Memory {
             MbcType::RomOnly => Box::new(RomOnly::new(cartridge)),
             MbcType::Mbc1 => Box::new(Mbc1::new(cartridge)),
             MbcType::Mbc2 => Box::new(Mbc2::new(cartridge)),
-            MbcType::Mbc3 => Box::new(Mbc3::new(cartridge)),
+            MbcType::Mbc3 => Box::new(Mbc3::new(cartridge, rtc)),
             MbcType::Mbc5 => Box::new(Mbc5::new(cartridge)),
         };
 

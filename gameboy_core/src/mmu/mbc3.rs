@@ -41,7 +41,7 @@ impl Mbc for Mbc3 {
                 rom[index as usize - 0x4000 + offset]
             }
             0xA000..=0xBFFF => {
-                if self.use_rtc_for_ram && self.external_ram_enabled {
+                if self.use_rtc_for_ram && self.external_ram_enabled && self.cartridge.has_rtc() {
                     match self.rtc_register_select {
                         0x08 => self.rtc_latch_seconds,
                         0x09 => self.rtc_latch_minutes,
@@ -129,6 +129,8 @@ impl Mbc for Mbc3 {
 
 impl Mbc3 {
     pub fn new(cartridge: Cartridge, rtc: Box<dyn RTC>) -> Mbc3 {
+        let rtc_last_time = rtc.get_current_time();
+
         Mbc3 {
             cartridge,
             selected_rom_bank: 1,
@@ -136,7 +138,7 @@ impl Mbc3 {
             external_ram_enabled: false,
             ram_change_callback: Box::new(|_, _| {}),
             rtc,
-            rtc_last_time: 0,
+            rtc_last_time,
             use_rtc_for_ram: false,
             rtc_register_select: 0,
             rtc_latch_data: 0,

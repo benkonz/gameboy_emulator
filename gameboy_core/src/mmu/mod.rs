@@ -20,9 +20,9 @@ use self::mbc5::Mbc5;
 use self::mbc_type::MbcType;
 use self::rom_only::RomOnly;
 use bit_utils;
+use emulator::traits::RTC;
 use gpu::cgb_color::CGBColor;
 use gpu::lcd_control_flag::LcdControlFlag;
-use emulator::traits::RTC;
 
 const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
 const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
@@ -65,7 +65,6 @@ const INITIAL_VALUES_FOR_COLOR_FFXX: [u8; 0x100] = [
     0x98, 0xD1, 0x71, 0x02, 0x4D, 0x01, 0xC1, 0xFF, 0x0D, 0x00, 0xD3, 0x05, 0xF9, 0x00, 0x0B, 0x00,
 ];
 
-// TODO: give this a type param for the RTC trait
 pub struct Memory {
     mbc: Box<dyn Mbc>,
     wram: Vec<u8>,
@@ -121,6 +120,22 @@ impl Memory {
             vec![0x00; 0x1000 * 2]
         };
 
+        let mut hdma_source = 0;
+        let mut hdma_destination = 0;
+        if is_cgb {
+            let mut hdma_source_high = high_ram[0xFF51 - 0xFF00] as u16;
+            let hdma_source_low = high_ram[0xFF52 - 0xFF00] as u16;
+            if hdma_source_high > 0x7F && hdma_source_high < 0xA0 {
+                hdma_source_high = 0;
+            }
+            hdma_source = (hdma_source_high << 8) | (hdma_source_low & 0xF0);
+            let hdma_destination_high = high_ram[0xFF53 - 0xFF00] as u16;
+            let hdma_destination_low = high_ram[0xFF54 - 0xFF00] as u16;
+            hdma_destination =
+                ((hdma_destination_high & 0x1F) << 8) | (hdma_destination_low & 0xF0);
+            hdma_destination |= 0x8000;
+        }
+
         let white = CGBColor {
             red: 0,
             green: 0,
@@ -144,8 +159,8 @@ impl Memory {
             is_cgb,
             vram_bank: 0,
             wram_bank: 1,
-            hdma_source: 0,
-            hdma_destination: 0,
+            hdma_source,
+            hdma_destination,
             hdma_bytes: 0,
             hdma_enabled: false,
             cgb_background_palettes: [[white; 4]; 8],

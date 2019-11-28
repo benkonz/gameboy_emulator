@@ -11,6 +11,7 @@ pub struct Mbc3 {
     ram_change_callback: Box<dyn FnMut(usize, u8)>,
     rtc: Box<dyn RTC>,
     rtc_last_time: u64,
+    rtc_last_time_cache: u64,
     rtc_register_select: u8,
     use_rtc_for_ram: bool,
     rtc_latch_data: u8,
@@ -139,6 +140,7 @@ impl Mbc3 {
             ram_change_callback: Box::new(|_, _| {}),
             rtc,
             rtc_last_time,
+            rtc_last_time_cache: rtc_last_time,
             use_rtc_for_ram: false,
             rtc_register_select: 0,
             rtc_latch_data: 0,
@@ -156,8 +158,11 @@ impl Mbc3 {
     }
 
     fn update_rtc_latch(&mut self) {
-        if !bit_utils::is_set(self.rtc_days_high, 6) {
-            let current_time_secs = self.rtc.get_current_time();
+        let current_time_secs = self.rtc.get_current_time();
+        if !bit_utils::is_set(self.rtc_days_high, 6)
+            && self.rtc_last_time_cache != current_time_secs
+        {
+            self.rtc_last_time_cache = current_time_secs;
             let mut difference = current_time_secs - self.rtc_last_time;
             self.rtc_last_time = current_time_secs;
             if difference > 0 {

@@ -78,7 +78,6 @@ pub fn start(rom: Vec<u8>) {
     }
 
     {
-        let sender = sender.clone();
         window().add_event_listener(move |event: KeyUpEvent| {
             let _send_result = match event.key().as_ref() {
                 "ArrowUp" => Some(sender.send(ControllerEvent::Released(Button::Up))),
@@ -209,9 +208,9 @@ pub fn start(rom: Vec<u8>) {
         screen,
         controller,
         receiver,
-        run.clone(),
-        should_save_to_local.clone(),
-        ram_str.clone(),
+        run,
+        should_save_to_local,
+        ram_str,
         gl,
         shader_program,
         texture,
@@ -241,7 +240,7 @@ fn add_button_event_listeners(
     add_controller_event_listener::<TouchEnd>(
         element,
         ControllerEvent::Released(button),
-        sender.clone(),
+        sender,
     );
 }
 
@@ -283,7 +282,7 @@ fn add_multi_button_event_listeners(
         element,
         ControllerEvent::Released(first_button),
         ControllerEvent::Released(second_button),
-        sender.clone(),
+        sender,
     );
 }
 

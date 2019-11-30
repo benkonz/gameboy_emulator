@@ -7,9 +7,10 @@ extern crate stdweb_derive;
 extern crate gameboy_core;
 
 mod screen;
+mod web_rtc;
 mod webgl_rendering_context;
 
-use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator};
+use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc};
 use screen::Screen;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -22,6 +23,7 @@ use stdweb::web::event::{
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
+use web_rtc::WebRTC;
 use webgl_rendering_context::*;
 
 type Gl = WebGLRenderingContext;
@@ -76,7 +78,6 @@ pub fn start(rom: Vec<u8>) {
     }
 
     {
-        let sender = sender.clone();
         window().add_event_listener(move |event: KeyUpEvent| {
             let _send_result = match event.key().as_ref() {
                 "ArrowUp" => Some(sender.send(ControllerEvent::Released(Button::Up))),
@@ -161,54 +162,28 @@ pub fn start(rom: Vec<u8>) {
     gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::CLAMP_TO_EDGE as i32);
 
     let mut cartridge = Cartridge::from_rom(rom);
+    load_ram_save_data(&mut cartridge);
+    load_timestamp_data(&mut cartridge);
 
-    if let Some(ram_str) = window().local_storage().get(cartridge.get_name()) {
-        let chars: Vec<char> = ram_str.chars().collect();
-        let bytes: Vec<u8> = chars
-            .chunks(2)
-            .map(|chunk| {
-                let byte: String = chunk.iter().collect();
-                u8::from_str_radix(&byte, 16).unwrap()
-            })
-            .collect();
-        cartridge.set_ram(bytes);
-    }
-
-    let mut emulator = Emulator::from_cartridge(cartridge);
+    let rtc = Box::new(WebRTC::new());
+    let mut emulator = Emulator::from_cartridge(cartridge, rtc);
     let screen = Screen::new();
     let controller = Controller::new();
 
-    let has_battery = emulator.get_cartridge().has_battery();
     let ram = emulator.get_cartridge().get_ram().to_vec();
     let ram_str: Rc<RefCell<String>> = Rc::new(RefCell::new(
         ram.iter().map(|byte| format!("{:02x}", byte)).collect(),
     ));
-    {
-        let should_save_to_local = should_save_to_local.clone();
-        let ram_str = ram_str.clone();
-        emulator.set_ram_change_callback(Box::new(move |address, value| {
-            if has_battery {
-                let byte_chars: Vec<char> = format!("{:02x}", value).chars().collect();
-                let (first, second) = (byte_chars[0] as u8, byte_chars[1] as u8);
-                unsafe {
-                    let mut ram_str_ref = ram_str.borrow_mut();
-                    let bytes = ram_str_ref.as_bytes_mut();
-                    bytes[address * 2] = first;
-                    bytes[address * 2 + 1] = second;
-                }
-                *should_save_to_local.borrow_mut() = true;
-            }
-        }));
-    }
+    set_ram_change_listener(&mut emulator, ram_str.clone(), should_save_to_local.clone());
 
     main_loop(
         emulator,
         screen,
         controller,
         receiver,
-        run.clone(),
-        should_save_to_local.clone(),
-        ram_str.clone(),
+        run,
+        should_save_to_local,
+        ram_str,
         gl,
         shader_program,
         texture,
@@ -235,11 +210,7 @@ fn add_button_event_listeners(
         ControllerEvent::Pressed(button),
         sender.clone(),
     );
-    add_controller_event_listener::<TouchEnd>(
-        element,
-        ControllerEvent::Released(button),
-        sender.clone(),
-    );
+    add_controller_event_listener::<TouchEnd>(element, ControllerEvent::Released(button), sender);
 }
 
 fn add_controller_event_listener<T: ConcreteEvent>(
@@ -280,7 +251,7 @@ fn add_multi_button_event_listeners(
         element,
         ControllerEvent::Released(first_button),
         ControllerEvent::Released(second_button),
-        sender.clone(),
+        sender,
     );
 }
 
@@ -318,6 +289,60 @@ fn link_program(gl: &Gl, vert_shader: &WebGLShader, frag_shader: &WebGLShader) -
     shader_program
 }
 
+fn load_ram_save_data(cartridge: &mut Cartridge) {
+    if let Some(ram_str) = window().local_storage().get(cartridge.get_name()) {
+        let chars: Vec<char> = ram_str.chars().collect();
+        let bytes: Vec<u8> = chars
+            .chunks(2)
+            .map(|chunk| {
+                let byte: String = chunk.iter().collect();
+                u8::from_str_radix(&byte, 16).unwrap()
+            })
+            .collect();
+        cartridge.set_ram(bytes);
+    }
+}
+
+fn load_timestamp_data(cartridge: &mut Cartridge) {
+    let key = format!("{}-timestamp", cartridge.get_name());
+    if let Some(timestamp_str) = window().local_storage().get(&key) {
+        let chars: Vec<char> = timestamp_str.chars().collect();
+        let bytes: Vec<u8> = chars
+            .chunks(2)
+            .map(|chunk| {
+                let byte: String = chunk.iter().collect();
+                u8::from_str_radix(&byte, 16).unwrap()
+            })
+            .collect();
+        let rtc = Rtc::from_bytes(&bytes[..5]);
+        let mut timestamp_data = [0; 8];
+        timestamp_data.copy_from_slice(&bytes[5..]);
+        let timestamp = u64::from_ne_bytes(timestamp_data);
+        cartridge.set_last_timestamp(rtc, timestamp);
+    }
+}
+
+fn set_ram_change_listener(
+    emulator: &mut Emulator,
+    ram_str: Rc<RefCell<String>>,
+    should_save_to_local: Rc<RefCell<bool>>,
+) {
+    let has_battery = emulator.get_cartridge().has_battery();
+    emulator.set_ram_change_callback(Box::new(move |address, value| {
+        if has_battery {
+            let byte_chars: Vec<char> = format!("{:02x}", value).chars().collect();
+            let (first, second) = (byte_chars[0] as u8, byte_chars[1] as u8);
+            unsafe {
+                let mut ram_str_ref = ram_str.borrow_mut();
+                let bytes = ram_str_ref.as_bytes_mut();
+                bytes[address * 2] = first;
+                bytes[address * 2 + 1] = second;
+            }
+            *should_save_to_local.borrow_mut() = true;
+        }
+    }));
+}
+
 // since closure's in Rust can't be recursive, this function has too many args
 #[allow(clippy::too_many_arguments)]
 fn main_loop(
@@ -339,6 +364,9 @@ fn main_loop(
         }
     }
 
+    save_ram_data(&emulator, ram_str.clone(), should_save_to_local.clone());
+    save_timestamp_data(&emulator);
+
     loop {
         match receiver.try_recv() {
             Ok(ControllerEvent::Pressed(button)) => controller.press(button),
@@ -349,15 +377,6 @@ fn main_loop(
                 break;
             }
         }
-    }
-
-    if *should_save_to_local.borrow() {
-        let name = emulator.get_cartridge().get_name();
-        window()
-            .local_storage()
-            .insert(&name, &ram_str.borrow())
-            .unwrap();
-        *should_save_to_local.borrow_mut() = false;
     }
 
     let frame_buffer = screen.get_frame_buffer();
@@ -378,6 +397,40 @@ fn main_loop(
                 texture,
             );
         });
+    }
+}
+
+fn save_ram_data(
+    emulator: &Emulator,
+    ram_str: Rc<RefCell<String>>,
+    should_save_to_local: Rc<RefCell<bool>>,
+) {
+    if *should_save_to_local.borrow() && emulator.get_cartridge().has_battery() {
+        let name = emulator.get_cartridge().get_name();
+        window()
+            .local_storage()
+            .insert(&name, &ram_str.borrow())
+            .unwrap();
+        *should_save_to_local.borrow_mut() = false;
+    }
+}
+
+fn save_timestamp_data(emulator: &Emulator) {
+    if emulator.get_cartridge().has_battery() {
+        let name = format!("{}-timestamp", emulator.get_cartridge().get_name());
+        let (rtc_data, last_timestamp) = emulator.get_cartridge().get_last_timestamp();
+        let mut rtc_bytes = rtc_data.to_bytes().to_vec();
+        let mut last_timestamp_bytes = u64::to_ne_bytes(last_timestamp).to_vec();
+        rtc_bytes.append(&mut last_timestamp_bytes);
+
+        let timestamp_data_str: String = rtc_bytes
+            .iter()
+            .map(|byte| format!("{:02x}", byte))
+            .collect();
+        window()
+            .local_storage()
+            .insert(&name, &timestamp_data_str)
+            .unwrap();
     }
 }
 

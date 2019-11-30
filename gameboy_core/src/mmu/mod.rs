@@ -20,6 +20,7 @@ use self::mbc5::Mbc5;
 use self::mbc_type::MbcType;
 use self::rom_only::RomOnly;
 use bit_utils;
+use emulator::traits::RTC;
 use gpu::cgb_color::CGBColor;
 use gpu::lcd_control_flag::LcdControlFlag;
 
@@ -90,7 +91,7 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn from_cartridge(cartridge: Cartridge, is_cgb: bool) -> Memory {
+    pub fn from_cartridge(cartridge: Cartridge, rtc: Box<dyn RTC>, is_cgb: bool) -> Memory {
         // set the initial values for the IO memory into high-ram
         // this is necessary, since we don't load the bios
         let high_ram = if is_cgb {
@@ -103,7 +104,7 @@ impl Memory {
             MbcType::RomOnly => Box::new(RomOnly::new(cartridge)),
             MbcType::Mbc1 => Box::new(Mbc1::new(cartridge)),
             MbcType::Mbc2 => Box::new(Mbc2::new(cartridge)),
-            MbcType::Mbc3 => Box::new(Mbc3::new(cartridge)),
+            MbcType::Mbc3 => Box::new(Mbc3::new(cartridge, rtc)),
             MbcType::Mbc5 => Box::new(Mbc5::new(cartridge)),
         };
 
@@ -118,6 +119,22 @@ impl Memory {
         } else {
             vec![0x00; 0x1000 * 2]
         };
+
+        let mut hdma_source = 0;
+        let mut hdma_destination = 0;
+        if is_cgb {
+            let mut hdma_source_high = high_ram[0xFF51 - 0xFF00] as u16;
+            let hdma_source_low = high_ram[0xFF52 - 0xFF00] as u16;
+            if hdma_source_high > 0x7F && hdma_source_high < 0xA0 {
+                hdma_source_high = 0;
+            }
+            hdma_source = (hdma_source_high << 8) | (hdma_source_low & 0xF0);
+            let hdma_destination_high = high_ram[0xFF53 - 0xFF00] as u16;
+            let hdma_destination_low = high_ram[0xFF54 - 0xFF00] as u16;
+            hdma_destination =
+                ((hdma_destination_high & 0x1F) << 8) | (hdma_destination_low & 0xF0);
+            hdma_destination |= 0x8000;
+        }
 
         let white = CGBColor {
             red: 0,
@@ -142,8 +159,8 @@ impl Memory {
             is_cgb,
             vram_bank: 0,
             wram_bank: 1,
-            hdma_source: 0,
-            hdma_destination: 0,
+            hdma_source,
+            hdma_destination,
             hdma_bytes: 0,
             hdma_enabled: false,
             cgb_background_palettes: [[white; 4]; 8],
@@ -704,14 +721,6 @@ impl Memory {
         self.high_ram[0xFF05 - 0xFF00] = self.read_byte(0xFF06);
     }
 
-    pub fn get_cartridge(&self) -> &Cartridge {
-        &self.mbc.get_cartridge()
-    }
-
-    pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
-        self.mbc.set_ram_change_callback(f);
-    }
-
     pub fn get_key1(&self) -> u8 {
         self.high_ram[0xFF4D - 0xFF00]
     }
@@ -766,5 +775,17 @@ impl Memory {
 
     pub fn is_hdma_enabled(&self) -> bool {
         self.hdma_enabled
+    }
+
+    pub fn get_cartridge(&self) -> &Cartridge {
+        &self.mbc.get_cartridge()
+    }
+
+    pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
+        self.mbc.set_ram_change_callback(f);
+    }
+
+    pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
+        self.mbc.get_cartridge_mut()
     }
 }

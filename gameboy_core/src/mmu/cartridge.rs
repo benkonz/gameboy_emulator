@@ -1,4 +1,5 @@
 use super::mbc_type::MbcType;
+use rtc::Rtc;
 
 pub struct Cartridge {
     rom_banks: i32,
@@ -11,6 +12,8 @@ pub struct Cartridge {
     name: String,
     mbc_type: MbcType,
     is_cgb: bool,
+    rtc: Rtc,
+    last_time: u64,
 }
 
 fn pow2ceil(i: i32) -> i32 {
@@ -85,6 +88,8 @@ impl Cartridge {
             name,
             mbc_type,
             is_cgb,
+            rtc: Rtc::new(),
+            last_time: 0,
         }
     }
 
@@ -134,5 +139,18 @@ impl Cartridge {
 
     pub fn is_cgb(&self) -> bool {
         self.is_cgb
+    }
+
+    pub fn get_last_timestamp(&self) -> (Rtc, u64) {
+        (self.rtc, self.last_time)
+    }
+
+    pub fn set_last_timestamp(&mut self, rtc: Rtc, last_time: u64) {
+        self.rtc.seconds = rtc.seconds;
+        self.rtc.minutes = rtc.minutes;
+        self.rtc.hours = rtc.hours;
+        self.rtc.days_low = rtc.days_low;
+        self.rtc.days_high = rtc.days_high;
+        self.last_time = last_time;
     }
 }

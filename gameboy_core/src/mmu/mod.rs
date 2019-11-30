@@ -721,14 +721,6 @@ impl Memory {
         self.high_ram[0xFF05 - 0xFF00] = self.read_byte(0xFF06);
     }
 
-    pub fn get_cartridge(&self) -> &Cartridge {
-        &self.mbc.get_cartridge()
-    }
-
-    pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
-        self.mbc.set_ram_change_callback(f);
-    }
-
     pub fn get_key1(&self) -> u8 {
         self.high_ram[0xFF4D - 0xFF00]
     }
@@ -783,5 +775,17 @@ impl Memory {
 
     pub fn is_hdma_enabled(&self) -> bool {
         self.hdma_enabled
+    }
+
+    pub fn get_cartridge(&self) -> &Cartridge {
+        &self.mbc.get_cartridge()
+    }
+
+    pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
+        self.mbc.set_ram_change_callback(f);
+    }
+
+    pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
+        self.mbc.get_cartridge_mut()
     }
 }

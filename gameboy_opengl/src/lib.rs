@@ -151,6 +151,29 @@ pub fn start(rom: Vec<u8>) {
                         }
                     }
                 }
+
+                let timestamp_save_file =
+                    ram_saves_dir.join(format!("{}-timestamp.bin", cartridge.get_name()));
+                if timestamp_save_file.exists() {
+                    let mut timestamp_save_file = OpenOptions::new()
+                        .read(true)
+                        .open(timestamp_save_file)
+                        .unwrap();
+
+                    let mut rtc_data = [0; 5];
+                    timestamp_save_file.read_exact(&mut rtc_data).unwrap();
+                    let mut timestamp_data = [0; 8];
+                    timestamp_save_file.read_exact(&mut timestamp_data).unwrap();
+                    let last_timestamp = u64::from_ne_bytes(timestamp_data);
+                    cartridge.set_last_timestamp(
+                        rtc_data[0],
+                        rtc_data[1],
+                        rtc_data[2],
+                        rtc_data[3],
+                        rtc_data[4],
+                        last_timestamp,
+                    );
+                }
             }
             let rtc = Box::new(NativeRTC::new());
             let mut emulator = Emulator::from_cartridge(cartridge, rtc);
@@ -169,7 +192,28 @@ pub fn start(rom: Vec<u8>) {
                         .create(true)
                         .open(ram_save_file_path)
                         .unwrap(),
-                )
+                );
+            }
+            let mut timestamp_save_file = None;
+            if let Some(ram_saves_path) = get_ram_saves_path() {
+                if !ram_saves_path.exists() {
+                    fs::create_dir_all(&ram_saves_path).unwrap();
+                }
+
+                if emulator.get_cartridge().has_rtc() {
+                    let timestamp_save_file_path = ram_saves_path.join(format!(
+                        "{}-timestamp.bin",
+                        emulator.get_cartridge().get_name()
+                    ));
+
+                    timestamp_save_file = Some(
+                        OpenOptions::new()
+                            .write(true)
+                            .create(true)
+                            .open(timestamp_save_file_path)
+                            .unwrap(),
+                    )
+                }
             }
 
             let ram_changed = Rc::new(RefCell::new(true));
@@ -199,6 +243,30 @@ pub fn start(rom: Vec<u8>) {
                         ram_save_file.write_all(ram).unwrap();
                     }
                     *ram_changed.borrow_mut() = false;
+                }
+
+                if emulator.get_cartridge().has_rtc() {
+                    if let Some(ref mut timestamp_save_file) = timestamp_save_file {
+                        let (
+                            rtc_seconds,
+                            rtc_minutes,
+                            rtc_hours,
+                            rtc_days_low,
+                            rtc_days_high,
+                            rtc_last_time,
+                        ) = emulator.get_cartridge().get_last_timestamp();
+                        let mut rtc_data = vec![
+                            rtc_seconds,
+                            rtc_minutes,
+                            rtc_hours,
+                            rtc_days_low,
+                            rtc_days_high,
+                        ];
+                        let mut rtc_last_time_data = rtc_last_time.to_ne_bytes().to_vec();
+                        rtc_data.append(&mut rtc_last_time_data);
+                        timestamp_save_file.seek(SeekFrom::Start(0)).unwrap();
+                        timestamp_save_file.write_all(&rtc_data).unwrap();
+                    }
                 }
 
                 match frame_sender.send(screen.get_frame_buffer().clone()) {

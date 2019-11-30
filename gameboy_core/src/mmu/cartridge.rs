@@ -11,6 +11,12 @@ pub struct Cartridge {
     name: String,
     mbc_type: MbcType,
     is_cgb: bool,
+    last_time_seconds: u8,
+    last_time_minutes: u8,
+    last_time_hours: u8,
+    last_time_days_low: u8,
+    last_time_days_high: u8,
+    last_time: u64,
 }
 
 fn pow2ceil(i: i32) -> i32 {
@@ -85,6 +91,12 @@ impl Cartridge {
             name,
             mbc_type,
             is_cgb,
+            last_time_seconds: 0,
+            last_time_minutes: 0,
+            last_time_hours: 0,
+            last_time_days_low: 0,
+            last_time_days_high: 0,
+            last_time: 0
         }
     }
 
@@ -134,5 +146,33 @@ impl Cartridge {
 
     pub fn is_cgb(&self) -> bool {
         self.is_cgb
+    }
+
+    pub fn get_last_timestamp(&self) -> (u8, u8, u8, u8, u8, u64) {
+        (
+            self.last_time_seconds,
+            self.last_time_minutes,
+            self.last_time_hours,
+            self.last_time_days_low,
+            self.last_time_days_high,
+            self.last_time
+        )
+    }
+
+    pub fn set_last_timestamp(
+        &mut self,
+        seconds: u8,
+        minutes: u8,
+        hours: u8,
+        days_low: u8,
+        days_high: u8,
+        last_time: u64,
+    ) {
+        self.last_time_seconds = seconds;
+        self.last_time_minutes = minutes;
+        self.last_time_hours = hours;
+        self.last_time_days_low = days_low;
+        self.last_time_days_high = days_high;
+        self.last_time = last_time;
     }
 }

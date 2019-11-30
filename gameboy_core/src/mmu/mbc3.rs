@@ -93,6 +93,11 @@ impl Mbc for Mbc3 {
                 if self.cartridge.has_rtc() {
                     if self.rtc_latch_data == 0 && value == 1 {
                         self.update_rtc_latch();
+                        self.rtc_latch_seconds = self.rtc_seconds;
+                        self.rtc_latch_minutes = self.rtc_minutes;
+                        self.rtc_latch_hours = self.rtc_hours;
+                        self.rtc_latch_days_low = self.rtc_days_low;
+                        self.rtc_latch_days_high = self.rtc_days_high;
                     }
                     self.rtc_latch_data = value;
                 }
@@ -123,6 +128,10 @@ impl Mbc for Mbc3 {
         &self.cartridge
     }
 
+    fn get_cartridge_mut(&mut self) -> &mut Cartridge {
+        &mut self.cartridge
+    }
+
     fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
         self.ram_change_callback = f;
     }
@@ -130,9 +139,14 @@ impl Mbc for Mbc3 {
 
 impl Mbc3 {
     pub fn new(cartridge: Cartridge, rtc: Box<dyn RTC>) -> Mbc3 {
-        let rtc_last_time = rtc.get_current_time();
+        let (rtc_seconds, rtc_minutes, rtc_hours, rtc_days_low, rtc_days_high, mut rtc_last_time) =
+            cartridge.get_last_timestamp();
 
-        Mbc3 {
+        if rtc_last_time == 0 {
+            rtc_last_time = rtc.get_current_time();
+        }
+
+        let mut mbc3 = Mbc3 {
             cartridge,
             selected_rom_bank: 1,
             selected_eram_bank: 0,
@@ -149,12 +163,15 @@ impl Mbc3 {
             rtc_latch_hours: 0,
             rtc_latch_days_low: 0,
             rtc_latch_days_high: 0,
-            rtc_seconds: 0,
-            rtc_minutes: 0,
-            rtc_hours: 0,
-            rtc_days_low: 0,
-            rtc_days_high: 0,
-        }
+            rtc_seconds,
+            rtc_minutes,
+            rtc_hours,
+            rtc_days_low,
+            rtc_days_high,
+        };
+        mbc3.update_rtc_latch();
+
+        mbc3
     }
 
     fn update_rtc_latch(&mut self) {
@@ -198,10 +215,13 @@ impl Mbc3 {
             }
         }
 
-        self.rtc_latch_seconds = self.rtc_seconds;
-        self.rtc_latch_minutes = self.rtc_minutes;
-        self.rtc_latch_hours = self.rtc_hours;
-        self.rtc_latch_days_low = self.rtc_days_low;
-        self.rtc_latch_days_high = self.rtc_days_high;
+        self.cartridge.set_last_timestamp(
+            self.rtc_seconds,
+            self.rtc_minutes,
+            self.rtc_hours,
+            self.rtc_days_low,
+            self.rtc_days_high,
+            self.rtc_last_time,
+        );
     }
 }

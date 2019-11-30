@@ -69,4 +69,8 @@ impl Emulator {
     pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
         self.memory.set_ram_change_callback(f);
     }
+
+  pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
+      self.memory.get_cartridge_mut()
+  }
 }

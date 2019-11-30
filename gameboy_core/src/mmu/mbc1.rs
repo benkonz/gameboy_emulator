@@ -113,6 +113,10 @@ impl Mbc for Mbc1 {
         &self.cartridge
     }
 
+    fn get_cartridge_mut(&mut self) -> &mut Cartridge {
+        &mut self.cartridge
+    }
+
     fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
         self.ram_change_callback = f;
     }

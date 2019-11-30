@@ -64,6 +64,10 @@ impl Mbc for Mbc2 {
         }
     }
 
+    fn get_cartridge_mut(&mut self) -> &mut Cartridge {
+        &mut self.cartridge
+    }
+
     fn get_cartridge(&self) -> &Cartridge {
         &self.cartridge
     }

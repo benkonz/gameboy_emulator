@@ -9,6 +9,7 @@ pub mod emulator;
 mod gpu;
 mod joypad;
 mod mmu;
+pub mod rtc;
 mod serial;
 mod timer;
 
@@ -20,3 +21,4 @@ pub use gpu::cgb_color::CGBColor;
 pub use gpu::color::Color;
 pub use joypad::Controller;
 pub use mmu::cartridge::Cartridge;
+pub use rtc::Rtc;

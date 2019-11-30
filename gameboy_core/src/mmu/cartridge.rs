@@ -1,4 +1,5 @@
 use super::mbc_type::MbcType;
+use rtc::Rtc;
 
 pub struct Cartridge {
     rom_banks: i32,
@@ -11,11 +12,7 @@ pub struct Cartridge {
     name: String,
     mbc_type: MbcType,
     is_cgb: bool,
-    last_time_seconds: u8,
-    last_time_minutes: u8,
-    last_time_hours: u8,
-    last_time_days_low: u8,
-    last_time_days_high: u8,
+    rtc: Rtc,
     last_time: u64,
 }
 
@@ -91,12 +88,8 @@ impl Cartridge {
             name,
             mbc_type,
             is_cgb,
-            last_time_seconds: 0,
-            last_time_minutes: 0,
-            last_time_hours: 0,
-            last_time_days_low: 0,
-            last_time_days_high: 0,
-            last_time: 0
+            rtc: Rtc::new(),
+            last_time: 0,
         }
     }
 
@@ -148,31 +141,16 @@ impl Cartridge {
         self.is_cgb
     }
 
-    pub fn get_last_timestamp(&self) -> (u8, u8, u8, u8, u8, u64) {
-        (
-            self.last_time_seconds,
-            self.last_time_minutes,
-            self.last_time_hours,
-            self.last_time_days_low,
-            self.last_time_days_high,
-            self.last_time
-        )
+    pub fn get_last_timestamp(&self) -> (Rtc, u64) {
+        (self.rtc, self.last_time)
     }
 
-    pub fn set_last_timestamp(
-        &mut self,
-        seconds: u8,
-        minutes: u8,
-        hours: u8,
-        days_low: u8,
-        days_high: u8,
-        last_time: u64,
-    ) {
-        self.last_time_seconds = seconds;
-        self.last_time_minutes = minutes;
-        self.last_time_hours = hours;
-        self.last_time_days_low = days_low;
-        self.last_time_days_high = days_high;
+    pub fn set_last_timestamp(&mut self, rtc: Rtc, last_time: u64) {
+        self.rtc.seconds = rtc.seconds;
+        self.rtc.minutes = rtc.minutes;
+        self.rtc.hours = rtc.hours;
+        self.rtc.days_low = rtc.days_low;
+        self.rtc.days_high = rtc.days_high;
         self.last_time = last_time;
     }
 }

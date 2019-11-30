@@ -8,7 +8,7 @@ mod screen;
 mod shader;
 
 use directories::BaseDirs;
-use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator};
+use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc};
 use glutin::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
@@ -137,84 +137,14 @@ pub fn start(rom: Vec<u8>) {
     {
         thread::spawn(move || {
             let mut cartridge = Cartridge::from_rom(rom);
+            load_ram_save_data(&mut cartridge);
+            load_timestamp_data(&mut cartridge);
 
-            if let Some(ram_saves_dir) = get_ram_saves_path() {
-                let ram_save_file = ram_saves_dir.join(format!("{}.bin", cartridge.get_name()));
-                if ram_save_file.exists() {
-                    let mut ram_save_file =
-                        OpenOptions::new().read(true).open(ram_save_file).unwrap();
-                    if let Ok(metadata) = ram_save_file.metadata() {
-                        // sometimes two different roms have the same name,
-                        // so we make sure that the ram length is the same before reading
-                        if metadata.len() == cartridge.get_ram().len() as u64 {
-                            ram_save_file.read_exact(cartridge.get_ram_mut()).unwrap();
-                        }
-                    }
-                }
-
-                let timestamp_save_file =
-                    ram_saves_dir.join(format!("{}-timestamp.bin", cartridge.get_name()));
-                if timestamp_save_file.exists() {
-                    let mut timestamp_save_file = OpenOptions::new()
-                        .read(true)
-                        .open(timestamp_save_file)
-                        .unwrap();
-
-                    let mut rtc_data = [0; 5];
-                    timestamp_save_file.read_exact(&mut rtc_data).unwrap();
-                    let mut timestamp_data = [0; 8];
-                    timestamp_save_file.read_exact(&mut timestamp_data).unwrap();
-                    let last_timestamp = u64::from_ne_bytes(timestamp_data);
-                    cartridge.set_last_timestamp(
-                        rtc_data[0],
-                        rtc_data[1],
-                        rtc_data[2],
-                        rtc_data[3],
-                        rtc_data[4],
-                        last_timestamp,
-                    );
-                }
-            }
             let rtc = Box::new(NativeRTC::new());
             let mut emulator = Emulator::from_cartridge(cartridge, rtc);
 
-            let mut ram_save_file = None;
-            if let Some(ram_saves_path) = get_ram_saves_path() {
-                if !ram_saves_path.exists() {
-                    fs::create_dir_all(&ram_saves_path).unwrap();
-                }
-                let ram_save_file_path =
-                    ram_saves_path.join(format!("{}.bin", emulator.get_cartridge().get_name()));
-
-                ram_save_file = Some(
-                    OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .open(ram_save_file_path)
-                        .unwrap(),
-                );
-            }
-            let mut timestamp_save_file = None;
-            if let Some(ram_saves_path) = get_ram_saves_path() {
-                if !ram_saves_path.exists() {
-                    fs::create_dir_all(&ram_saves_path).unwrap();
-                }
-
-                if emulator.get_cartridge().has_rtc() {
-                    let timestamp_save_file_path = ram_saves_path.join(format!(
-                        "{}-timestamp.bin",
-                        emulator.get_cartridge().get_name()
-                    ));
-
-                    timestamp_save_file = Some(
-                        OpenOptions::new()
-                            .write(true)
-                            .create(true)
-                            .open(timestamp_save_file_path)
-                            .unwrap(),
-                    )
-                }
-            }
+            let mut ram_save_file = get_ram_save_file(emulator.get_cartridge());
+            let mut timestamp_save_file = get_timestamp_save_file(emulator.get_cartridge());
 
             let ram_changed = Rc::new(RefCell::new(true));
             {
@@ -236,36 +166,16 @@ pub fn start(rom: Vec<u8>) {
                     }
                 }
 
-                if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
+                if *ram_changed.borrow() {
                     if let Some(ref mut ram_save_file) = ram_save_file {
-                        let ram = emulator.get_cartridge().get_ram();
-                        ram_save_file.seek(SeekFrom::Start(0)).unwrap();
-                        ram_save_file.write_all(ram).unwrap();
+                        save_ram_data(emulator.get_cartridge(), ram_save_file);
                     }
                     *ram_changed.borrow_mut() = false;
                 }
 
                 if emulator.get_cartridge().has_rtc() {
                     if let Some(ref mut timestamp_save_file) = timestamp_save_file {
-                        let (
-                            rtc_seconds,
-                            rtc_minutes,
-                            rtc_hours,
-                            rtc_days_low,
-                            rtc_days_high,
-                            rtc_last_time,
-                        ) = emulator.get_cartridge().get_last_timestamp();
-                        let mut rtc_data = vec![
-                            rtc_seconds,
-                            rtc_minutes,
-                            rtc_hours,
-                            rtc_days_low,
-                            rtc_days_high,
-                        ];
-                        let mut rtc_last_time_data = rtc_last_time.to_ne_bytes().to_vec();
-                        rtc_data.append(&mut rtc_last_time_data);
-                        timestamp_save_file.seek(SeekFrom::Start(0)).unwrap();
-                        timestamp_save_file.write_all(&rtc_data).unwrap();
+                        save_timestamp_data(emulator.get_cartridge(), timestamp_save_file);
                     }
                 }
 
@@ -464,4 +374,91 @@ fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, frame_buffer: &[u8]) 
         let screen_uniform = gl.GetUniformLocation(shader.program, screen_uniform_str.as_ptr());
         gl.Uniform1i(screen_uniform, 0);
     }
+}
+
+fn load_ram_save_data(cartridge: &mut Cartridge) {
+    if let Some(ram_saves_dir) = get_ram_saves_path() {
+        let ram_save_file = ram_saves_dir.join(format!("{}.bin", cartridge.get_name()));
+        if ram_save_file.exists() {
+            let mut ram_save_file = OpenOptions::new().read(true).open(ram_save_file).unwrap();
+            if let Ok(metadata) = ram_save_file.metadata() {
+                // sometimes two different roms have the same name,
+                // so we make sure that the ram length is the same before reading
+                if metadata.len() == cartridge.get_ram().len() as u64 {
+                    ram_save_file.read_exact(cartridge.get_ram_mut()).unwrap();
+                }
+            }
+        }
+    }
+}
+
+fn get_ram_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
+    let ram_saves_path = get_ram_saves_path()?;
+    if !ram_saves_path.exists() {
+        fs::create_dir_all(&ram_saves_path).unwrap();
+    }
+    let ram_save_file_path = ram_saves_path.join(format!("{}.bin", cartridge.get_name()));
+
+    Some(
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(ram_save_file_path)
+            .unwrap(),
+    )
+}
+
+fn get_timestamp_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
+    let ram_saves_path = get_ram_saves_path()?;
+    if !ram_saves_path.exists() {
+        fs::create_dir_all(&ram_saves_path).unwrap();
+    }
+    let timestamp_save_file_path =
+        ram_saves_path.join(format!("{}-timestamp.bin", cartridge.get_name()));
+
+    Some(
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(timestamp_save_file_path)
+            .unwrap(),
+    )
+}
+
+fn load_timestamp_data(cartridge: &mut Cartridge) {
+    if let Some(ram_saves_dir) = get_ram_saves_path() {
+        let timestamp_save_file =
+            ram_saves_dir.join(format!("{}-timestamp.bin", cartridge.get_name()));
+        if timestamp_save_file.exists() {
+            let mut timestamp_save_file = OpenOptions::new()
+                .read(true)
+                .open(timestamp_save_file)
+                .unwrap();
+
+            let mut rtc_data = [0; 5];
+            timestamp_save_file.read_exact(&mut rtc_data).unwrap();
+            let mut timestamp_data = [0; 8];
+            timestamp_save_file.read_exact(&mut timestamp_data).unwrap();
+            let last_rtc = Rtc::from_bytes(&rtc_data);
+            let last_timestamp = u64::from_ne_bytes(timestamp_data);
+            cartridge.set_last_timestamp(last_rtc, last_timestamp);
+        }
+    }
+}
+
+fn save_ram_data<T: Write + Seek>(cartridge: &Cartridge, ram_save_file: &mut T) {
+    if cartridge.has_battery() {
+        let ram = cartridge.get_ram();
+        ram_save_file.seek(SeekFrom::Start(0)).unwrap();
+        ram_save_file.write_all(ram).unwrap();
+    }
+}
+
+fn save_timestamp_data<T: Write + Seek>(cartridge: &Cartridge, timestamp_save_file: &mut T) {
+    let (rtc_data, rtc_last_time) = cartridge.get_last_timestamp();
+    let mut rtc_data = rtc_data.to_bytes().to_vec();
+    let mut rtc_last_time_data = rtc_last_time.to_ne_bytes().to_vec();
+    rtc_data.append(&mut rtc_last_time_data);
+    timestamp_save_file.seek(SeekFrom::Start(0)).unwrap();
+    timestamp_save_file.write_all(&rtc_data).unwrap();
 }

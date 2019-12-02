@@ -13,24 +13,24 @@ The web assembly port is currently hosted [here](https://benkonz.github.io/asset
 ## Screenshots
 
 <p align="center">
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/pokemon_crystal.png" height=240 />
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/super_mario.png" height=240 />
+    <img src="screenshots/pokemon_crystal.png" height=240 />
+    <img src="screenshots/super_mario.png" height=240 />
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/tetris.png" height=240 />
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/mario.png" height=240 />
+    <img src="screenshots/tetris.png" height=240 />
+    <img src="screenshots/mario.png" height=240 />
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/pokemon_yellow.png" height=240 />
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/shantae.png" height=240 />
+    <img src="screenshots/pokemon_yellow.png" height=240 />
+    <img src="screenshots/shantae.png" height=240 />
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/zelda.png" height=240 />
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/metroid.png" height=240 />
+    <img src="screenshots/zelda.png" height=240 />
+    <img src="screenshots/metroid.png" height=240 />
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/kirby2.png" height=240 />
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/blaarg_tests.png" height=240 />
+    <img src="screenshots/kirby2.png" height=240 />
+    <img src="screenshots/blaarg_tests.png" height=240 />
 </p>
 
 ## Installing

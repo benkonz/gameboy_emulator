@@ -166,7 +166,7 @@ pub fn start(rom: Vec<u8>) {
                     }
                 }
 
-                if *ram_changed.borrow() {
+                if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
                     if let Some(ref mut ram_save_file) = ram_save_file {
                         save_ram_data(emulator.get_cartridge(), ram_save_file);
                     }
@@ -377,72 +377,81 @@ fn draw_texture(gl: &Gl, texture: GLuint, shader: &Shader, frame_buffer: &[u8]) 
 }
 
 fn load_ram_save_data(cartridge: &mut Cartridge) {
-    if let Some(ram_saves_dir) = get_ram_saves_path() {
-        let ram_save_file = ram_saves_dir.join(format!("{}.bin", cartridge.get_name()));
-        if ram_save_file.exists() {
-            let mut ram_save_file = OpenOptions::new().read(true).open(ram_save_file).unwrap();
-            if let Ok(metadata) = ram_save_file.metadata() {
-                // sometimes two different roms have the same name,
-                // so we make sure that the ram length is the same before reading
-                if metadata.len() == cartridge.get_ram().len() as u64 {
-                    ram_save_file.read_exact(cartridge.get_ram_mut()).unwrap();
+    if cartridge.has_battery() {
+        if let Some(ram_saves_dir) = get_ram_saves_path() {
+            let ram_save_file = ram_saves_dir.join(format!("{}.bin", cartridge.get_name()));
+            if ram_save_file.exists() {
+                let mut ram_save_file = OpenOptions::new().read(true).open(ram_save_file).unwrap();
+                if let Ok(metadata) = ram_save_file.metadata() {
+                    // sometimes two different roms have the same name,
+                    // so we make sure that the ram length is the same before reading
+                    if metadata.len() == cartridge.get_ram().len() as u64 {
+                        ram_save_file.read_exact(cartridge.get_ram_mut()).unwrap();
+                    }
                 }
             }
         }
     }
 }
 
-fn get_ram_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
-    let ram_saves_path = get_ram_saves_path()?;
-    if !ram_saves_path.exists() {
-        fs::create_dir_all(&ram_saves_path).unwrap();
+fn load_timestamp_data(cartridge: &mut Cartridge) {
+    if cartridge.has_rtc() {
+        if let Some(ram_saves_dir) = get_ram_saves_path() {
+            let timestamp_save_file =
+                ram_saves_dir.join(format!("{}-timestamp.bin", cartridge.get_name()));
+            if timestamp_save_file.exists() {
+                let mut timestamp_save_file = OpenOptions::new()
+                    .read(true)
+                    .open(timestamp_save_file)
+                    .unwrap();
+                let mut rtc_data = [0; 5];
+                timestamp_save_file.read_exact(&mut rtc_data).unwrap();
+                let mut timestamp_data = [0; 8];
+                timestamp_save_file.read_exact(&mut timestamp_data).unwrap();
+                let last_rtc = Rtc::from_bytes(&rtc_data);
+                let last_timestamp = u64::from_ne_bytes(timestamp_data);
+                cartridge.set_last_timestamp(last_rtc, last_timestamp);
+            }
+        }
     }
-    let ram_save_file_path = ram_saves_path.join(format!("{}.bin", cartridge.get_name()));
+}
 
-    Some(
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(ram_save_file_path)
-            .unwrap(),
-    )
+fn get_ram_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
+    if cartridge.has_battery() {
+        let ram_saves_path = get_ram_saves_path()?;
+        if !ram_saves_path.exists() {
+            fs::create_dir_all(&ram_saves_path).unwrap();
+        }
+        let ram_save_file_path = ram_saves_path.join(format!("{}.bin", cartridge.get_name()));
+        Some(
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(ram_save_file_path)
+                .unwrap(),
+        )
+    } else {
+        None
+    }
 }
 
 fn get_timestamp_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
-    let ram_saves_path = get_ram_saves_path()?;
-    if !ram_saves_path.exists() {
-        fs::create_dir_all(&ram_saves_path).unwrap();
-    }
-    let timestamp_save_file_path =
-        ram_saves_path.join(format!("{}-timestamp.bin", cartridge.get_name()));
-
-    Some(
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(timestamp_save_file_path)
-            .unwrap(),
-    )
-}
-
-fn load_timestamp_data(cartridge: &mut Cartridge) {
-    if let Some(ram_saves_dir) = get_ram_saves_path() {
-        let timestamp_save_file =
-            ram_saves_dir.join(format!("{}-timestamp.bin", cartridge.get_name()));
-        if timestamp_save_file.exists() {
-            let mut timestamp_save_file = OpenOptions::new()
-                .read(true)
-                .open(timestamp_save_file)
-                .unwrap();
-
-            let mut rtc_data = [0; 5];
-            timestamp_save_file.read_exact(&mut rtc_data).unwrap();
-            let mut timestamp_data = [0; 8];
-            timestamp_save_file.read_exact(&mut timestamp_data).unwrap();
-            let last_rtc = Rtc::from_bytes(&rtc_data);
-            let last_timestamp = u64::from_ne_bytes(timestamp_data);
-            cartridge.set_last_timestamp(last_rtc, last_timestamp);
+    if cartridge.has_rtc() {
+        let ram_saves_path = get_ram_saves_path()?;
+        if !ram_saves_path.exists() {
+            fs::create_dir_all(&ram_saves_path).unwrap();
         }
+        let timestamp_save_file_path =
+            ram_saves_path.join(format!("{}-timestamp.bin", cartridge.get_name()));
+        Some(
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(timestamp_save_file_path)
+                .unwrap(),
+        )
+    } else {
+        None
     }
 }
 

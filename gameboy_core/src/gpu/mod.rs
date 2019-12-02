@@ -357,13 +357,13 @@ impl GPU {
                 let map_tile_addr = (map_start_addr + line_scrolled_32 + map_tile_x) as u16;
 
                 let map_tile = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
-                    i32::from(memory.read_byte(map_tile_addr))
+                    i32::from(memory.read_cgb_lcd_ram(map_tile_addr, 0))
                 } else {
-                    (i32::from(memory.read_byte(map_tile_addr) as i8) + 128)
+                    (i32::from(memory.read_cgb_lcd_ram(map_tile_addr, 0) as i8) + 128)
                 };
 
                 let cgb_tile_attrs = if self.is_cgb {
-                    BgAttributes::from_bits_truncate(memory.read_cgb_lcd_ram(map_tile_addr, true))
+                    BgAttributes::from_bits_truncate(memory.read_cgb_lcd_ram(map_tile_addr, 1))
                 } else {
                     BgAttributes::empty()
                 };
@@ -402,13 +402,13 @@ impl GPU {
 
                 let (byte1, byte2) = if self.is_cgb && cgb_tile_bank {
                     (
-                        memory.read_cgb_lcd_ram(tile_address, true),
-                        memory.read_cgb_lcd_ram(tile_address + 1, true),
+                        memory.read_cgb_lcd_ram(tile_address, 1),
+                        memory.read_cgb_lcd_ram(tile_address + 1, 1),
                     )
                 } else {
                     (
-                        memory.read_byte(tile_address),
-                        memory.read_byte(tile_address + 1),
+                        memory.read_cgb_lcd_ram(tile_address, 0),
+                        memory.read_cgb_lcd_ram(tile_address + 1, 0),
                     )
                 };
                 let mut pixel_x_in_tile = i32::from(map_tile_offset_x);
@@ -506,14 +506,14 @@ impl GPU {
 
         for x in 0..32 {
             let tile = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
-                i32::from(memory.read_byte((map + y_32 + x) as u16))
+                i32::from(memory.read_cgb_lcd_ram((map + y_32 + x) as u16, 0))
             } else {
-                (i32::from(memory.read_byte((map + y_32 + x) as u16) as i8) + 128)
+                (i32::from(memory.read_cgb_lcd_ram((map + y_32 + x) as u16, 0) as i8) + 128)
             };
 
             let cgb_tile_attrs = if self.is_cgb {
                 BgAttributes::from_bits_truncate(
-                    memory.read_cgb_lcd_ram((map + y_32 + x) as u16, true),
+                    memory.read_cgb_lcd_ram((map + y_32 + x) as u16, 1),
                 )
             } else {
                 BgAttributes::empty()
@@ -553,13 +553,13 @@ impl GPU {
             let tile_address = (tiles + tile_16 + final_pixely_2) as u16;
             let (byte1, byte2) = if self.is_cgb && cgb_tile_bank {
                 (
-                    memory.read_cgb_lcd_ram(tile_address, true),
-                    memory.read_cgb_lcd_ram(tile_address + 1, true),
+                    memory.read_cgb_lcd_ram(tile_address, 1),
+                    memory.read_cgb_lcd_ram(tile_address + 1, 1),
                 )
             } else {
                 (
-                    memory.read_byte(tile_address),
-                    memory.read_byte(tile_address + 1),
+                    memory.read_cgb_lcd_ram(tile_address, 0),
+                    memory.read_cgb_lcd_ram(tile_address + 1, 0),
                 )
             };
 
@@ -671,13 +671,13 @@ impl GPU {
 
             let (byte1, byte2) = if self.is_cgb && cgb_tile_bank {
                 (
-                    memory.read_cgb_lcd_ram(tile_address, true),
-                    memory.read_cgb_lcd_ram(tile_address + 1, true),
+                    memory.read_cgb_lcd_ram(tile_address, 1),
+                    memory.read_cgb_lcd_ram(tile_address + 1, 1),
                 )
             } else {
                 (
-                    memory.read_byte(tile_address),
-                    memory.read_byte(tile_address + 1),
+                    memory.read_cgb_lcd_ram(tile_address, 0),
+                    memory.read_cgb_lcd_ram(tile_address + 1, 0),
                 )
             };
 

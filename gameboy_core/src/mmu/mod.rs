@@ -647,12 +647,10 @@ impl Memory {
         }
     }
 
-    pub fn read_cgb_lcd_ram(&self, address: u16, force_bank1: bool) -> u8 {
-        if force_bank1 || self.vram_bank == 1 {
-            self.vram[address as usize - 0x8000 + 0x2000]
-        } else {
-            self.read_byte(address)
-        }
+    pub fn read_cgb_lcd_ram(&self, index: u16, bank: i32) -> u8 {
+        let offset = 0x2000 * bank as usize;
+        let address = index as usize - 0x8000 + offset;
+        self.vram[address]
     }
 
     pub fn read_word(&self, index: u16) -> u16 {

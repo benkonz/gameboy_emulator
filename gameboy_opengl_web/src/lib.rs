@@ -14,8 +14,7 @@ use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc
 use screen::Screen;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::mpsc;
-use std::sync::mpsc::TryRecvError;
+use std::sync::mpsc::{self, TryRecvError};
 use stdweb::traits::*;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{

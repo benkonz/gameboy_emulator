@@ -21,8 +21,8 @@ The web assembly port is currently hosted [here](https://benkonz.github.io/asset
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/mario.png" height=240 />
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/pokemon.png" height=240 />
-    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/megaman.png" height=240 />
+    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/pokemon_yellow.png" height=240 />
+    <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/shantae.png" height=240 />
 </p>
 <p align="center">
     <img src="https://raw.githubusercontent.com/benkonz/gameboy_emulator/master/screenshots/zelda.png" height=240 />

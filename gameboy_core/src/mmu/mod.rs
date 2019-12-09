@@ -192,7 +192,7 @@ impl Memory {
                 self.wram[address]
             }
             0xE000..=0xFDFF => self.read_byte(index - 0x2000),
-            0xFE00..=0xFE9F => self.oam[index as usize - 0xFE00],
+            0xFE00..=0xFEFF => self.oam[index as usize - 0xFE00],
             0xFF00..=0xFFFF => match index {
                 0xFF00 => self.get_joypad_state(),
                 0xFF07 => self.high_ram[index as usize - 0xFF00] | 0xF8,
@@ -221,7 +221,6 @@ impl Memory {
                 }
                 _ => self.high_ram[index as usize - 0xFF00],
             },
-            _ => 0,
         }
     }
 
@@ -275,7 +274,7 @@ impl Memory {
                 self.wram[address] = value;
             }
             0xE000..=0xFDFF => self.write_byte(index - 0x2000, value),
-            0xFE00..=0xFE9F => self.oam[index as usize - 0xFE00] = value,
+            0xFE00..=0xFEFF => self.oam[index as usize - 0xFE00] = value,
             0xFF00..=0xFFFF => match index {
                 0xFF04 => self.reset_div_cycles(),
                 0xFF07 => {
@@ -359,7 +358,6 @@ impl Memory {
                 0xFFFF => self.high_ram[index as usize - 0xFF00] = value & 0x1F,
                 _ => self.high_ram[index as usize - 0xFF00] = value,
             },
-            _ => {}
         };
     }
 
@@ -382,7 +380,7 @@ impl Memory {
     }
 
     pub fn do_lcd_status_write(&mut self, value: u8) {
-        let current_stat = self.get_lcdc_from_memory() & 0x07;
+        let current_stat = self.get_lcd_status_from_memory() & 0x07;
         let new_stat = (value & 0x78) | (current_stat & 0x07);
         self.set_lcd_status_from_memory(new_stat);
         let lcd_control = LcdControlFlag::from_bits_truncate(self.get_lcdc_from_memory());

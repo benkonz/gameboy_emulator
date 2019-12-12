@@ -2,6 +2,7 @@ pub mod traits;
 
 use cpu::Cpu;
 use emulator::traits::{PixelMapper, RTC};
+use gpu::GPU;
 use joypad::Controller;
 use mmu::cartridge::Cartridge;
 use mmu::interrupt::Interrupt;
@@ -11,6 +12,7 @@ use timer::Timer;
 
 pub struct Emulator {
     cpu: Cpu,
+    gpu: GPU,
     timer: Timer,
     serial: Serial,
     memory: Memory,
@@ -21,17 +23,18 @@ impl Emulator {
         let is_cgb = cartridge.is_cgb();
         Emulator {
             cpu: Cpu::new(is_cgb),
+            gpu: GPU::new(is_cgb),
             timer: Timer::new(),
             serial: Serial::new(),
             memory: Memory::from_cartridge(cartridge, rtc, is_cgb),
         }
     }
 
-    pub fn emulate<P: PixelMapper>(&mut self, pixel_mapper: &mut P, controller: &mut Controller) -> bool {
+    pub fn emulate<T: PixelMapper>(&mut self, system: &mut T, controller: &mut Controller) -> bool {
         let cycles = self.cpu.step(&mut self.memory);
         self.timer.update(cycles, &mut self.memory);
         self.serial.update(cycles, &mut self.memory);
-        let vblank = self.memory.step_gpu(cycles, pixel_mapper);
+        let vblank = self.gpu.step(cycles, &mut self.memory, system);
         controller.update(&mut self.memory);
         self.handle_interrupts();
         vblank

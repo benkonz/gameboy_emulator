@@ -34,7 +34,6 @@ impl Controller {
     }
 
     pub fn update(&mut self, memory: &mut Memory) {
-        // the interrupts here don't fire correctly
         if memory.are_action_keys_enabled() && self.previously_unset_button_pressed {
             memory.request_interrupt(Interrupt::Joypad);
             self.previously_unset_button_pressed = false;

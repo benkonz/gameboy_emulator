@@ -3,6 +3,7 @@ mod registers;
 use self::registers::flag::Flag;
 use self::registers::Registers;
 use mmu::Memory;
+use bit_utils;
 
 const INSTRUCTION_TIMINGS: [i32; 256] = [
     1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1, 1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
@@ -582,15 +583,15 @@ impl Cpu {
 
     fn stop(&mut self, memory: &mut Memory) {
         if self.is_cgb {
-            let current_key1 = memory.get_key1();
+            let current_key1 = memory.load(0xFF4D);
 
             if current_key1 & 1 == 1 {
                 self.cgb_speed = !self.cgb_speed;
 
                 if self.cgb_speed {
-                    memory.set_key1(0x80);
+                    memory.store(0xFF4D, 0x80);
                 } else {
-                    memory.set_key1(0x00);
+                    memory.store(0xFF4D, 0x00);
                 }
             }
         }
@@ -3337,7 +3338,7 @@ impl Cpu {
     fn bit_i(&mut self, i: u8, n: u8) {
         self.registers.f.insert(Flag::HALF_CARRY);
         self.registers.f.remove(Flag::NEGATIVE);
-        self.registers.f.set(Flag::ZERO, n & (1 << i) == 0);
+        self.registers.f.set(Flag::ZERO, !bit_utils::is_set(n, i));
     }
 
     fn bit_i_r(&mut self, r: u8, i: u8) {
@@ -3350,7 +3351,7 @@ impl Cpu {
     }
 
     fn set_i(&mut self, i: u8, n: u8) -> u8 {
-        n | (1 << i)
+        bit_utils::set_bit(n, i)
     }
 
     fn set_i_r(&mut self, r: u8, i: u8) -> u8 {
@@ -3364,7 +3365,7 @@ impl Cpu {
     }
 
     fn res_i(&mut self, i: u8, n: u8) -> u8 {
-        n & !((1 << i) as u8)
+        bit_utils::unset_bit(n, i)
     }
 
     fn res_i_r(&mut self, r: u8, i: u8) -> u8 {

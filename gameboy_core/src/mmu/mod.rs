@@ -24,8 +24,30 @@ use emulator::traits::RTC;
 use gpu::cgb_color::CGBColor;
 use gpu::lcd_control_flag::LcdControlFlag;
 
-const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
-const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
+pub const SPRITES_START_INDEX: u16 = 0xFE00;
+pub const JOYPAD_INDEX: u16 = 0xFF00;
+pub const DIVIDER_INDEX: u16 = 0xFF04;
+pub const SELECTABLE_TIMER_INDEX: u16 = 0xFF05;
+pub const TIMER_RESET_INDEX: u16 = 0xFF06;
+pub const TIMER_CONTROL_INDEX: u16 = 0xFF07;
+pub const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
+pub const LCD_CONTROL_INDEX: u16 = 0xFF40;
+pub const LCD_INDEX: u16 = 0xFF41;
+pub const SCROLL_Y_INDEX: u16 = 0xFF42;
+pub const SCROLL_X_INDEX: u16 = 0xFF43;
+pub const LY_INDEX: u16 = 0xFF44;
+pub const LYC_INDEX: u16 = 0xFF45;
+pub const BACKGROUND_PALETTE_INDEX: u16 = 0xFF47;
+pub const OBJECT_PALETTE_0_INDEX: u16 = 0xFF48;
+pub const OBJECT_PALETTE_1_INDEX: u16 = 0xFF49;
+pub const WINDOW_Y_INDEX: u16 = 0xFF4A;
+pub const WINDOW_X_INDEX: u16 = 0xFF4B;
+pub const VRAM_BANK_INDEX: u16 = 0xFF4F;
+pub const CGB_BACKGROUND_PALETTE_INDEX_INDEX: u16 = 0xFF68;
+pub const CGB_BACKGROUND_PALETTE_DATA_INDEX: u16 = 0xFF69;
+pub const CGB_SPRITE_PALETTE_INDEX_INDEX: u16 = 0xFF6A;
+pub const CGB_SPRITE_PALETTE_DATA_INDEX: u16 = 0xFF6B;
+pub const INTERRUPT_ENABLE_INDEX: u16 = 0xFFFF;
 
 const INITIAL_VALUES_FOR_FFXX: [u8; 0x100] = [
     0xCF, 0x00, 0x7E, 0xFF, 0xD3, 0x00, 0x00, 0xF8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xE1,
@@ -123,6 +145,7 @@ impl Memory {
         let mut hdma_source = 0;
         let mut hdma_destination = 0;
         if is_cgb {
+            // TODO: make all of these MMU constants
             let mut hdma_source_high = high_ram[0xFF51 - 0xFF00] as u16;
             let hdma_source_low = high_ram[0xFF52 - 0xFF00] as u16;
             if hdma_source_high > 0x7F && hdma_source_high < 0xA0 {
@@ -171,61 +194,58 @@ impl Memory {
     pub fn read_byte(&self, index: u16) -> u8 {
         match index {
             0x0000..=0x7FFF => self.mbc.read_byte(index),
-            0x8000..=0x9FFF => {
-                let offset = if self.is_cgb {
-                    self.vram_bank as usize * 0x2000
-                } else {
-                    0
-                };
-                let address = index as usize - 0x8000 + offset;
-                self.vram[address]
-            }
+            0x8000..=0x9FFF => self.read_cgb_lcd_ram(index, self.vram_bank),
             0xA000..=0xBFFF => self.mbc.read_byte(index),
-            0xC000..=0xCFFF => self.wram[index as usize - 0xC000],
-            0xD000..=0xDFFF => {
-                let offset = if self.is_cgb {
-                    self.wram_bank as usize * 0x1000
-                } else {
-                    0x1000
-                };
-                let address = index as usize - 0xD000 + offset;
-                self.wram[address]
-            }
+            0xC000..=0xCFFF => self.read_cgb_wram(index - 0xC000, 0),
+            0xD000..=0xDFFF => self.read_cgb_wram(index - 0xD000, self.wram_bank),
             0xE000..=0xFDFF => self.read_byte(index - 0x2000),
             0xFE00..=0xFEFF => self.oam[index as usize - 0xFE00],
             0xFF00..=0xFFFF => match index {
-                0xFF00 => self.get_joypad_state(),
-                0xFF07 => self.high_ram[index as usize - 0xFF00] | 0xF8,
-                0xFF0F => self.high_ram[index as usize - 0xFF00] | 0xE0,
-                0xFF41 => self.high_ram[index as usize - 0xFF00] | 0x80,
-                0xFF44 => {
+                JOYPAD_INDEX => self.get_joypad_state(),
+                DIVIDER_INDEX => self.load(index),
+                SELECTABLE_TIMER_INDEX => self.load(index),
+                TIMER_RESET_INDEX => self.load(index),
+                TIMER_CONTROL_INDEX => self.load(index) | 0xF8,
+                INTERRUPT_FLAGS_INDEX => self.load(index) | 0xE0,
+                LCD_CONTROL_INDEX => self.load(index),
+                LCD_INDEX => self.load(index) | 0x80,
+                SCROLL_Y_INDEX => self.load(index),
+                SCROLL_X_INDEX => self.load(index),
+                LY_INDEX => {
                     if !self.screen_disabled {
                         self.scan_line
                     } else {
                         0x00
                     }
                 }
-                0xFF68 | 0xFF6A => {
+                LYC_INDEX => self.load(index),
+                WINDOW_Y_INDEX => self.load(index),
+                WINDOW_X_INDEX => self.load(index),
+                BACKGROUND_PALETTE_INDEX => self.load(index),
+                OBJECT_PALETTE_0_INDEX => self.load(index),
+                OBJECT_PALETTE_1_INDEX => self.load(index),
+                VRAM_BANK_INDEX => self.load(index),
+                CGB_BACKGROUND_PALETTE_INDEX_INDEX | CGB_SPRITE_PALETTE_INDEX_INDEX => {
                     if self.is_cgb {
-                        self.high_ram[index as usize - 0xFF00] | 0x40
+                        self.load(index) | 0x40
                     } else {
                         0xC0
                     }
                 }
-                0xFF69 | 0xFF6B => {
+                CGB_BACKGROUND_PALETTE_DATA_INDEX | CGB_SPRITE_PALETTE_DATA_INDEX => {
                     if self.is_cgb {
-                        self.high_ram[index as usize - 0xFF00] | 0xF8
+                        self.load(index) | 0xF8
                     } else {
                         0xFF
                     }
                 }
-                _ => self.high_ram[index as usize - 0xFF00],
+                _ => self.load(index),
             },
         }
     }
 
     fn get_joypad_state(&self) -> u8 {
-        let joypad_control = self.high_ram[0];
+        let joypad_control = self.load(JOYPAD_INDEX);
 
         if self.are_direction_keys_enabled() {
             (joypad_control & 0xF0) | (self.joypad_state & 0x0F)
@@ -241,68 +261,60 @@ impl Memory {
     }
 
     pub fn are_action_keys_enabled(&self) -> bool {
-        let joypad_control = self.high_ram[0];
+        let joypad_control = self.load(0xFF00);
         joypad_control & 0x30 != 0x20
     }
 
     pub fn are_direction_keys_enabled(&self) -> bool {
-        let joypad_control = self.high_ram[0];
+        let joypad_control = self.load(0xFF00);
         joypad_control & 0x30 != 0x10
     }
 
     pub fn write_byte(&mut self, index: u16, value: u8) {
         match index {
             0x0000..=0x7FFF => self.mbc.write_byte(index, value),
-            0x8000..=0x9FFF => {
-                let offset = if self.is_cgb {
-                    self.vram_bank as usize * 0x2000
-                } else {
-                    0
-                };
-                let address = index as usize - 0x8000 + offset;
-                self.vram[address] = value
-            }
+            0x8000..=0x9FFF => self.write_cgb_lcd_ram(index, value, self.vram_bank),
             0xA000..=0xBFFF => self.mbc.write_byte(index, value),
-            0xC000..=0xCFFF => self.wram[index as usize - 0xC000] = value,
-            0xD000..=0xDFFF => {
-                let offset = if self.is_cgb {
-                    self.wram_bank as usize * 0x1000
-                } else {
-                    0x1000
-                };
-                let address = index as usize - 0xD000 + offset;
-                self.wram[address] = value;
-            }
+            0xC000..=0xCFFF => self.write_cgb_wram(index - 0xC000, value, 0),
+            0xD000..=0xDFFF => self.write_cgb_wram(index - 0xD000, value, self.wram_bank),
             0xE000..=0xFDFF => self.write_byte(index - 0x2000, value),
             0xFE00..=0xFEFF => self.oam[index as usize - 0xFE00] = value,
             0xFF00..=0xFFFF => match index {
-                0xFF04 => self.reset_div_cycles(),
-                0xFF07 => {
+                DIVIDER_INDEX => self.reset_div_cycles(),
+                SELECTABLE_TIMER_INDEX => self.store(index, value),
+                TIMER_RESET_INDEX => self.store(index, value),
+                TIMER_CONTROL_INDEX => {
                     let value = value & 0x07;
-                    let current_tac = self.read_byte(0xFF07);
+                    let current_tac = self.read_byte(TIMER_CONTROL_INDEX);
                     if (current_tac & 0x03) != (value & 0x03) {
                         self.reset_tima_cycles();
                     }
-                    self.high_ram[index as usize - 0xFF00] = value;
+                    self.store(index, value);
                 }
-                0xFF0F => self.high_ram[index as usize - 0xFF00] = value & 0x1F,
-                0xFF40 => self.do_lcd_control_write(value),
-                0xFF41 => self.do_lcd_status_write(value),
-                0xFF44 => self.do_scanline_write(value),
-                0xFF45 => self.do_lyc_write(value),
+                INTERRUPT_FLAGS_INDEX => self.store(index, value & 0x1F),
+                LCD_CONTROL_INDEX => self.do_lcd_control_write(value),
+                LCD_INDEX => self.do_lcd_status_write(value),
+                SCROLL_Y_INDEX => self.store(index, value),
+                SCROLL_X_INDEX => self.store(index, value),
+                LY_INDEX => self.do_scanline_write(value),
+                LYC_INDEX => self.do_lyc_write(value),
                 0xFF46 => {
-                    self.high_ram[index as usize - 0xFF00] = value;
+                    self.store(index, value);
                     self.do_dma_transfer(value)
                 }
+                BACKGROUND_PALETTE_INDEX => self.store(index, value),
+                OBJECT_PALETTE_0_INDEX => self.store(index, value),
+                OBJECT_PALETTE_1_INDEX => self.store(index, value),
+                WINDOW_Y_INDEX => self.store(index, value),
+                WINDOW_X_INDEX => self.store(index, value),
                 0xFF4D if self.is_cgb => {
-                    let current_key1 = self.get_key1();
-                    self.high_ram[index as usize - 0xFF00] =
-                        (current_key1 & 0x80) | (value & 1) | 0x7E;
+                    let current_key1 = self.load(index);
+                    self.store(index, (current_key1 & 0x80) | (value & 1) | 0x7E);
                 }
-                0xFF4F if self.is_cgb => {
+                VRAM_BANK_INDEX if self.is_cgb => {
                     let value = value & 1;
                     self.vram_bank = value as i32;
-                    self.high_ram[index as usize - 0xFF00] = value;
+                    self.store(index, value);
                 }
                 0xFF51 if self.is_cgb => {
                     let value = if value > 0x7F && value < 0xC0 {
@@ -311,40 +323,40 @@ impl Memory {
                         value
                     };
                     self.hdma_source = ((value as u16) << 8) | (self.hdma_source & 0xF0);
-                    self.high_ram[index as usize - 0xFF00] = value;
+                    self.store(index, value);
                 }
                 0xFF52 if self.is_cgb => {
                     let value = value & 0xF0;
                     self.hdma_source = (self.hdma_source & 0xFF00) | (value as u16);
-                    self.high_ram[index as usize - 0xFF00] = value;
+                    self.store(index, value);
                 }
                 0xFF53 if self.is_cgb => {
                     let value = value & 0x1F;
                     self.hdma_destination = ((value as u16) << 8) | (self.hdma_destination & 0xF0);
                     self.hdma_destination |= 0x8000;
-                    self.high_ram[index as usize - 0xFF00] = value;
+                    self.store(index, value);
                 }
                 0xFF54 if self.is_cgb => {
                     let value = value & 0xF0;
                     self.hdma_destination = (self.hdma_destination & 0x1F00) | (value as u16);
                     self.hdma_destination |= 0x8000;
-                    self.high_ram[index as usize - 0xFF00] = value;
+                    self.store(index, value);
                 }
                 0xFF55 if self.is_cgb => self.do_cgb_dma(value),
-                0xFF68 if self.is_cgb => {
-                    self.high_ram[index as usize - 0xFF00] = value;
+                CGB_BACKGROUND_PALETTE_INDEX_INDEX if self.is_cgb => {
+                    self.store(index, value);
                     self.update_color_palette(true, value);
                 }
-                0xFF69 if self.is_cgb => {
-                    self.high_ram[index as usize - 0xFF00] = value;
+                CGB_BACKGROUND_PALETTE_DATA_INDEX if self.is_cgb => {
+                    self.store(index, value);
                     self.set_color_palette(true, value);
                 }
-                0xFF6A if self.is_cgb => {
-                    self.high_ram[index as usize - 0xFF00] = value;
+                CGB_SPRITE_PALETTE_INDEX_INDEX if self.is_cgb => {
+                    self.store(index, value);
                     self.update_color_palette(false, value);
                 }
-                0xFF6B if self.is_cgb => {
-                    self.high_ram[index as usize - 0xFF00] = value;
+                CGB_SPRITE_PALETTE_DATA_INDEX if self.is_cgb => {
+                    self.store(index, value);
                     self.set_color_palette(false, value);
                 }
                 0xFF70 if self.is_cgb => {
@@ -353,18 +365,18 @@ impl Memory {
                     if self.wram_bank == 0 {
                         self.wram_bank = 1;
                     }
-                    self.high_ram[index as usize - 0xFF00] = value;
+                    self.store(index, value);
                 }
-                0xFFFF => self.high_ram[index as usize - 0xFF00] = value & 0x1F,
-                _ => self.high_ram[index as usize - 0xFF00] = value,
+                INTERRUPT_ENABLE_INDEX => self.store(index, value & 0x1F),
+                _ => self.store(index, value),
             },
         };
     }
 
     pub fn do_lcd_control_write(&mut self, value: u8) {
-        let current_lcdc = LcdControlFlag::from_bits_truncate(self.get_lcdc_from_memory());
+        let current_lcdc = LcdControlFlag::from_bits_truncate(self.load(LCD_CONTROL_INDEX));
         let new_lcdc = LcdControlFlag::from_bits_truncate(value);
-        self.set_lcdc_from_memory(value);
+        self.store(LCD_CONTROL_INDEX, value);
 
         if !current_lcdc.contains(LcdControlFlag::WINDOW)
             && new_lcdc.contains(LcdControlFlag::WINDOW)
@@ -380,10 +392,10 @@ impl Memory {
     }
 
     pub fn do_lcd_status_write(&mut self, value: u8) {
-        let current_stat = self.get_lcd_status_from_memory() & 0x07;
+        let current_stat = self.load(LCD_INDEX) & 0x07;
         let new_stat = (value & 0x78) | (current_stat & 0x07);
-        self.set_lcd_status_from_memory(new_stat);
-        let lcd_control = LcdControlFlag::from_bits_truncate(self.get_lcdc_from_memory());
+        self.store(LCD_INDEX, new_stat);
+        let lcd_control = LcdControlFlag::from_bits_truncate(self.load(LCD_CONTROL_INDEX));
         let mut signal = self.irq48_signal;
         let mode = self.lcd_status_mode;
         signal &= (new_stat >> 3) & 0x0F;
@@ -394,14 +406,14 @@ impl Memory {
                 if signal == 0 {
                     self.request_interrupt(Interrupt::Lcd);
                 }
-                signal |= 0b01;
+                signal = bit_utils::set_bit(signal, 0);
             }
 
             if bit_utils::is_set(new_stat, 4) && mode == 1 {
                 if signal == 0 {
                     self.request_interrupt(Interrupt::Lcd);
                 }
-                signal |= 0b10;
+                signal = bit_utils::set_bit(signal, 1);
             }
 
             if bit_utils::is_set(new_stat, 5) && mode == 2 && signal == 0 {
@@ -419,10 +431,10 @@ impl Memory {
     }
 
     pub fn do_lyc_write(&mut self, value: u8) {
-        let current_lyc = self.get_lyc_from_memory();
+        let current_lyc = self.load(LYC_INDEX);
         if current_lyc != value {
-            self.set_lyc_from_memory(value);
-            let lcd_control = LcdControlFlag::from_bits_truncate(self.get_lcdc_from_memory());
+            self.store(LYC_INDEX, value);
+            let lcd_control = LcdControlFlag::from_bits_truncate(self.load(LCD_CONTROL_INDEX));
             if lcd_control.contains(LcdControlFlag::DISPLAY) {
                 self.compare_ly_to_lyc();
             }
@@ -434,29 +446,29 @@ impl Memory {
         if address >= 0x8000 && address < 0xE000 {
             for i in 0..0xA0 {
                 let value = self.read_byte(address + i);
-                self.write_byte(0xFE00 + i, value);
+                self.write_byte(SPRITES_START_INDEX + i, value);
             }
         }
     }
 
     pub fn compare_ly_to_lyc(&mut self) {
         if !self.screen_disabled {
-            let lyc = self.get_lyc_from_memory();
-            let mut stat = self.get_lcd_status_from_memory();
+            let lyc = self.load(LYC_INDEX);
+            let mut stat = self.load(LCD_INDEX);
 
             if lyc == self.scan_line {
-                stat |= 0b0000_0100;
+                stat = bit_utils::set_bit(stat, 2);
                 if bit_utils::is_set(stat, 6) {
                     if self.irq48_signal == 0 {
                         self.request_interrupt(Interrupt::Lcd);
                     }
-                    self.irq48_signal |= 0b0000_1000;
+                    self.irq48_signal = bit_utils::set_bit(self.irq48_signal, 3);
                 }
             } else {
-                stat &= 0b1111_1011;
-                self.irq48_signal &= 0b1111_0111;
+                stat = bit_utils::unset_bit(stat, 2);
+                self.irq48_signal = bit_utils::unset_bit(self.irq48_signal, 3);
             }
-            self.set_lcd_status_from_memory(stat);
+            self.store(LCD_INDEX, stat);
         }
     }
 
@@ -468,9 +480,9 @@ impl Memory {
 
     pub fn disable_screen(&mut self) {
         self.screen_disabled = true;
-        let mut stat = self.get_lcd_status_from_memory();
+        let mut stat = self.load(LCD_INDEX);
         stat &= 0x7C;
-        self.set_lcd_status_from_memory(stat);
+        self.store(LCD_INDEX, stat);
         self.lcd_status_mode = 0;
         self.gpu_cycles.cycles_counter = 0;
         self.gpu_cycles.aux_cycles_counter = 0;
@@ -479,7 +491,7 @@ impl Memory {
     }
 
     pub fn reset_window_line(&mut self) {
-        let wy = self.get_window_line_from_memory();
+        let wy = self.load(WINDOW_Y_INDEX);
 
         if (self.gpu_cycles.window_line == 0) && (self.scan_line < 144) && (self.scan_line > wy) {
             self.gpu_cycles.window_line = 144;
@@ -491,14 +503,14 @@ impl Memory {
 
         if self.hdma_enabled {
             if bit_utils::is_set(value, 7) {
-                self.high_ram[0xFF55 - 0xFF00] = value & 0x7F;
+                self.store(0xFF55, value & 0x7F);
             } else {
-                self.high_ram[0xFF55 - 0xFF00] = 0xFF;
+                self.store(0xFF55, 0xFF);
                 self.hdma_enabled = false;
             }
         } else if bit_utils::is_set(value, 7) {
             self.hdma_enabled = true;
-            self.high_ram[0xFF55 - 0xFF00] = value & 0x7F;
+            self.store(0xFF55, value & 0x7F);
             if self.lcd_status_mode == 0 {
                 let _cycles = self.do_hdma();
             }
@@ -526,16 +538,16 @@ impl Memory {
             self.hdma_source = 0xA000;
         }
 
-        self.high_ram[0xFF51 - 0xFF00] = (self.hdma_source >> 8) as u8;
-        self.high_ram[0xFF52 - 0xFF00] = (self.hdma_source & 0xFF) as u8;
+        self.store(0xFF51, (self.hdma_source >> 8) as u8);
+        self.store(0xFF52, (self.hdma_source & 0xFF) as u8);
 
-        self.high_ram[0xFF53 - 0xFF00] = (self.hdma_destination >> 8) as u8;
-        self.high_ram[0xFF54 - 0xFF00] = (self.hdma_destination & 0xFF) as u8;
+        self.store(0xFF53, (self.hdma_destination >> 8) as u8);
+        self.store(0xFF54, (self.hdma_destination & 0xFF) as u8);
 
         self.hdma_bytes -= 0x10;
-        self.high_ram[0xFF55 - 0xFF00] = self.high_ram[0xFF55 - 0xFF00].wrapping_sub(1);
+        self.store(0xFF55, self.load(0xFF55).wrapping_sub(1));
 
-        if self.high_ram[0xFF55 - 0xFF00] == 0xFF {
+        if self.load(0xFF55) == 0xFF {
             self.hdma_enabled = false;
         }
 
@@ -555,7 +567,7 @@ impl Memory {
         self.hdma_destination += self.hdma_bytes as u16;
 
         for i in 0..5 {
-            self.high_ram[0xFF51 - 0xFF00 + i] = 0xFF;
+            self.store(0xFF51 + i, 0xFF);
         }
 
         1 + 8 * ((value & 0x7F) as i32 * 4) // TODO: this needs to be the right timing
@@ -582,17 +594,17 @@ impl Memory {
         };
 
         if background {
-            self.high_ram[0xFF69 - 0xFF00] = final_value;
+            self.store(CGB_BACKGROUND_PALETTE_DATA_INDEX, final_value);
         } else {
-            self.high_ram[0xFF6B - 0xFF00] = final_value;
+            self.store(CGB_SPRITE_PALETTE_DATA_INDEX, final_value);
         }
     }
 
     fn set_color_palette(&mut self, background: bool, value: u8) {
         let mut ps = if background {
-            self.get_background_palette_index()
+            self.load(CGB_BACKGROUND_PALETTE_INDEX_INDEX)
         } else {
-            self.get_sprite_palette_index()
+            self.load(CGB_SPRITE_PALETTE_INDEX_INDEX)
         };
         let hl = bit_utils::is_set(ps, 0);
         let index = (ps >> 1) & 0x03;
@@ -605,9 +617,9 @@ impl Memory {
             address &= 0x3F;
             ps = (ps & 0x80) | address;
             if background {
-                self.set_background_palette_index(ps);
+                self.store(CGB_BACKGROUND_PALETTE_INDEX_INDEX, ps);
             } else {
-                self.set_sprite_palette_index(ps);
+                self.store(CGB_SPRITE_PALETTE_INDEX_INDEX, ps);
             }
             self.update_color_palette(background, ps);
         }
@@ -651,6 +663,24 @@ impl Memory {
         self.vram[address]
     }
 
+    fn write_cgb_lcd_ram(&mut self, index: u16, value: u8, bank: i32) {
+        let offset = 0x2000 * bank as usize;
+        let address = index as usize - 0x8000 + offset;
+        self.vram[address] = value;
+    }
+
+    fn read_cgb_wram(&self, index: u16, bank: i32) -> u8 {
+        let offset = 0x1000 * bank as usize;
+        let address = index as usize + offset;
+        self.wram[address]
+    }
+
+    fn write_cgb_wram(&mut self, index: u16, value: u8, bank: i32) {
+        let offset = 0x1000 * bank as usize;
+        let address = index as usize + offset;
+        self.wram[address] = value;
+    }
+
     pub fn read_word(&self, index: u16) -> u16 {
         let low = u16::from(self.read_byte(index));
         let high = u16::from(self.read_byte(index + 1));
@@ -689,84 +719,33 @@ impl Memory {
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
         let interrupt = interrupt as u8;
-        interrupt_flag |= interrupt;
+        interrupt_flag = bit_utils::set_bit(interrupt_flag, interrupt);
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
 
     pub fn remove_interrupt(&mut self, interrupt: Interrupt) {
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
-        interrupt_flag &= !(interrupt as u8);
+        let interrupt = interrupt as u8;
+        interrupt_flag = bit_utils::unset_bit(interrupt_flag, interrupt);
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
-    }
-
-    pub fn get_div_from_memory(&self) -> u8 {
-        self.high_ram[0xFF04 - 0xFF00]
-    }
-
-    pub fn set_div_from_memory(&mut self, value: u8) {
-        self.high_ram[0xFF04 - 0xFF00] = value;
     }
 
     fn reset_div_cycles(&mut self) {
         self.div_cycles = 0;
-        self.high_ram[0xFF04 - 0xFF00] = 0;
+        self.store(DIVIDER_INDEX, 0);
     }
 
     fn reset_tima_cycles(&mut self) {
         self.tima_cycles = 0;
-        self.high_ram[0xFF05 - 0xFF00] = self.read_byte(0xFF06);
+        self.store(SELECTABLE_TIMER_INDEX, self.load(TIMER_RESET_INDEX));
     }
 
-    pub fn get_key1(&self) -> u8 {
-        self.high_ram[0xFF4D - 0xFF00]
+    pub fn load(&self, index: u16) -> u8 {
+        self.high_ram[index as usize - 0xFF00]
     }
 
-    pub fn set_key1(&mut self, value: u8) {
-        self.high_ram[0xFF4D - 0xFF00] = value;
-    }
-
-    pub fn get_lcd_status_from_memory(&self) -> u8 {
-        self.high_ram[0xFF41 - 0xFF00]
-    }
-
-    pub fn set_lcd_status_from_memory(&mut self, value: u8) {
-        self.high_ram[0xFF41 - 0xFF00] = value;
-    }
-
-    pub fn get_lcdc_from_memory(&self) -> u8 {
-        self.high_ram[0xFF40 - 0xFF00]
-    }
-
-    pub fn set_lcdc_from_memory(&mut self, value: u8) {
-        self.high_ram[0xFF40 - 0xFF00] = value;
-    }
-
-    pub fn get_window_line_from_memory(&self) -> u8 {
-        self.high_ram[0xFF4A - 0xFF00]
-    }
-
-    pub fn get_lyc_from_memory(&self) -> u8 {
-        self.high_ram[0xFF45 - 0xFF00]
-    }
-
-    pub fn set_lyc_from_memory(&mut self, value: u8) {
-        self.high_ram[0xFF45 - 0xFF00] = value;
-    }
-
-    pub fn get_background_palette_index(&self) -> u8 {
-        self.high_ram[0xFF68 - 0xFF00]
-    }
-
-    pub fn set_background_palette_index(&mut self, value: u8) {
-        self.high_ram[0xFF68 - 0xFF00] = value;
-    }
-
-    pub fn get_sprite_palette_index(&self) -> u8 {
-        self.high_ram[0xFF6A - 0xFF00]
-    }
-
-    pub fn set_sprite_palette_index(&mut self, value: u8) {
-        self.high_ram[0xFF6A - 0xFF00] = value;
+    pub fn store(&mut self, index: u16, value: u8) {
+        self.high_ram[index as usize - 0xFF00] = value
     }
 
     pub fn is_hdma_enabled(&self) -> bool {

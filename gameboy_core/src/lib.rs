@@ -10,7 +10,6 @@ mod gpu;
 mod joypad;
 mod mmu;
 pub mod rtc;
-mod serial;
 mod timer;
 
 pub use button::Button;

@@ -12,18 +12,7 @@ use self::sprite_attributes::SpriteAttributes;
 use bit_utils;
 use emulator::traits::PixelMapper;
 use mmu::interrupt::Interrupt;
-use mmu::Memory;
-
-const SPRITES_START_INDEX: u16 = 0xFE00;
-const LCD_CONTROL_INDEX: u16 = 0xFF40;
-const LCD_INDEX: u16 = 0xFF41;
-const SCROLL_Y_INDEX: u16 = 0xFF42;
-const SCROLL_X_INDEX: u16 = 0xFF43;
-const BACKGROUND_PALETTE_INDEX: u16 = 0xFF47;
-const OBJECT_PALETTE_0_INDEX: u16 = 0xFF48;
-const OBJECT_PALETTE_1_INDEX: u16 = 0xFF49;
-const WINDOW_Y_INDEX: u16 = 0xFF4A;
-const WINDOW_X_INDEX: u16 = 0xFF4B;
+use mmu::{self, Memory};
 
 const HBLANK: u8 = 0b00;
 const VBLANK: u8 = 0b01;
@@ -40,29 +29,6 @@ pub struct GPU {
     scan_line_transferred: bool,
     vblank_line: i32,
     tile_cycles_counter: i32,
-}
-
-fn gb_color_from_palette(palette: u8, pixel: u8) -> Color {
-    let color_bits = (palette >> (pixel * 2)) & 0x03;
-    match color_bits {
-        0b00 => Color::White,
-        0b01 => Color::LightGray,
-        0b10 => Color::DarkGray,
-        0b11 => Color::Black,
-        _ => unreachable!(),
-    }
-}
-
-fn cgb_color_to_byte(color: u8) -> u8 {
-    ((color as u16) * 0xFF / 0x1F) as u8
-}
-
-fn cgb_color_to_rgb_color(color: CGBColor) -> CGBColor {
-    CGBColor {
-        red: cgb_color_to_byte(color.red),
-        green: cgb_color_to_byte(color.green),
-        blue: cgb_color_to_byte(color.blue),
-    }
 }
 
 impl GPU {
@@ -114,10 +80,10 @@ impl GPU {
                 memory.gpu_cycles.window_line = 0;
                 memory.gpu_cycles.pixel_counter = 0;
 
-                let stat = memory.get_lcd_status_from_memory();
+                let stat = memory.load(mmu::LCD_INDEX);
                 if bit_utils::is_set(stat, 5) {
                     memory.request_interrupt(Interrupt::Lcd);
-                    memory.irq48_signal |= 0b0000_0100;
+                    memory.irq48_signal = bit_utils::set_bit(memory.irq48_signal, 2);
                 }
 
                 memory.compare_ly_to_lyc();
@@ -133,7 +99,7 @@ impl GPU {
         let mut vblank = false;
         if memory.gpu_cycles.cycles_counter >= 204 {
             memory.gpu_cycles.cycles_counter -= 204;
-            memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | OAM_SCAN;
+            memory.lcd_status_mode = OAM_SCAN;
 
             memory.scan_line += 1;
             memory.compare_ly_to_lyc();
@@ -144,21 +110,21 @@ impl GPU {
             }
 
             if memory.scan_line == 144 {
-                memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | VBLANK;
+                memory.lcd_status_mode = VBLANK;
                 self.vblank_line = 0;
                 memory.gpu_cycles.aux_cycles_counter = memory.gpu_cycles.cycles_counter;
 
                 memory.request_interrupt(Interrupt::Vblank);
 
                 memory.irq48_signal &= 0x09;
-                let stat = memory.get_lcd_status_from_memory();
+                let stat = memory.load(mmu::LCD_INDEX);
                 if bit_utils::is_set(stat, 4) {
                     if !bit_utils::is_set(memory.irq48_signal, 0)
                         && !bit_utils::is_set(memory.irq48_signal, 3)
                     {
                         memory.request_interrupt(Interrupt::Lcd);
                     }
-                    memory.irq48_signal |= 0b0000_0010;
+                    memory.irq48_signal = bit_utils::set_bit(memory.irq48_signal, 1);
                 }
                 memory.irq48_signal &= 0x0E;
 
@@ -171,13 +137,13 @@ impl GPU {
                 memory.gpu_cycles.window_line = 0;
             } else {
                 memory.irq48_signal &= 0x09;
-                let stat = memory.get_lcd_status_from_memory();
+                let stat = memory.load(mmu::LCD_INDEX);
 
                 if bit_utils::is_set(stat, 5) {
                     if memory.irq48_signal == 0 {
                         memory.request_interrupt(Interrupt::Lcd);
                     }
-                    memory.irq48_signal |= 0b0000_0100;
+                    memory.irq48_signal = bit_utils::set_bit(memory.irq48_signal, 2);
                 }
                 memory.irq48_signal &= 0x0E;
             }
@@ -209,16 +175,16 @@ impl GPU {
 
         if memory.gpu_cycles.cycles_counter >= 4560 {
             memory.gpu_cycles.cycles_counter -= 4560;
-            memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | OAM_SCAN;
+            memory.lcd_status_mode = OAM_SCAN;
             self.update_stat_register(memory);
 
             memory.irq48_signal &= 0x0A;
-            let stat = memory.get_lcd_status_from_memory();
+            let stat = memory.load(mmu::LCD_INDEX);
             if bit_utils::is_set(stat, 5) {
                 if memory.irq48_signal == 0 {
                     memory.request_interrupt(Interrupt::Lcd);
                 }
-                memory.irq48_signal |= 0b0000_0100;
+                memory.irq48_signal = bit_utils::set_bit(memory.irq48_signal, 2);
             }
             memory.irq48_signal &= 0x0D;
         }
@@ -227,7 +193,7 @@ impl GPU {
     fn step_oam_scan(&mut self, memory: &mut Memory) {
         if memory.gpu_cycles.cycles_counter >= 80 {
             memory.gpu_cycles.cycles_counter -= 80;
-            memory.lcd_status_mode = (memory.lcd_status_mode & 0b1111_1100) | 0b11;
+            memory.lcd_status_mode = 0b11;
             memory.irq48_signal &= 0x08;
             self.scan_line_transferred = false;
             self.update_stat_register(memory);
@@ -243,7 +209,7 @@ impl GPU {
         if memory.gpu_cycles.pixel_counter < 160 {
             self.tile_cycles_counter += cycles;
 
-            let lcdc = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
+            let lcdc = LcdControlFlag::from_bits_truncate(memory.load(mmu::LCD_CONTROL_INDEX));
             if !memory.screen_disabled && lcdc.contains(LcdControlFlag::DISPLAY) {
                 while self.tile_cycles_counter >= 3 {
                     self.render_background(
@@ -276,23 +242,26 @@ impl GPU {
             self.update_stat_register(memory);
 
             memory.irq48_signal &= 0x08;
-            let stat = memory.get_lcd_status_from_memory();
+            let stat = memory.load(mmu::LCD_INDEX);
             if bit_utils::is_set(stat, 3) {
                 if !bit_utils::is_set(memory.irq48_signal, 3) {
                     memory.request_interrupt(Interrupt::Lcd);
                 }
-                memory.irq48_signal |= 0b0000_0001;
+                memory.irq48_signal = bit_utils::set_bit(memory.irq48_signal, 0);
             }
         }
     }
 
     fn update_stat_register(&self, memory: &mut Memory) {
-        let stat = memory.read_byte(LCD_INDEX);
-        memory.set_lcd_status_from_memory((stat & 0xFC) | (memory.lcd_status_mode & 0x3));
+        let stat = memory.load(mmu::LCD_INDEX);
+        memory.store(
+            mmu::LCD_INDEX,
+            (stat & 0xFC) | (memory.lcd_status_mode & 0x3),
+        );
     }
 
     fn scan_line<T: PixelMapper>(&mut self, memory: &mut Memory, line: i32, pixel_mapper: &mut T) {
-        let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
+        let lcd_control = LcdControlFlag::from_bits_truncate(memory.load(mmu::LCD_CONTROL_INDEX));
         if !memory.screen_disabled && lcd_control.contains(LcdControlFlag::DISPLAY) {
             self.render_window(memory, line, pixel_mapper);
             self.render_sprites(memory, line, pixel_mapper);
@@ -325,7 +294,7 @@ impl GPU {
         let offset_x_start = pixel % 8;
         let offset_x_end = offset_x_start + count;
         let screen_tile = pixel / 8;
-        let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
+        let lcd_control = LcdControlFlag::from_bits_truncate(memory.load(mmu::LCD_CONTROL_INDEX));
         let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
 
         if self.is_cgb || lcd_control.contains(LcdControlFlag::DISPLAY) {
@@ -341,8 +310,8 @@ impl GPU {
                 0x9800
             };
 
-            let scroll_x = memory.read_byte(SCROLL_X_INDEX);
-            let scroll_y = memory.read_byte(SCROLL_Y_INDEX);
+            let scroll_x = memory.load(mmu::SCROLL_X_INDEX);
+            let scroll_y = memory.load(mmu::SCROLL_Y_INDEX);
             let line_scrolled = scroll_y.wrapping_add(line as u8);
             let line_scrolled_32 = (i32::from(line_scrolled) / 8) * 32;
             let tile_pixel_y = i32::from(line_scrolled % 8);
@@ -419,10 +388,10 @@ impl GPU {
 
                 let mut pixel = 0;
                 if byte1 & pixel_x_in_tile_bit != 0 {
-                    pixel |= 1;
+                    pixel = bit_utils::set_bit(pixel, 0);
                 }
                 if byte2 & pixel_x_in_tile_bit != 0 {
-                    pixel |= 2;
+                    pixel = bit_utils::set_bit(pixel, 1);
                 }
 
                 let index = (line_width + screen_pixel_x) as usize;
@@ -430,14 +399,14 @@ impl GPU {
 
                 if self.is_cgb {
                     if cgb_tile_priority && (pixel != 0) {
-                        self.background[index] |= 0b0100;
+                        self.background[index] = bit_utils::set_bit(self.background[index], 2);
                     }
                     let color =
                         memory.cgb_background_palettes[cgb_tile_pal as usize][pixel as usize];
-                    pixel_mapper.cgb_map_pixel(index, cgb_color_to_rgb_color(color));
+                    pixel_mapper.cgb_map_pixel(index, GPU::cgb_color_to_rgb_color(color));
                 } else {
-                    let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
-                    let color = gb_color_from_palette(palette, pixel);
+                    let palette = memory.load(mmu::BACKGROUND_PALETTE_INDEX);
+                    let color = GPU::gb_color_from_palette(palette, pixel);
                     pixel_mapper.map_pixel(index, color);
                 }
             }
@@ -470,17 +439,17 @@ impl GPU {
             return;
         }
 
-        let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
+        let lcd_control = LcdControlFlag::from_bits_truncate(memory.load(mmu::LCD_CONTROL_INDEX));
         if !lcd_control.contains(LcdControlFlag::WINDOW) {
             return;
         }
 
-        let wx = i32::from(memory.read_byte(WINDOW_X_INDEX)) - 7;
+        let wx = i32::from(memory.load(mmu::WINDOW_X_INDEX)) - 7;
         if wx > 159 {
             return;
         }
 
-        let wy = i32::from(memory.read_byte(WINDOW_Y_INDEX));
+        let wy = i32::from(memory.load(mmu::WINDOW_Y_INDEX));
         if (wy > 143) || (wy > line) {
             return;
         }
@@ -577,10 +546,10 @@ impl GPU {
 
                 let mut pixel = 0;
                 if (byte1 & (0x1 << (7 - pixelx_pos))) != 0 {
-                    pixel |= 1;
+                    pixel = bit_utils::set_bit(pixel, 0);
                 }
                 if (byte2 & (0x1 << (7 - pixelx_pos))) != 0 {
-                    pixel |= 2;
+                    pixel = bit_utils::set_bit(pixel, 1);
                 };
 
                 let position = (line_width + buffer_x) as usize;
@@ -588,14 +557,15 @@ impl GPU {
 
                 if self.is_cgb {
                     if cgb_tile_priority && pixel != 0 {
-                        self.background[position] |= 0b0100;
+                        self.background[position] =
+                            bit_utils::set_bit(self.background[position], 2);
                     }
                     let color =
                         memory.cgb_background_palettes[cgb_tile_pal as usize][pixel as usize];
-                    pixel_mapper.cgb_map_pixel(position, cgb_color_to_rgb_color(color));
+                    pixel_mapper.cgb_map_pixel(position, GPU::cgb_color_to_rgb_color(color));
                 } else {
-                    let palette = memory.read_byte(BACKGROUND_PALETTE_INDEX);
-                    let color = gb_color_from_palette(palette, pixel);
+                    let palette = memory.load(mmu::BACKGROUND_PALETTE_INDEX);
+                    let color = GPU::gb_color_from_palette(palette, pixel);
                     pixel_mapper.map_pixel(position, color);
                 }
             }
@@ -604,7 +574,7 @@ impl GPU {
     }
 
     fn render_sprites<T: PixelMapper>(&mut self, memory: &Memory, line: i32, pixel_mapper: &mut T) {
-        let lcd_control = LcdControlFlag::from_bits_truncate(memory.read_byte(LCD_CONTROL_INDEX));
+        let lcd_control = LcdControlFlag::from_bits_truncate(memory.load(mmu::LCD_CONTROL_INDEX));
 
         if !lcd_control.contains(LcdControlFlag::SPRITES) {
             return;
@@ -621,24 +591,25 @@ impl GPU {
         for sprite in (0..40).rev() {
             let sprite_4 = sprite * 4;
 
-            let sprite_y = i32::from(memory.read_byte(SPRITES_START_INDEX + sprite_4)) - 16;
+            let sprite_y = i32::from(memory.read_byte(mmu::SPRITES_START_INDEX + sprite_4)) - 16;
             if (sprite_y > line) || (sprite_y + sprite_height) <= line {
                 continue;
             }
 
-            let sprite_x = i32::from(memory.read_byte(SPRITES_START_INDEX + sprite_4 + 1)) - 8;
+            let sprite_x = i32::from(memory.read_byte(mmu::SPRITES_START_INDEX + sprite_4 + 1)) - 8;
             if (sprite_x < -7) || (sprite_x >= GAMEBOY_WIDTH) {
                 continue;
             }
 
             let sprite_tile_16 = if lcd_control.contains(LcdControlFlag::SPRITES_SIZE) {
-                i32::from(memory.read_byte((SPRITES_START_INDEX + sprite_4 + 2) as u16) & 0xFE) * 16
+                i32::from(memory.read_byte((mmu::SPRITES_START_INDEX + sprite_4 + 2) as u16) & 0xFE)
+                    * 16
             } else {
-                i32::from(memory.read_byte((SPRITES_START_INDEX + sprite_4 + 2) as u16)) * 16
+                i32::from(memory.read_byte((mmu::SPRITES_START_INDEX + sprite_4 + 2) as u16)) * 16
             };
 
             let sprite_flags = SpriteAttributes::from_bits_truncate(
-                memory.read_byte((SPRITES_START_INDEX + sprite_4 + 3) as u16),
+                memory.read_byte((mmu::SPRITES_START_INDEX + sprite_4 + 3) as u16),
             );
 
             let sprite_pallette = sprite_flags.contains(SpriteAttributes::PALETTE);
@@ -686,18 +657,18 @@ impl GPU {
 
                 if xflip {
                     if byte1 & (0x01 << pixelx) != 0 {
-                        pixel |= 1;
+                        pixel = bit_utils::set_bit(pixel, 0);
                     }
                 } else if byte1 & (0x01 << (7 - pixelx)) != 0 {
-                    pixel |= 1;
+                    pixel = bit_utils::set_bit(pixel, 0);
                 }
 
                 if xflip {
                     if byte2 & (0x01 << pixelx) != 0 {
-                        pixel |= 2;
+                        pixel = bit_utils::set_bit(pixel, 1);
                     }
                 } else if byte2 & (0x01 << (7 - pixelx)) != 0 {
-                    pixel |= 2;
+                    pixel = bit_utils::set_bit(pixel, 1);
                 }
                 if pixel == 0 {
                     continue;
@@ -718,20 +689,44 @@ impl GPU {
                 if behind_bg && (background_color & 0x03) != 0 {
                     continue;
                 }
+                self.background[position] = bit_utils::set_bit(background_color, 3);
 
                 if self.is_cgb {
                     let color = memory.cgb_sprite_palettes[cgb_tile_pal as usize][pixel as usize];
-                    pixel_mapper.cgb_map_pixel(position, cgb_color_to_rgb_color(color));
+                    pixel_mapper.cgb_map_pixel(position, GPU::cgb_color_to_rgb_color(color));
                 } else {
                     let palette = if sprite_pallette {
-                        memory.read_byte(OBJECT_PALETTE_1_INDEX)
+                        memory.load(mmu::OBJECT_PALETTE_1_INDEX)
                     } else {
-                        memory.read_byte(OBJECT_PALETTE_0_INDEX)
+                        memory.load(mmu::OBJECT_PALETTE_0_INDEX)
                     };
-                    let color = gb_color_from_palette(palette, pixel);
+                    let color = GPU::gb_color_from_palette(palette, pixel);
                     pixel_mapper.map_pixel(position, color);
                 }
             }
+        }
+    }
+
+    fn cgb_color_to_rgb_color(color: CGBColor) -> CGBColor {
+        CGBColor {
+            red: GPU::cgb_color_to_byte(color.red),
+            green: GPU::cgb_color_to_byte(color.green),
+            blue: GPU::cgb_color_to_byte(color.blue),
+        }
+    }
+
+    fn cgb_color_to_byte(color: u8) -> u8 {
+        ((color as u16) * 0xFF / 0x1F) as u8
+    }
+
+    fn gb_color_from_palette(palette: u8, pixel: u8) -> Color {
+        let color_bits = (palette >> (pixel * 2)) & 0x03;
+        match color_bits {
+            0b00 => Color::White,
+            0b01 => Color::LightGray,
+            0b10 => Color::DarkGray,
+            0b11 => Color::Black,
+            _ => unreachable!(),
         }
     }
 }

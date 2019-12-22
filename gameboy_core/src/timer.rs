@@ -1,12 +1,6 @@
 use mmu::interrupt::Interrupt;
-use mmu::Memory;
+use mmu::{self, Memory};
 
-// TODO: move these to the mmu as a pub const
-const SELECTABLE_TIMER_INDEX: u16 = 0xFF05;
-const TIMER_RESET_INDEX: u16 = 0xFF06;
-const TIMER_CONTROL_INDEX: u16 = 0xFF07;
-
-// this might make sense as a static module, there isn't any state to manage
 pub struct Timer {}
 
 impl Timer {
@@ -21,12 +15,12 @@ impl Timer {
 
         while memory.div_cycles >= div_cycles {
             memory.div_cycles -= div_cycles;
-            let mut div = memory.get_div_from_memory();
+            let mut div = memory.load(mmu::DIVIDER_INDEX);
             div = div.wrapping_add(1);
-            memory.set_div_from_memory(div);
+            memory.store(mmu::DIVIDER_INDEX, div);
         }
 
-        let tac = memory.read_byte(TIMER_CONTROL_INDEX);
+        let tac = memory.load(mmu::TIMER_CONTROL_INDEX);
 
         if tac & 0x04 != 0 {
             memory.tima_cycles += cycles;
@@ -41,16 +35,16 @@ impl Timer {
 
             while memory.tima_cycles >= freq {
                 memory.tima_cycles -= freq;
-                let mut tima = memory.read_byte(SELECTABLE_TIMER_INDEX);
+                let mut tima = memory.load(mmu::SELECTABLE_TIMER_INDEX);
 
                 if tima == 0xFF {
-                    tima = memory.read_byte(TIMER_RESET_INDEX);
+                    tima = memory.load(mmu::TIMER_RESET_INDEX);
                     memory.request_interrupt(Interrupt::Timer);
                 } else {
                     tima += 1;
                 }
 
-                memory.write_byte(SELECTABLE_TIMER_INDEX, tima);
+                memory.store(mmu::SELECTABLE_TIMER_INDEX, tima);
             }
         }
     }

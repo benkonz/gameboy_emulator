@@ -2,6 +2,7 @@ mod registers;
 
 use self::registers::flag::Flag;
 use self::registers::Registers;
+use bit_utils;
 use mmu::Memory;
 
 const INSTRUCTION_TIMINGS: [i32; 256] = [
@@ -41,8 +42,8 @@ pub struct Cpu {
     registers: Registers,
     halted: bool,
     interrupt_enabled: bool,
-    interrupt_enabled_counter: u8,
-    new_interrupt_enabled: bool,
+    pending_enable_interrupts: i32,
+    pending_disable_interrupts: i32,
     instruction_cycle: i32,
     jump_taken: bool,
     is_cgb: bool,
@@ -67,8 +68,8 @@ impl Cpu {
             registers,
             halted: false,
             interrupt_enabled: false,
-            interrupt_enabled_counter: 0,
-            new_interrupt_enabled: false,
+            pending_enable_interrupts: -1,
+            pending_disable_interrupts: -1,
             instruction_cycle: 0,
             jump_taken: false,
             is_cgb,
@@ -105,12 +106,22 @@ impl Cpu {
     pub fn step(&mut self, memory: &mut Memory) -> i32 {
         self.instruction_cycle = 0;
         if !self.halted {
-            if self.interrupt_enabled_counter > 0 {
-                self.interrupt_enabled_counter -= 1;
+            if self.pending_enable_interrupts != -1 {
+                let pending_enable_interrupts = self.pending_enable_interrupts;
+                self.pending_enable_interrupts -= 1;
+                if pending_enable_interrupts == 0 {
+                    self.pending_enable_interrupts = -1;
+                    self.interrupt_enabled = true;
+                }
             }
 
-            if self.interrupt_enabled_counter == 0 {
-                self.interrupt_enabled = self.new_interrupt_enabled;
+            if self.pending_disable_interrupts != -1 {
+                let pending_disable_interrupts = self.pending_disable_interrupts;
+                self.pending_disable_interrupts -= 1;
+                if pending_disable_interrupts == 0 {
+                    self.pending_disable_interrupts = -1;
+                    self.interrupt_enabled = false;
+                }
             }
 
             let opcode = self.get_n(memory);
@@ -126,7 +137,6 @@ impl Cpu {
         if self.halted {
             self.instruction_cycle = 4;
         }
-        
         if self.cgb_speed {
             self.instruction_cycle * 2
         } else {
@@ -582,15 +592,15 @@ impl Cpu {
 
     fn stop(&mut self, memory: &mut Memory) {
         if self.is_cgb {
-            let current_key1 = memory.get_key1();
+            let current_key1 = memory.load(0xFF4D);
 
             if current_key1 & 1 == 1 {
                 self.cgb_speed = !self.cgb_speed;
 
                 if self.cgb_speed {
-                    memory.set_key1(0x80);
+                    memory.store(0xFF4D, 0x80);
                 } else {
-                    memory.set_key1(0x00);
+                    memory.store(0xFF4D, 0x00);
                 }
             }
         }
@@ -1002,9 +1012,13 @@ impl Cpu {
 
     fn halt(&mut self) {
         // if interrupt_enabled is about to be set, set it and repeat the halt instruction
-        if self.interrupt_enabled_counter > 0 {
+        if self.pending_enable_interrupts != -1 {
             self.interrupt_enabled = true;
-            self.interrupt_enabled_counter = 0;
+            self.pending_enable_interrupts = -1;
+            self.registers.pc -= 1;
+        } else if self.pending_disable_interrupts != -1 {
+            self.interrupt_enabled = false;
+            self.pending_enable_interrupts = -1;
             self.registers.pc -= 1;
         } else if self.interrupt_enabled {
             self.halted = true;
@@ -1637,8 +1651,9 @@ impl Cpu {
 
     fn ret_i(&mut self, memory: &Memory) {
         self.registers.pc = self.pop(memory);
-        self.interrupt_enabled_counter = 2;
-        self.new_interrupt_enabled = true;
+        self.pending_disable_interrupts = -1;
+        self.pending_enable_interrupts = -1;
+        self.interrupt_enabled = true;
     }
 
     fn jp_c_nn(&mut self, nn: u16) {
@@ -1681,8 +1696,15 @@ impl Cpu {
     }
 
     fn di(&mut self) {
-        self.interrupt_enabled_counter = 2;
-        self.new_interrupt_enabled = false;
+        self.pending_enable_interrupts = -1;
+        if self.is_cgb {
+            if self.pending_disable_interrupts == -1 {
+                self.pending_disable_interrupts = 1;
+            }
+        } else {
+            self.pending_disable_interrupts = -1;
+            self.interrupt_enabled = false;
+        }
     }
 
     fn push_af(&mut self, memory: &mut Memory) {
@@ -1695,8 +1717,10 @@ impl Cpu {
     }
 
     fn ei(&mut self) {
-        self.interrupt_enabled_counter = 2;
-        self.new_interrupt_enabled = true;
+        self.pending_disable_interrupts = -1;
+        if self.pending_enable_interrupts == -1 {
+            self.pending_enable_interrupts = 1;
+        }
     }
 
     fn rst_38(&mut self, memory: &mut Memory) {
@@ -3337,7 +3361,7 @@ impl Cpu {
     fn bit_i(&mut self, i: u8, n: u8) {
         self.registers.f.insert(Flag::HALF_CARRY);
         self.registers.f.remove(Flag::NEGATIVE);
-        self.registers.f.set(Flag::ZERO, n & (1 << i) == 0);
+        self.registers.f.set(Flag::ZERO, !bit_utils::is_set(n, i));
     }
 
     fn bit_i_r(&mut self, r: u8, i: u8) {
@@ -3350,7 +3374,7 @@ impl Cpu {
     }
 
     fn set_i(&mut self, i: u8, n: u8) -> u8 {
-        n | (1 << i)
+        bit_utils::set_bit(n, i)
     }
 
     fn set_i_r(&mut self, r: u8, i: u8) -> u8 {
@@ -3364,7 +3388,7 @@ impl Cpu {
     }
 
     fn res_i(&mut self, i: u8, n: u8) -> u8 {
-        n & !((1 << i) as u8)
+        bit_utils::unset_bit(n, i)
     }
 
     fn res_i_r(&mut self, r: u8, i: u8) -> u8 {

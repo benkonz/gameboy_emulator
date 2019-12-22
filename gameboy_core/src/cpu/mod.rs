@@ -2,8 +2,8 @@ mod registers;
 
 use self::registers::flag::Flag;
 use self::registers::Registers;
-use mmu::Memory;
 use bit_utils;
+use mmu::Memory;
 
 const INSTRUCTION_TIMINGS: [i32; 256] = [
     1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1, 1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
@@ -42,8 +42,8 @@ pub struct Cpu {
     registers: Registers,
     halted: bool,
     interrupt_enabled: bool,
-    interrupt_enabled_counter: u8,
-    new_interrupt_enabled: bool,
+    pending_enable_interrupts: i32,
+    pending_disable_interrupts: i32,
     instruction_cycle: i32,
     jump_taken: bool,
     is_cgb: bool,
@@ -68,8 +68,8 @@ impl Cpu {
             registers,
             halted: false,
             interrupt_enabled: false,
-            interrupt_enabled_counter: 0,
-            new_interrupt_enabled: false,
+            pending_enable_interrupts: -1,
+            pending_disable_interrupts: -1,
             instruction_cycle: 0,
             jump_taken: false,
             is_cgb,
@@ -106,12 +106,22 @@ impl Cpu {
     pub fn step(&mut self, memory: &mut Memory) -> i32 {
         self.instruction_cycle = 0;
         if !self.halted {
-            if self.interrupt_enabled_counter > 0 {
-                self.interrupt_enabled_counter -= 1;
+            if self.pending_enable_interrupts != -1 {
+                let pending_enable_interrupts = self.pending_enable_interrupts;
+                self.pending_enable_interrupts -= 1;
+                if pending_enable_interrupts == 0 {
+                    self.pending_enable_interrupts = -1;
+                    self.interrupt_enabled = true;
+                }
             }
 
-            if self.interrupt_enabled_counter == 0 {
-                self.interrupt_enabled = self.new_interrupt_enabled;
+            if self.pending_disable_interrupts != -1 {
+                let pending_disable_interrupts = self.pending_disable_interrupts;
+                self.pending_disable_interrupts -= 1;
+                if pending_disable_interrupts == 0 {
+                    self.pending_disable_interrupts = -1;
+                    self.interrupt_enabled = false;
+                }
             }
 
             let opcode = self.get_n(memory);
@@ -127,7 +137,6 @@ impl Cpu {
         if self.halted {
             self.instruction_cycle = 4;
         }
-        
         if self.cgb_speed {
             self.instruction_cycle * 2
         } else {
@@ -1003,9 +1012,13 @@ impl Cpu {
 
     fn halt(&mut self) {
         // if interrupt_enabled is about to be set, set it and repeat the halt instruction
-        if self.interrupt_enabled_counter > 0 {
+        if self.pending_enable_interrupts != -1 {
             self.interrupt_enabled = true;
-            self.interrupt_enabled_counter = 0;
+            self.pending_enable_interrupts = -1;
+            self.registers.pc -= 1;
+        } else if self.pending_disable_interrupts != -1 {
+            self.interrupt_enabled = false;
+            self.pending_enable_interrupts = -1;
             self.registers.pc -= 1;
         } else if self.interrupt_enabled {
             self.halted = true;
@@ -1638,8 +1651,9 @@ impl Cpu {
 
     fn ret_i(&mut self, memory: &Memory) {
         self.registers.pc = self.pop(memory);
-        self.interrupt_enabled_counter = 2;
-        self.new_interrupt_enabled = true;
+        self.pending_disable_interrupts = -1;
+        self.pending_enable_interrupts = -1;
+        self.interrupt_enabled = true;
     }
 
     fn jp_c_nn(&mut self, nn: u16) {
@@ -1682,8 +1696,15 @@ impl Cpu {
     }
 
     fn di(&mut self) {
-        self.interrupt_enabled_counter = 2;
-        self.new_interrupt_enabled = false;
+        self.pending_enable_interrupts = -1;
+        if self.is_cgb {
+            if self.pending_disable_interrupts == -1 {
+                self.pending_disable_interrupts = 1;
+            }
+        } else {
+            self.pending_disable_interrupts = -1;
+            self.interrupt_enabled = false;
+        }
     }
 
     fn push_af(&mut self, memory: &mut Memory) {
@@ -1696,8 +1717,10 @@ impl Cpu {
     }
 
     fn ei(&mut self) {
-        self.interrupt_enabled_counter = 2;
-        self.new_interrupt_enabled = true;
+        self.pending_disable_interrupts = -1;
+        if self.pending_enable_interrupts == -1 {
+            self.pending_enable_interrupts = 1;
+        }
     }
 
     fn rst_38(&mut self, memory: &mut Memory) {

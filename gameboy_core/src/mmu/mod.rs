@@ -719,13 +719,14 @@ impl Memory {
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
         let interrupt = interrupt as u8;
-        interrupt_flag |= interrupt;
+        interrupt_flag = bit_utils::set_bit(interrupt_flag, interrupt);
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
 
     pub fn remove_interrupt(&mut self, interrupt: Interrupt) {
         let mut interrupt_flag = self.read_byte(INTERRUPT_FLAGS_INDEX);
-        interrupt_flag &= !(interrupt as u8);
+        let interrupt = interrupt as u8;
+        interrupt_flag = bit_utils::unset_bit(interrupt_flag, interrupt);
         self.write_byte(INTERRUPT_FLAGS_INDEX, interrupt_flag);
     }
 

@@ -120,6 +120,9 @@ impl Cpu {
             self.instruction_cycle = 4;
         }
 
+        if self.halted {
+            self.instruction_cycle = 4;
+        }
         if self.cgb_speed {
             self.instruction_cycle / 2
         } else {

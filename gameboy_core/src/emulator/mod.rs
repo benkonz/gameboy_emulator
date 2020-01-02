@@ -27,7 +27,7 @@ impl Emulator {
         }
     }
 
-    pub fn emulate<T: PixelMapper>(&mut self, system: &mut T, controller: &mut Controller) -> bool {
+    pub fn emulate(&mut self, system: &mut impl PixelMapper, controller: &mut Controller) -> bool {
         let cycles = self.cpu.step(&mut self.memory);
         self.timer.update(cycles, &mut self.memory);
         let vblank = self.gpu.step(cycles, &mut self.memory, system);

@@ -46,11 +46,11 @@ impl GPU {
     // return value indicated whether a vblank has happened
     // true -> vblank has happened, render the frame buffer
     // false -> no vblank, continue stepping
-    pub fn step<T: PixelMapper>(
+    pub fn step(
         &mut self,
         cycles: i32,
         memory: &mut Memory,
-        pixel_mapper: &mut T,
+        pixel_mapper: &mut impl PixelMapper,
     ) -> bool {
         let mut vblank = false;
         memory.gpu_cycles.cycles_counter += cycles;
@@ -200,11 +200,11 @@ impl GPU {
         }
     }
 
-    fn step_lcd_transfer<T: PixelMapper>(
+    fn step_lcd_transfer(
         &mut self,
         memory: &mut Memory,
         cycles: i32,
-        pixel_mapper: &mut T,
+        pixel_mapper: &mut impl PixelMapper,
     ) {
         if memory.gpu_cycles.pixel_counter < 160 {
             self.tile_cycles_counter += cycles;
@@ -260,7 +260,7 @@ impl GPU {
         );
     }
 
-    fn scan_line<T: PixelMapper>(&mut self, memory: &mut Memory, line: i32, pixel_mapper: &mut T) {
+    fn scan_line(&mut self, memory: &mut Memory, line: i32, pixel_mapper: &mut impl PixelMapper) {
         let lcd_control = LcdControlFlag::from_bits_truncate(memory.load(mmu::LCD_CONTROL_INDEX));
         if !memory.screen_disabled && lcd_control.contains(LcdControlFlag::DISPLAY) {
             self.render_window(memory, line, pixel_mapper);
@@ -283,13 +283,13 @@ impl GPU {
         }
     }
 
-    fn render_background<T: PixelMapper>(
+    fn render_background(
         &mut self,
         memory: &Memory,
         line: i32,
         pixel: i32,
         count: i32,
-        pixel_mapper: &mut T,
+        pixel_mapper: &mut impl PixelMapper,
     ) {
         let offset_x_start = pixel % 8;
         let offset_x_end = offset_x_start + count;
@@ -429,11 +429,11 @@ impl GPU {
         }
     }
 
-    fn render_window<T: PixelMapper>(
+    fn render_window(
         &mut self,
         memory: &mut Memory,
         line: i32,
-        pixel_mapper: &mut T,
+        pixel_mapper: &mut impl PixelMapper,
     ) {
         if memory.gpu_cycles.window_line > 143 {
             return;
@@ -573,7 +573,7 @@ impl GPU {
         memory.gpu_cycles.window_line += 1;
     }
 
-    fn render_sprites<T: PixelMapper>(&mut self, memory: &Memory, line: i32, pixel_mapper: &mut T) {
+    fn render_sprites(&mut self, memory: &Memory, line: i32, pixel_mapper: &mut impl PixelMapper) {
         let lcd_control = LcdControlFlag::from_bits_truncate(memory.load(mmu::LCD_CONTROL_INDEX));
 
         if !lcd_control.contains(LcdControlFlag::SPRITES) {

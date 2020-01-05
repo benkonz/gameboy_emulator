@@ -125,12 +125,12 @@ impl Cpu {
             }
 
             let opcode = self.get_n(memory);
-            self.instruction_cycle += INSTRUCTION_TIMINGS[opcode as usize];
+            self.instruction_cycle += INSTRUCTION_TIMINGS[opcode as usize] * 4;
             self.execute_opcode(opcode, memory);
 
             if self.jump_taken {
                 self.jump_taken = false;
-                self.instruction_cycle += BRANCH_INSTRUCTION_TIMINGS[opcode as usize];
+                self.instruction_cycle += BRANCH_INSTRUCTION_TIMINGS[opcode as usize] * 4;
             }
         }
 
@@ -138,7 +138,7 @@ impl Cpu {
             self.instruction_cycle = 4;
         }
         if self.cgb_speed {
-            self.instruction_cycle * 2
+            self.instruction_cycle / 2
         } else {
             self.instruction_cycle
         }
@@ -1020,7 +1020,7 @@ impl Cpu {
             self.interrupt_enabled = false;
             self.pending_enable_interrupts = -1;
             self.registers.pc -= 1;
-        } else if self.interrupt_enabled {
+        } else {
             self.halted = true;
         }
     }
@@ -1333,7 +1333,7 @@ impl Cpu {
     }
 
     fn ext_ops(&mut self, opcode: u8, memory: &mut Memory) {
-        self.instruction_cycle += CB_INSTRUCTION_TIMINGS[opcode as usize];
+        self.instruction_cycle += CB_INSTRUCTION_TIMINGS[opcode as usize] * 4;
 
         match opcode {
             0x00 => self.rlc_b(),

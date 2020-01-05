@@ -22,6 +22,7 @@ use stdweb::web::event::{
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
+use stdweb::{UnsafeTypedArray, Value};
 use web_rtc::WebRTC;
 use webgl_rendering_context::*;
 
@@ -31,6 +32,7 @@ pub fn start(rom: Vec<u8>) {
     let (sender, receiver) = mpsc::channel();
     let run = Rc::new(RefCell::new(true));
     let should_save_to_local = Rc::new(RefCell::new(false));
+    let audio_running = Rc::new(RefCell::new(false));
 
     let up_btn = document().get_element_by_id("up-btn").unwrap();
     let down_btn = document().get_element_by_id("down-btn").unwrap();
@@ -160,6 +162,8 @@ pub fn start(rom: Vec<u8>) {
     gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_S, Gl::CLAMP_TO_EDGE as i32);
     gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::CLAMP_TO_EDGE as i32);
 
+    let audio_context = js! { return new AudioContext() };
+
     let mut cartridge = Cartridge::from_rom(rom);
     load_ram_save_data(&mut cartridge);
     load_timestamp_data(&mut cartridge);
@@ -182,8 +186,10 @@ pub fn start(rom: Vec<u8>) {
         receiver,
         run,
         should_save_to_local,
+        audio_running,
         ram_str,
         gl,
+        audio_context,
         shader_program,
         texture,
     );
@@ -351,36 +357,39 @@ fn main_loop(
     receiver: mpsc::Receiver<ControllerEvent>,
     run: Rc<RefCell<bool>>,
     should_save_to_local: Rc<RefCell<bool>>,
+    audio_running: Rc<RefCell<bool>>,
     ram_str: Rc<RefCell<String>>,
     gl: Gl,
+    audio_context: Value,
     shader_program: WebGLProgram,
     texture: WebGLTexture,
 ) {
-    loop {
-        let vblank = emulator.emulate(&mut screen, &mut controller);
-        if vblank {
-            break;
-        }
-    }
-
-    save_ram_data(&emulator, ram_str.clone(), should_save_to_local.clone());
-    save_timestamp_data(&emulator);
-
-    loop {
-        match receiver.try_recv() {
-            Ok(ControllerEvent::Pressed(button)) => controller.press(button),
-            Ok(ControllerEvent::Released(button)) => controller.release(button),
-            Err(TryRecvError::Empty) => break,
-            Err(TryRecvError::Disconnected) => {
-                *run.borrow_mut() = false;
+    // check if the audio is still playing, if it is, just return
+    if !(*audio_running.borrow()) {
+        let audio_buffer = [44; 4096];
+        loop {
+            let vblank = emulator.emulate(&mut screen, &mut controller);
+            if vblank {
                 break;
             }
         }
+        save_ram_data(&emulator, ram_str.clone(), should_save_to_local.clone());
+        save_timestamp_data(&emulator);
+        loop {
+            match receiver.try_recv() {
+                Ok(ControllerEvent::Pressed(button)) => controller.press(button),
+                Ok(ControllerEvent::Released(button)) => controller.release(button),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    *run.borrow_mut() = false;
+                    break;
+                }
+            }
+        }
+        let frame_buffer = screen.get_frame_buffer();
+        render(&gl, &shader_program, &texture, frame_buffer.as_ref());
+        play_audio(&audio_context, &audio_buffer, audio_running.clone());
     }
-
-    let frame_buffer = screen.get_frame_buffer();
-    render(&gl, &shader_program, &texture, frame_buffer.as_ref());
-
     if *run.borrow() {
         window().request_animation_frame(move |_| {
             main_loop(
@@ -390,8 +399,10 @@ fn main_loop(
                 receiver,
                 run,
                 should_save_to_local,
+                audio_running,
                 ram_str,
                 gl,
+                audio_context,
                 shader_program,
                 texture,
             );
@@ -451,4 +462,27 @@ fn render(gl: &Gl, shader_program: &WebGLProgram, texture: &WebGLTexture, frame_
     let screen_uniform = gl.get_uniform_location(&shader_program, "screen").unwrap();
     gl.uniform1i(Some(&screen_uniform), 0);
     gl.draw_elements(Gl::TRIANGLES, 6, Gl::UNSIGNED_BYTE, 0);
+}
+
+fn play_audio(audio_context: &Value, audio_buffer: &[u8], audio_running: Rc<RefCell<bool>>) {
+    *audio_running.borrow_mut() = true;
+    let on_audio_ended = move || {
+        *audio_running.borrow_mut() = false;
+    };
+    js! {
+        var onAudioEnded = @{on_audio_ended};
+        var audioContext = @{audio_context};
+        var samples = @{unsafe { UnsafeTypedArray::new(&audio_buffer[0..512]) }};
+        var sampleRate = 44100;
+        var sampleCount = samples.length;
+        var audioBuffer = audioContext.createBuffer(2, sampleCount, sampleRate);
+        audioBuffer.getChannelData(0).set(samples);
+        var node = audioContext.createBufferSource();
+        node.connect(audioContext.destination);
+        node.buffer = audioBuffer;
+        node.onended = function() {
+            onAudioEnded();
+        };
+        node.start();
+    };
 }

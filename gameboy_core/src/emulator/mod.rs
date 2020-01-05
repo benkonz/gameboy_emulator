@@ -37,24 +37,23 @@ impl Emulator {
     }
 
     fn handle_interrupts(&mut self) {
-        if self.cpu.are_interrupts_enabled() {
-            if let Some(interrupt) = self.memory.get_interrupts() {
-                self.process_interrupt(interrupt);
-            }
+        if let Some(interrupt) = self.memory.get_interrupts() {
+            self.process_interrupt(interrupt);
         }
     }
-
+    
     fn process_interrupt(&mut self, interrupt: Interrupt) {
-        self.cpu.disable_interrupts();
-
-        match interrupt {
-            Interrupt::Vblank => self.cpu.rst_40(&mut self.memory),
-            Interrupt::Lcd => self.cpu.rst_48(&mut self.memory),
-            Interrupt::Timer => self.cpu.rst_50(&mut self.memory),
-            Interrupt::Serial => self.cpu.rst_58(&mut self.memory),
-            Interrupt::Joypad => self.cpu.rst_60(&mut self.memory),
+        if self.cpu.are_interrupts_enabled() {
+            self.cpu.disable_interrupts();
+            match interrupt {
+                Interrupt::Vblank => self.cpu.rst_40(&mut self.memory),
+                Interrupt::Lcd => self.cpu.rst_48(&mut self.memory),
+                Interrupt::Timer => self.cpu.rst_50(&mut self.memory),
+                Interrupt::Serial => self.cpu.rst_58(&mut self.memory),
+                Interrupt::Joypad => self.cpu.rst_60(&mut self.memory),
+            }
+            self.memory.remove_interrupt(interrupt);
         }
-        self.memory.remove_interrupt(interrupt);
         self.cpu.unhalt();
     }
 
@@ -66,7 +65,7 @@ impl Emulator {
         self.memory.set_ram_change_callback(f);
     }
 
-  pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
-      self.memory.get_cartridge_mut()
-  }
+    pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
+        self.memory.get_cartridge_mut()
+    }
 }

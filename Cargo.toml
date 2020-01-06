@@ -6,11 +6,11 @@ authors = ["Ben Konz <bkonz@unomaha.edu>"]
 [dependencies]
 
 [target.wasm32-unknown-unknown.dependencies]
-gameboy_opengl_web = { path = "gameboy_opengl_web", version = "0.1" }
+gameboy_opengl_web = { path = "gameboy_opengl_web", version = "0.2.0" }
 stdweb = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gameboy_opengl = { path = "gameboy_opengl", version = "0.1" }
+gameboy_opengl = { path = "gameboy_opengl", version = "0.2.0" }
 
 [workspace]
 

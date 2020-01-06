@@ -8,7 +8,7 @@ use std::io::Read;
 
 fn main() -> io::Result<()> {
     let matches = App::new("Gameboy Emulator")
-        .version("0.1.9")
+        .version("0.2.0")
         .author("Benjamin K. <benkonz@protonmail.com>")
         .about("Gameboy Emulator written in Rust!")
         .arg(

@@ -23,6 +23,7 @@ use bit_utils;
 use emulator::traits::RTC;
 use gpu::cgb_color::CGBColor;
 use gpu::lcd_control_flag::LcdControlFlag;
+use sound::Sound;
 
 pub const SPRITES_START_INDEX: u16 = 0xFE00;
 pub const JOYPAD_INDEX: u16 = 0xFF00;
@@ -31,6 +32,8 @@ pub const SELECTABLE_TIMER_INDEX: u16 = 0xFF05;
 pub const TIMER_RESET_INDEX: u16 = 0xFF06;
 pub const TIMER_CONTROL_INDEX: u16 = 0xFF07;
 pub const INTERRUPT_FLAGS_INDEX: u16 = 0xFF0F;
+const APU_INDEX_START: u16 = 0xFF10;
+const APU_INDEX_END: u16 = 0xFF3F;
 pub const LCD_CONTROL_INDEX: u16 = 0xFF40;
 pub const LCD_INDEX: u16 = 0xFF41;
 pub const SCROLL_Y_INDEX: u16 = 0xFF42;
@@ -110,6 +113,7 @@ pub struct Memory {
     hdma_enabled: bool,
     pub cgb_background_palettes: [[CGBColor; 4]; 8],
     pub cgb_sprite_palettes: [[CGBColor; 4]; 8],
+    sound: Sound,
 }
 
 impl Memory {
@@ -188,6 +192,7 @@ impl Memory {
             hdma_enabled: false,
             cgb_background_palettes: [[white; 4]; 8],
             cgb_sprite_palettes: [[white; 4]; 8],
+            sound: Sound::new(),
         }
     }
 
@@ -207,6 +212,7 @@ impl Memory {
                 TIMER_RESET_INDEX => self.load(index),
                 TIMER_CONTROL_INDEX => self.load(index) | 0xF8,
                 INTERRUPT_FLAGS_INDEX => self.load(index) | 0xE0,
+                APU_INDEX_START..=APU_INDEX_END => self.sound.read_byte(index),
                 LCD_CONTROL_INDEX => self.load(index),
                 LCD_INDEX => self.load(index) | 0x80,
                 SCROLL_Y_INDEX => self.load(index),
@@ -285,6 +291,7 @@ impl Memory {
                 TIMER_RESET_INDEX => self.store(index, value),
                 TIMER_CONTROL_INDEX => self.store(index, value),
                 INTERRUPT_FLAGS_INDEX => self.store(index, value & 0x1F),
+                APU_INDEX_START..=APU_INDEX_END => self.sound.write_byte(index, value),
                 LCD_CONTROL_INDEX => self.do_lcd_control_write(value),
                 LCD_INDEX => self.do_lcd_status_write(value),
                 SCROLL_Y_INDEX => self.store(index, value),
@@ -749,5 +756,13 @@ impl Memory {
 
     pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
         self.mbc.get_cartridge_mut()
+    }
+
+    pub fn get_sound(&self) -> &Sound {
+        &self.sound
+    }
+
+    pub fn get_sound_mut(&mut self) -> &mut Sound {
+        &mut self.sound
     }
 }

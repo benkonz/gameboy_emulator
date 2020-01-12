@@ -23,7 +23,7 @@ fn main() -> io::Result<()> {
     let mut file = File::open(rom_filename)?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
-    gameboy_opengl::start(buffer);
+    gameboy_opengl::start(buffer).unwrap();
 
     Ok(())
 }

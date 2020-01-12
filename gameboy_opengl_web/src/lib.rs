@@ -366,7 +366,6 @@ fn main_loop(
 ) {
     // check if the audio is still playing, if it is, just return
     if !(*audio_running.borrow()) {
-        let audio_buffer = [44; 4096];
         loop {
             let vblank = emulator.emulate(&mut screen, &mut controller);
             if vblank {
@@ -388,7 +387,11 @@ fn main_loop(
         }
         let frame_buffer = screen.get_frame_buffer();
         render(&gl, &shader_program, &texture, frame_buffer.as_ref());
-        play_audio(&audio_context, &audio_buffer, audio_running.clone());
+        play_audio(
+            &audio_context,
+            emulator.get_audio_buffer(),
+            audio_running.clone(),
+        );
     }
     if *run.borrow() {
         window().request_animation_frame(move |_| {
@@ -464,7 +467,7 @@ fn render(gl: &Gl, shader_program: &WebGLProgram, texture: &WebGLTexture, frame_
     gl.draw_elements(Gl::TRIANGLES, 6, Gl::UNSIGNED_BYTE, 0);
 }
 
-fn play_audio(audio_context: &Value, audio_buffer: &[u8], audio_running: Rc<RefCell<bool>>) {
+fn play_audio(audio_context: &Value, audio_buffer: &[f32], audio_running: Rc<RefCell<bool>>) {
     *audio_running.borrow_mut() = true;
     let on_audio_ended = move || {
         *audio_running.borrow_mut() = false;
@@ -472,7 +475,7 @@ fn play_audio(audio_context: &Value, audio_buffer: &[u8], audio_running: Rc<RefC
     js! {
         var onAudioEnded = @{on_audio_ended};
         var audioContext = @{audio_context};
-        var samples = @{unsafe { UnsafeTypedArray::new(&audio_buffer[0..512]) }};
+        var samples = @{unsafe { UnsafeTypedArray::new(&audio_buffer) }};
         var sampleRate = 44100;
         var sampleCount = samples.length;
         var audioBuffer = audioContext.createBuffer(2, sampleCount, sampleRate);

@@ -10,10 +10,12 @@ mod gpu;
 mod joypad;
 mod mmu;
 pub mod rtc;
+pub mod sound;
 mod timer;
 
 pub use button::Button;
 pub use controller_event::ControllerEvent;
+pub use emulator::step_result::StepResult;
 pub use emulator::traits::{PixelMapper, RTC};
 pub use emulator::Emulator;
 pub use gpu::cgb_color::CGBColor;

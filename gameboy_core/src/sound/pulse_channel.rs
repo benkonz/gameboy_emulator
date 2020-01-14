@@ -1,12 +1,19 @@
 use bit_utils;
 
+const DUTY_TABLE: [[bool; 8]; 4] = [
+    [false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, true],
+    [true, false, false, false, false, true, true, true],
+    [false, true, true, true, true, true, true, false],
+];
+
 pub struct PulseChannel {
     sweep_shift: u8,
     sweep_negate: bool,
     sweep_period_load: u8,
     length_load: u8,
     duty: u8,
-    envelope_period: u8,
+    envelope_period: i32,
     envelope_period_load: u8,
     envelope_add_mode: bool,
     volume_load: u8,
@@ -23,6 +30,7 @@ pub struct PulseChannel {
     sweep_enable: bool,
     sweep_period: i32,
     output_vol: u8,
+    sequence_pointer: u32,
 }
 
 impl PulseChannel {
@@ -49,20 +57,78 @@ impl PulseChannel {
             sweep_shadow: 0,
             enabled: false,
             sweep_period: 0,
-            output_vol: 0
+            output_vol: 0,
+            sequence_pointer: 0,
         }
     }
 
-    pub fn step(&mut self) {}
+    pub fn step(&mut self) {
+        self.timer -= 1;
+        if self.timer <= 0 {
+            self.timer = (2048 - self.timer_load as i32) * 4;
+            self.sequence_pointer = (self.sequence_pointer + 1) & 0x07;
+        }
+        if self.enabled && self.dac_enabled {
+            self.output_vol = self.volume;
+        } else {
+            self.output_vol = 0;
+        }
 
-    pub fn length_click(&mut self) {}
+        if !DUTY_TABLE[self.duty as usize][self.sequence_pointer as usize] {
+            self.output_vol = 0;
+        }
+    }
 
-    pub fn sweep_click(&mut self) {}
+    pub fn length_click(&mut self) {
+        if self.length_counter > 0 && self.length_enable {
+            self.length_counter -= 1;
+            if self.length_counter == 0 {
+                self.enabled = false;
+            }
+        }
+    }
 
-    pub fn env_click(&mut self) {}
+    pub fn sweep_click(&mut self) {
+        self.sweep_period -= 1;
+        if self.sweep_period <= 0 {
+            self.sweep_period = self.sweep_period_load as i32;
+            if self.sweep_period == 0 {
+                self.sweep_period = 8;
+            }
+            if self.sweep_enable && self.sweep_period_load > 0 {
+                let new_freq = self.sweep_calculation();
+                if new_freq <= 2047 && self.sweep_shift > 0 {
+                    self.sweep_shadow = new_freq;
+                    self.timer_load = new_freq;
+                    self.sweep_calculation();
+                }
+                self.sweep_calculation();
+            }
+        }
+    }
+
+    pub fn env_click(&mut self) {
+        self.envelope_period -= 1;
+        if self.envelope_period <= 0 {
+            self.envelope_period = self.envelope_period_load as i32;
+            if self.envelope_period == 0 {
+                self.envelope_period = 8;
+            }
+            if self.envelope_running && self.envelope_period_load > 0 {
+                if self.envelope_add_mode && self.volume < 15 {
+                    self.volume += 1;
+                } else if !self.envelope_add_mode && self.volume > 0 {
+                    self.volume -= 1;
+                }
+            }
+            if self.volume == 0 || self.volume == 15 {
+                self.envelope_running = false;
+            }
+        }
+    }
 
     pub fn read_byte(&self, address: u16) -> u8 {
-        match (address % 0xF) % 0x5 {
+        match (address & 0xFF & 0xF) % 0x5 {
             0x0 => {
                 let sweep_negate = if self.sweep_negate { 1 } else { 0 };
                 self.sweep_shift | (sweep_negate << 3) | (self.sweep_period_load << 4)
@@ -85,7 +151,7 @@ impl PulseChannel {
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
-        match (address % 0xF) % 0x5 {
+        match (address & 0xFF & 0xF) % 0x5 {
             0x0 => {
                 self.sweep_shift = value & 0x07;
                 self.sweep_negate = bit_utils::is_set(value, 3);
@@ -100,7 +166,7 @@ impl PulseChannel {
                 self.volume_load = (value >> 4) & 0x0F;
                 self.envelope_add_mode = bit_utils::is_set(value, 3);
                 self.envelope_period_load = value & 0x7;
-                self.envelope_period = self.envelope_period_load;
+                self.envelope_period = self.envelope_period_load as i32;
                 self.volume = self.volume_load;
             }
             0x3 => self.timer_load = (self.timer_load & 0x700) | value as u16,
@@ -123,7 +189,7 @@ impl PulseChannel {
         }
         self.timer = (2048 - self.timer_load as i32) * 4;
         self.envelope_running = true;
-        self.envelope_period = self.envelope_period_load;
+        self.envelope_period = self.envelope_period_load as i32;
         self.volume = self.volume_load;
         self.sweep_shadow = self.timer_load;
         self.sweep_period = self.sweep_period_load as i32;
@@ -151,6 +217,10 @@ impl PulseChannel {
 
     pub fn get_status(&self) -> bool {
         self.length_counter > 0
+    }
+
+    pub fn reset_length_counter(&mut self) {
+        self.length_counter = 0;
     }
 
     pub fn get_output_vol(&self) -> u8 {

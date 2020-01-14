@@ -47,9 +47,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
         channels: Some(2),
         samples: Some(4096),
     };
-    let device = audio_subsystem
-        .open_queue(None, &desired_spec)
-        .unwrap();
+    let device = audio_subsystem.open_queue(None, &desired_spec).unwrap();
     device.resume();
 
     let video_subsystem = sdl_context.video().unwrap();
@@ -298,9 +296,9 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
 
         match audio_receiver.try_recv() {
             Ok(audio_buffer) => {
-                if device.size() > 0 {
+                if device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
                     pause_emulator.store(true, Ordering::Relaxed);
-                    while device.size() > 0 {
+                    while device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
                         timer_subsystem.delay(1);
                     }
                     pause_emulator.store(false, Ordering::Relaxed);

@@ -7,7 +7,7 @@ pub struct NoiseChannel {
     volume: u8,
     volume_load: u8,
     envelope_add_mode: bool,
-    envelope_period: u8,
+    envelope_period: i32,
     envelope_period_load: u8,
     length_counter: u8,
     divisor_code: u8,
@@ -47,11 +47,53 @@ impl NoiseChannel {
         }
     }
 
-    pub fn step(&mut self) {}
+    pub fn step(&mut self) {
+        self.timer -= 1;
+        if self.timer <= 0 {
+            self.timer = DIVISORS[self.divisor_code as usize] << self.clock_shift;
+            let result = (self.lfsr & 0x1) ^ ((self.lfsr >> 1) & 0x1);
+            self.lfsr >>= 1;
+            self.lfsr |= result << 14;
+            if self.width_mode {
+                self.lfsr &= !0x40;
+                self.lfsr |= result << 6;
+            }
+            if self.enabled && self.dac_enabled && (self.lfsr & 0x1) == 0 {
+                self.output_vol = self.volume;
+            } else {
+                self.output_vol = 0;
+            }
+        }
+    }
 
-    pub fn length_click(&mut self) {}
+    pub fn length_click(&mut self) {
+        if self.length_counter > 0 && self.length_enable {
+            self.length_counter -= 1;
+            if self.length_counter == 0 {
+                self.enabled = false;
+            }
+        }
+    }
 
-    pub fn env_click(&mut self) {}
+    pub fn env_click(&mut self) {
+        self.envelope_period -= 1;
+        if self.envelope_period <= 0 {
+            self.envelope_period = self.envelope_period_load as i32;
+            if self.envelope_period == 0 {
+                self.envelope_period = 8;
+            }
+            if self.envelope_running && self.envelope_period_load > 0 {
+                if self.envelope_add_mode && self.volume < 15 {
+                    self.volume += 1;
+                } else if !self.envelope_add_mode && self.volume > 0 {
+                    self.volume -= 1;
+                }
+            }
+            if self.volume == 0 || self.volume == 15 {
+                self.envelope_running = false;
+            }
+        }
+    }
 
     pub fn read_byte(&self, address: u16) -> u8 {
         match address {
@@ -108,7 +150,7 @@ impl NoiseChannel {
             self.length_counter = 64;
         }
         self.timer = DIVISORS[self.divisor_code as usize] << self.clock_shift;
-        self.envelope_period = self.envelope_period_load;
+        self.envelope_period = self.envelope_period_load as i32;
         self.envelope_running = true;
         self.volume = self.volume_load;
         self.lfsr = 0x7FFF;
@@ -116,6 +158,10 @@ impl NoiseChannel {
 
     pub fn get_status(&self) -> bool {
         self.length_counter > 0
+    }
+
+    pub fn reset_length_counter(&mut self) {
+        self.length_counter = 0;
     }
 
     pub fn get_output_vol(&self) -> u8 {

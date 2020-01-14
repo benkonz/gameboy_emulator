@@ -163,6 +163,17 @@ impl Memory {
             hdma_destination |= 0x8000;
         }
 
+        // setup initial values for the sound module
+        let mut sound = Sound::new();
+        for i in 0xFF10..=0xFF3F {
+            let value = if is_cgb {
+                INITIAL_VALUES_FOR_COLOR_FFXX[i - 0xFF00]
+            } else {
+                INITIAL_VALUES_FOR_FFXX[i - 0xFF00]
+            };
+            sound.write_byte(i as u16, value);
+        }
+
         let white = CGBColor {
             red: 0,
             green: 0,
@@ -192,7 +203,7 @@ impl Memory {
             hdma_enabled: false,
             cgb_background_palettes: [[white; 4]; 8],
             cgb_sprite_palettes: [[white; 4]; 8],
-            sound: Sound::new(),
+            sound,
         }
     }
 

@@ -40,7 +40,7 @@ impl Sound {
             pulse_channel_1: PulseChannel::new(),
             pulse_channel_2: PulseChannel::new(),
             noise_channel: NoiseChannel::new(),
-            audio_buffer:  [0.5; SAMPLE_SIZE],
+            audio_buffer: [0.0; SAMPLE_SIZE],
             vin_l_enable: false,
             vin_l_volume: 0,
             vin_r_enable: false,
@@ -119,7 +119,7 @@ impl Sound {
                     bufferin_1 = (self.noise_channel.get_output_vol() as f32) / 100.0;
                     Sound::mix_audio(&mut bufferin_0, bufferin_1, volume);
                 }
-                // self.audio_buffer[self.buffer_fill_amount] = bufferin_0;
+                self.audio_buffer[self.buffer_fill_amount] = bufferin_0;
 
                 // right
                 bufferin_0 = 0.0;
@@ -139,7 +139,7 @@ impl Sound {
                     bufferin_1 = (self.noise_channel.get_output_vol() as f32) / 100.0;
                     Sound::mix_audio(&mut bufferin_0, bufferin_1, volume);
                 }
-                // self.audio_buffer[self.buffer_fill_amount + 1] = bufferin_0;
+                self.audio_buffer[self.buffer_fill_amount + 1] = bufferin_0;
                 self.buffer_fill_amount += 2;
             }
 
@@ -157,6 +157,7 @@ impl Sound {
     fn mix_audio(dst: &mut f32, src: f32, volume: i32) {
         let fmax_volume = 1.0f32 / 128f32;
         let fvolume = volume as f32;
+        // what the fuck?
         let max_audioval = 3.402_823_466e+38f64;
         let min_audioval = -3.402_823_466e+38f64;
 
@@ -222,43 +223,40 @@ impl Sound {
                 } << 3;
                 value
             }
-            0xFF27..=0xFF2F => 0,
+            0xFF27..=0xFF2F => 0xFF,
             0xFF30..=0xFF3F => self.wave_channel.read_byte(address),
             _ => panic!("unknown address: {:04X}", address),
         };
-        value | READ_BYTE_OR_MASKS[(address - 0xFF10) as usize]
+        if address >= 0xFF10 && address < 0xFF27 {
+            value | READ_BYTE_OR_MASKS[(address - 0xFF10) as usize]
+        } else {
+            value
+        }
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
+        if !self.power_control && address != 0xFF26 && address < 0xFF30 {
+            return;
+        }
         match address {
             0xFF10..=0xFF14 => self.pulse_channel_1.write_byte(address, value),
             0xFF15..=0xFF19 => self.pulse_channel_2.write_byte(address, value),
             0xFF1A..=0xFF1E => self.wave_channel.write_byte(address, value),
             0xFF1F..=0xFF23 => self.noise_channel.write_byte(address, value),
             0xFF24 => {
-                if bit_utils::is_set(value, 7) {
-                    self.vin_l_enable = true;
-                } else {
-                    self.vin_l_enable = false;
-                }
+                self.vin_l_enable = bit_utils::is_set(value, 7);
+                self.vin_l_volume = (value >> 4) & 0x7;
 
-                self.vin_l_volume = (value & 0b0111_0000) >> 4;
-
-                if bit_utils::is_set(value, 3) {
-                    self.vin_r_enable = true;
-                } else {
-                    self.vin_r_enable = false;
-                }
-
-                self.vin_r_volume = value & 0b111;
+                self.vin_r_enable = bit_utils::is_set(value, 3);
+                self.vin_r_volume = value & 0x7;
             }
             0xFF25 => {
                 for i in 0..4 {
-                    self.left_enables[i] = bit_utils::is_set(value, i as u8);
+                    self.right_enables[i] = bit_utils::is_set(value, i as u8);
                 }
 
                 for i in 0..4 {
-                    self.right_enables[i] = bit_utils::is_set(value, i as u8 + 4);
+                    self.left_enables[i] = bit_utils::is_set(value, i as u8 + 4);
                 }
             }
             0xFF26 => {
@@ -266,8 +264,13 @@ impl Sound {
                     for i in 0xFF10..=0xFF25 {
                         self.write_byte(i, 0);
                     }
+                    self.pulse_channel_1.reset_length_counter();
+                    self.pulse_channel_2.reset_length_counter();
+                    self.wave_channel.reset_length_counter();
+                    self.noise_channel.reset_length_counter();
                     self.power_control = false;
                 } else if !self.power_control {
+                    self.frame_sequencer = 0;
                     // reset the wave table
                     for i in 0xFF30..=0xFF3F {
                         self.wave_channel.write_byte(i, 0);

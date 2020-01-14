@@ -15,7 +15,7 @@ extern crate gameboy_opengl;
 #[no_mangle]
 pub unsafe fn start(pointer: *mut u8, length: usize) {
     let rom = Vec::from_raw_parts(pointer, length, length);
-    gameboy_opengl::start(rom);
+    gameboy_opengl::start(rom).unwrap();
 }
 
 #[cfg(target_arch = "wasm32")]

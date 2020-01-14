@@ -33,9 +33,39 @@ impl WaveChannel {
         }
     }
 
-    pub fn step(&mut self) {}
+    pub fn step(&mut self) {
+        self.timer -= 1;
+        if self.timer <= 0 {
+            self.timer = (2048 - self.timer_load as i32) * 2;
+            self.position_counter = (self.position_counter + 1) & 0x1F;
+            if self.enabled && self.dac_enabled {
+                let position = self.position_counter / 2;
+                let mut output_byte = self.wave_table[position as usize];
+                let high_bit = (self.position_counter & 0x1) == 0;
+                if high_bit {
+                    output_byte >>= 4;
+                }
+                output_byte &= 0xF;
+                if self.volume_code > 0 {
+                    output_byte >>= self.volume_code - 1;
+                } else {
+                    output_byte = 0;
+                }
+                self.output_vol = output_byte;
+            } else {
+                self.output_vol = 0;
+            }
+        }
+    }
 
-    pub fn length_click(&mut self) {}
+    pub fn length_click(&mut self) {
+        if self.length_counter > 0 && self.length_enable {
+            self.length_counter -= 1;
+            if self.length_counter == 0 {
+                self.enabled = false;
+            }
+        }
+    }
 
     pub fn read_byte(&self, address: u16) -> u8 {
         match address {
@@ -86,6 +116,10 @@ impl WaveChannel {
 
     pub fn get_status(&self) -> bool {
         self.length_counter > 0
+    }
+
+    pub fn reset_length_counter(&mut self) {
+        self.length_counter = 0;
     }
 
     pub fn get_output_vol(&self) -> u8 {

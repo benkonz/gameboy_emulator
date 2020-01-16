@@ -8,7 +8,7 @@ mod screen;
 mod shader;
 
 use directories::BaseDirs;
-use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc, StepResult};
+use gameboy_core::{Button, Cartridge, Controller, Emulator, Rtc, StepResult};
 use gl::types::*;
 use native_rtc::NativeRTC;
 use screen::Screen;
@@ -23,10 +23,6 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::raw::c_void;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, TryRecvError};
-use std::sync::Arc;
-use std::thread;
 use std::{mem, ptr};
 
 const VERTEX_SOURCE: &str = include_str!("shaders/vertex.glsl");
@@ -122,198 +118,108 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
     }
 
-    let (controller_sender, controller_receiver) = mpsc::channel();
-    let (frame_sender, frame_receiver) = mpsc::channel();
-    let (audio_sender, audio_receiver) = mpsc::channel();
-    let stop_emulator = Arc::new(AtomicBool::new(false));
-    let pause_emulator = Arc::new(AtomicBool::new(false));
+    let mut cartridge = Cartridge::from_rom(rom);
+    load_ram_save_data(&mut cartridge);
+    load_timestamp_data(&mut cartridge);
+
+    let rtc = Box::new(NativeRTC::new());
+    let mut emulator = Emulator::from_cartridge(cartridge, rtc);
+
+    let mut ram_save_file = get_ram_save_file(emulator.get_cartridge());
+    let mut timestamp_save_file = get_timestamp_save_file(emulator.get_cartridge());
+
+    let ram_changed = Rc::new(RefCell::new(true));
     {
-        let stop_emulator = Arc::clone(&stop_emulator);
-        let pause_emulator = Arc::clone(&pause_emulator);
-        thread::spawn(move || {
-            let mut cartridge = Cartridge::from_rom(rom);
-            load_ram_save_data(&mut cartridge);
-            load_timestamp_data(&mut cartridge);
-
-            let rtc = Box::new(NativeRTC::new());
-            let mut emulator = Emulator::from_cartridge(cartridge, rtc);
-
-            let mut ram_save_file = get_ram_save_file(emulator.get_cartridge());
-            let mut timestamp_save_file = get_timestamp_save_file(emulator.get_cartridge());
-
-            let ram_changed = Rc::new(RefCell::new(true));
-            {
-                let ram_changed = ram_changed.clone();
-                emulator.set_ram_change_callback(Box::new(move |_, _| {
-                    *ram_changed.borrow_mut() = true;
-                }));
-            }
-            let mut controller = Controller::new();
-            let mut screen = Screen::new();
-            'game_loop: loop {
-                if stop_emulator.load(Ordering::Relaxed) {
-                    break;
-                }
-                if pause_emulator.load(Ordering::Relaxed) {
-                    continue;
-                }
-                loop {
-                    let step_result = emulator.emulate(&mut screen, &mut controller);
-                    match step_result {
-                        StepResult::VBlank => {
-                            match frame_sender.send(screen.get_frame_buffer().clone()) {
-                                Ok(()) => (),
-                                Err(_) => break,
-                            };
-                            break;
-                        }
-                        StepResult::AudioBufferFull => {
-                            let emulator_audio_buffer = emulator.get_audio_buffer();
-                            let mut audio_buffer = vec![0.0; emulator_audio_buffer.len()];
-                            audio_buffer.clone_from_slice(emulator_audio_buffer);
-                            match audio_sender.send(audio_buffer) {
-                                Ok(()) => (),
-                                Err(_) => break,
-                            }
-                            break;
-                        }
-                        StepResult::Nothing => (),
-                    }
-                }
-
-                if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
-                    if let Some(ref mut ram_save_file) = ram_save_file {
-                        save_ram_data(emulator.get_cartridge(), ram_save_file);
-                    }
-                    *ram_changed.borrow_mut() = false;
-                }
-
-                if emulator.get_cartridge().has_rtc() {
-                    if let Some(ref mut timestamp_save_file) = timestamp_save_file {
-                        save_timestamp_data(emulator.get_cartridge(), timestamp_save_file);
-                    }
-                }
-
-                loop {
-                    match controller_receiver.try_recv() {
-                        Ok(input) => match input {
-                            ControllerEvent::Pressed(button) => controller.press(button),
-                            ControllerEvent::Released(button) => controller.release(button),
-                        },
-                        Err(TryRecvError::Empty) => break,
-                        Err(TryRecvError::Disconnected) => break 'game_loop,
-                    }
-                }
-            }
-        });
+        let ram_changed = ram_changed.clone();
+        emulator.set_ram_change_callback(Box::new(move |_, _| {
+            *ram_changed.borrow_mut() = true;
+        }));
     }
+    let mut controller = Controller::new();
+    let mut screen = Screen::new();
 
     let mut event_pump = sdl_context.event_pump()?;
-    let mut run = true;
-    while run {
+    'game_loop: loop {
+        loop {
+            let step_result = emulator.emulate(&mut screen, &mut controller);
+            match step_result {
+                StepResult::VBlank => {
+                    let frame_buffer = screen.get_frame_buffer();
+                    draw_texture(texture, &shader, frame_buffer);
+                    unsafe {
+                        gl::BindVertexArray(vao);
+                        gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
+                        gl::BindVertexArray(0);
+                    }
+                    window.gl_swap_window();
+                    break;
+                }
+                StepResult::AudioBufferFull => {
+                    let audio_buffer = emulator.get_audio_buffer();
+                    if device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
+                        while device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
+                            timer_subsystem.delay(1);
+                        }
+                    }
+                    device.queue(audio_buffer);
+                    break;
+                }
+                StepResult::Nothing => (),
+            }
+        }
+
+        if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
+            if let Some(ref mut ram_save_file) = ram_save_file {
+                save_ram_data(emulator.get_cartridge(), ram_save_file);
+            }
+            *ram_changed.borrow_mut() = false;
+        }
+
+        if emulator.get_cartridge().has_rtc() {
+            if let Some(ref mut timestamp_save_file) = timestamp_save_file {
+                save_timestamp_data(emulator.get_cartridge(), timestamp_save_file);
+            }
+        }
+
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } => {
-                    stop_emulator.store(true, Ordering::Relaxed);
-                    run = false;
-                }
+                Event::Quit { .. } => break 'game_loop,
                 Event::KeyDown {
                     keycode: Some(keycode),
                     ..
                 } => {
-                    let result = match keycode {
-                        Keycode::Z => controller_sender.send(ControllerEvent::Pressed(Button::A)),
-                        Keycode::X => controller_sender.send(ControllerEvent::Pressed(Button::B)),
-                        Keycode::Space => {
-                            controller_sender.send(ControllerEvent::Pressed(Button::Start))
-                        }
-                        Keycode::KpEnter => {
-                            controller_sender.send(ControllerEvent::Pressed(Button::Select))
-                        }
-                        Keycode::Up => controller_sender.send(ControllerEvent::Pressed(Button::Up)),
-                        Keycode::Down => {
-                            controller_sender.send(ControllerEvent::Pressed(Button::Down))
-                        }
-                        Keycode::Left => {
-                            controller_sender.send(ControllerEvent::Pressed(Button::Left))
-                        }
-                        Keycode::Right => {
-                            controller_sender.send(ControllerEvent::Pressed(Button::Right))
-                        }
-                        _ => Ok(()),
-                    };
-                    result.unwrap();
+                    if let Some(button) = keycode_to_button(keycode) {
+                        controller.press(button);
+                    }
                 }
                 Event::KeyUp {
                     keycode: Some(keycode),
                     ..
                 } => {
-                    let result = match keycode {
-                        Keycode::Z => controller_sender.send(ControllerEvent::Released(Button::A)),
-                        Keycode::X => controller_sender.send(ControllerEvent::Released(Button::B)),
-                        Keycode::Space => {
-                            controller_sender.send(ControllerEvent::Released(Button::Start))
-                        }
-                        Keycode::KpEnter => {
-                            controller_sender.send(ControllerEvent::Released(Button::Select))
-                        }
-                        Keycode::Up => {
-                            controller_sender.send(ControllerEvent::Released(Button::Up))
-                        }
-                        Keycode::Down => {
-                            controller_sender.send(ControllerEvent::Released(Button::Down))
-                        }
-                        Keycode::Left => {
-                            controller_sender.send(ControllerEvent::Released(Button::Left))
-                        }
-                        Keycode::Right => {
-                            controller_sender.send(ControllerEvent::Released(Button::Right))
-                        }
-                        _ => Ok(()),
-                    };
-                    result.unwrap();
+                    if let Some(button) = keycode_to_button(keycode) {
+                        controller.release(button);
+                    }
                 }
                 _ => (),
             };
         }
-
-        match frame_receiver.try_recv() {
-            Ok(frame_buffer) => {
-                draw_texture(texture, &shader, &frame_buffer);
-                unsafe {
-                    gl::BindVertexArray(vao);
-                    gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
-                    gl::BindVertexArray(0);
-                }
-                window.gl_swap_window();
-            }
-            Err(TryRecvError::Empty) => (),
-            Err(TryRecvError::Disconnected) => {
-                run = false;
-                stop_emulator.store(true, Ordering::Relaxed);
-            }
-        };
-
-        match audio_receiver.try_recv() {
-            Ok(audio_buffer) => {
-                if device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
-                    pause_emulator.store(true, Ordering::Relaxed);
-                    while device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
-                        timer_subsystem.delay(1);
-                    }
-                    pause_emulator.store(false, Ordering::Relaxed);
-                }
-                device.queue(&audio_buffer);
-            }
-            Err(TryRecvError::Empty) => (),
-            Err(TryRecvError::Disconnected) => {
-                run = false;
-                stop_emulator.store(true, Ordering::Relaxed);
-            }
-        }
     }
 
     Ok(())
+}
+
+fn keycode_to_button(keycode: Keycode) -> Option<Button> {
+    match keycode {
+        Keycode::Z => Some(Button::A),
+        Keycode::X => Some(Button::B),
+        Keycode::Space => Some(Button::Start),
+        Keycode::KpEnter => Some(Button::Select),
+        Keycode::Up => Some(Button::Up),
+        Keycode::Down => Some(Button::Down),
+        Keycode::Left => Some(Button::Left),
+        Keycode::Right => Some(Button::Right),
+        _ => None,
+    }
 }
 
 fn get_ram_saves_path() -> Option<PathBuf> {

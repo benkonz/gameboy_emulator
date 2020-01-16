@@ -176,7 +176,8 @@ impl Sound {
     pub fn read_byte(&self, address: u16) -> u8 {
         let value = match address {
             0xFF10..=0xFF14 => self.pulse_channel_1.read_byte(address),
-            0xFF15..=0xFF19 => self.pulse_channel_2.read_byte(address),
+            0xFF15 => 0,
+            0xFF16..=0xFF19 => self.pulse_channel_2.read_byte(address),
             0xFF1A..=0xFF1E => self.wave_channel.read_byte(address),
             0xFF1F..=0xFF23 => self.noise_channel.read_byte(address),
             0xFF24 => {
@@ -240,7 +241,8 @@ impl Sound {
         }
         match address {
             0xFF10..=0xFF14 => self.pulse_channel_1.write_byte(address, value),
-            0xFF15..=0xFF19 => self.pulse_channel_2.write_byte(address, value),
+            0xFF15 => (),
+            0xFF16..=0xFF19 => self.pulse_channel_2.write_byte(address, value),
             0xFF1A..=0xFF1E => self.wave_channel.write_byte(address, value),
             0xFF1F..=0xFF23 => self.noise_channel.write_byte(address, value),
             0xFF24 => {

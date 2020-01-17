@@ -127,7 +127,6 @@ impl Cpu {
     }
 
     fn execute_opcode(&mut self, opcode: u8, memory: &mut Memory) {
-        // !("pc: {:04X}, op: {:02X}", self.registers.pc, opcode);
         match opcode {
             0x00 => self.nop(),
             0x01 => {

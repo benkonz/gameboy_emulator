@@ -123,7 +123,12 @@ impl Cpu {
         if self.halted {
             self.instruction_cycle = 4;
         }
-        self.instruction_cycle
+
+        if self.cgb_speed {
+            self.instruction_cycle / 2
+        } else {
+            self.instruction_cycle
+        }
     }
 
     fn execute_opcode(&mut self, opcode: u8, memory: &mut Memory) {

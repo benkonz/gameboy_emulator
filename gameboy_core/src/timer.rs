@@ -22,14 +22,14 @@ impl Timer {
 
         let tac = memory.load(mmu::TIMER_CONTROL_INDEX);
 
-        if tac & 0x04 != 0 {
+        if (tac & 0x4) != 0 {
             memory.tima_cycles += cycles;
 
             let freq = match tac & 0x03 {
-                0b00 => 1024,
-                0b01 => 16,
-                0b10 => 64,
-                0b11 => 256,
+                0 => 1024,
+                1 => 16,
+                2 => 64,
+                3 => 256,
                 _ => unreachable!(),
             };
 
@@ -37,11 +37,11 @@ impl Timer {
                 memory.tima_cycles -= freq;
                 let mut tima = memory.load(mmu::SELECTABLE_TIMER_INDEX);
 
-                if tima == 0xFF {
+                tima = tima.wrapping_add(1);
+
+                if tima == 0 {
                     tima = memory.load(mmu::TIMER_RESET_INDEX);
                     memory.request_interrupt(Interrupt::Timer);
-                } else {
-                    tima += 1;
                 }
 
                 memory.store(mmu::SELECTABLE_TIMER_INDEX, tima);

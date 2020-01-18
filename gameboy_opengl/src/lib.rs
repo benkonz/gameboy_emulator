@@ -156,10 +156,8 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                 }
                 StepResult::AudioBufferFull => {
                     let audio_buffer = emulator.get_audio_buffer();
-                    if device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
-                        while device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
-                            timer_subsystem.delay(1);
-                        }
+                    while device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
+                        timer_subsystem.delay(1);
                     }
                     device.queue(audio_buffer);
                     break;
@@ -213,7 +211,7 @@ fn keycode_to_button(keycode: Keycode) -> Option<Button> {
         Keycode::Z => Some(Button::A),
         Keycode::X => Some(Button::B),
         Keycode::Space => Some(Button::Start),
-        Keycode::KpEnter => Some(Button::Select),
+        Keycode::RShift => Some(Button::Select),
         Keycode::Up => Some(Button::Up),
         Keycode::Down => Some(Button::Down),
         Keycode::Left => Some(Button::Left),

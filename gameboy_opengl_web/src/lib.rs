@@ -6,11 +6,13 @@ extern crate serde_derive;
 extern crate stdweb_derive;
 extern crate gameboy_core;
 
+mod gl_utils;
+mod save_utils;
 mod screen;
 mod web_rtc;
 mod webgl_rendering_context;
 
-use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc};
+use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, StepResult};
 use screen::Screen;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -24,6 +26,7 @@ use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
 use stdweb::{UnsafeTypedArray, Value};
 use web_rtc::WebRTC;
+use webgl_rendering_context::WebGLRenderingContext;
 use webgl_rendering_context::*;
 
 type Gl = WebGLRenderingContext;
@@ -100,9 +103,7 @@ pub fn start(rom: Vec<u8>) {
         .try_into()
         .unwrap();
 
-    // TODO: move this to another function
     let gl: Gl = canvas.get_context().unwrap();
-
     gl.clear_color(1.0, 0.0, 0.0, 1.0);
     gl.clear(Gl::COLOR_BUFFER_BIT);
 
@@ -131,18 +132,12 @@ pub fn start(rom: Vec<u8>) {
     );
 
     let vertex_source: &str = include_str!("shaders/vertex.glsl");
-    let vert_shader = match compile_shader(&gl, Gl::VERTEX_SHADER, vertex_source) {
-        Ok(shader) => shader,
-        Err(msg) => panic!(msg),
-    };
+    let vert_shader = gl_utils::compile_shader(&gl, Gl::VERTEX_SHADER, vertex_source).unwrap();
 
     let fragment_source: &str = include_str!("shaders/fragment.glsl");
-    let frag_shader = match compile_shader(&gl, Gl::FRAGMENT_SHADER, fragment_source) {
-        Ok(shader) => shader,
-        Err(msg) => panic!(msg),
-    };
+    let frag_shader = gl_utils::compile_shader(&gl, Gl::FRAGMENT_SHADER, fragment_source).unwrap();
 
-    let shader_program = link_program(&gl, &vert_shader, &frag_shader);
+    let shader_program = gl_utils::link_program(&gl, &vert_shader, &frag_shader);
 
     gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&vertex_buffer));
     let pos_attr = gl.get_attrib_location(&shader_program, "aPos") as u32;
@@ -165,8 +160,8 @@ pub fn start(rom: Vec<u8>) {
     let audio_context = js! { return new AudioContext() };
 
     let mut cartridge = Cartridge::from_rom(rom);
-    load_ram_save_data(&mut cartridge);
-    load_timestamp_data(&mut cartridge);
+    save_utils::load_ram_save_data(&mut cartridge);
+    save_utils::load_timestamp_data(&mut cartridge);
 
     let rtc = Box::new(WebRTC::new());
     let mut emulator = Emulator::from_cartridge(cartridge, rtc);
@@ -174,7 +169,7 @@ pub fn start(rom: Vec<u8>) {
     let controller = Controller::new();
 
     let ram = emulator.get_cartridge().get_ram().to_vec();
-    let ram_str: Rc<RefCell<String>> = Rc::new(RefCell::new(
+    let ram_str = Rc::new(RefCell::new(
         ram.iter().map(|byte| format!("{:02x}", byte)).collect(),
     ));
     set_ram_change_listener(&mut emulator, ram_str.clone(), should_save_to_local.clone());
@@ -272,61 +267,6 @@ fn add_multi_controller_event_listener<T: ConcreteEvent>(
     });
 }
 
-fn compile_shader(gl: &Gl, shader_type: GLenum, source: &str) -> Result<WebGLShader, String> {
-    let shader = gl.create_shader(shader_type).unwrap();
-    gl.shader_source(&shader, source);
-    gl.compile_shader(&shader);
-    let compiled = gl.get_shader_parameter(&shader, Gl::COMPILE_STATUS);
-
-    if compiled == stdweb::Value::Bool(false) {
-        let error = gl.get_shader_info_log(&shader);
-        Err(error.unwrap_or_else(|| "Unknown compilation error".to_string()))
-    } else {
-        Ok(shader)
-    }
-}
-
-fn link_program(gl: &Gl, vert_shader: &WebGLShader, frag_shader: &WebGLShader) -> WebGLProgram {
-    let shader_program = gl.create_program().unwrap();
-    gl.attach_shader(&shader_program, vert_shader);
-    gl.attach_shader(&shader_program, frag_shader);
-    gl.link_program(&shader_program);
-    shader_program
-}
-
-fn load_ram_save_data(cartridge: &mut Cartridge) {
-    if let Some(ram_str) = window().local_storage().get(cartridge.get_name()) {
-        let chars: Vec<char> = ram_str.chars().collect();
-        let bytes: Vec<u8> = chars
-            .chunks(2)
-            .map(|chunk| {
-                let byte: String = chunk.iter().collect();
-                u8::from_str_radix(&byte, 16).unwrap()
-            })
-            .collect();
-        cartridge.set_ram(bytes);
-    }
-}
-
-fn load_timestamp_data(cartridge: &mut Cartridge) {
-    let key = format!("{}-timestamp", cartridge.get_name());
-    if let Some(timestamp_str) = window().local_storage().get(&key) {
-        let chars: Vec<char> = timestamp_str.chars().collect();
-        let bytes: Vec<u8> = chars
-            .chunks(2)
-            .map(|chunk| {
-                let byte: String = chunk.iter().collect();
-                u8::from_str_radix(&byte, 16).unwrap()
-            })
-            .collect();
-        let rtc = Rtc::from_bytes(&bytes[..5]);
-        let mut timestamp_data = [0; 8];
-        timestamp_data.copy_from_slice(&bytes[5..]);
-        let timestamp = u64::from_ne_bytes(timestamp_data);
-        cartridge.set_last_timestamp(rtc, timestamp);
-    }
-}
-
 fn set_ram_change_listener(
     emulator: &mut Emulator,
     ram_str: Rc<RefCell<String>>,
@@ -364,16 +304,48 @@ fn main_loop(
     shader_program: WebGLProgram,
     texture: WebGLTexture,
 ) {
-    // check if the audio is still playing, if it is, just return
-    if !(*audio_running.borrow()) {
+    if *audio_running.borrow() {
+        stdweb::web::set_timeout(
+            move || {
+                main_loop(
+                    emulator,
+                    screen,
+                    controller,
+                    receiver,
+                    run,
+                    should_save_to_local,
+                    audio_running,
+                    ram_str,
+                    gl,
+                    audio_context,
+                    shader_program,
+                    texture,
+                );
+            },
+            0,
+        );
+    } else {
         loop {
-            let vblank = emulator.emulate(&mut screen, &mut controller);
-            if vblank {
-                break;
+            let step_result = emulator.emulate(&mut screen, &mut controller);
+            match step_result {
+                StepResult::VBlank => {
+                    let frame_buffer = screen.get_frame_buffer();
+                    render(&gl, &shader_program, &texture, frame_buffer.as_ref());
+                    break;
+                }
+                StepResult::AudioBufferFull => {
+                    play_audio(
+                        &audio_context,
+                        emulator.get_audio_buffer(),
+                        audio_running.clone(),
+                    );
+                    break;
+                }
+                StepResult::Nothing => {}
             }
         }
-        save_ram_data(&emulator, ram_str.clone(), should_save_to_local.clone());
-        save_timestamp_data(&emulator);
+        save_utils::save_ram_data(&emulator, ram_str.clone(), should_save_to_local.clone());
+        save_utils::save_timestamp_data(&emulator);
         loop {
             match receiver.try_recv() {
                 Ok(ControllerEvent::Pressed(button)) => controller.press(button),
@@ -385,65 +357,24 @@ fn main_loop(
                 }
             }
         }
-        let frame_buffer = screen.get_frame_buffer();
-        render(&gl, &shader_program, &texture, frame_buffer.as_ref());
-        play_audio(
-            &audio_context,
-            emulator.get_audio_buffer(),
-            audio_running.clone(),
-        );
-    }
-    if *run.borrow() {
-        window().request_animation_frame(move |_| {
-            main_loop(
-                emulator,
-                screen,
-                controller,
-                receiver,
-                run,
-                should_save_to_local,
-                audio_running,
-                ram_str,
-                gl,
-                audio_context,
-                shader_program,
-                texture,
-            );
-        });
-    }
-}
-
-fn save_ram_data(
-    emulator: &Emulator,
-    ram_str: Rc<RefCell<String>>,
-    should_save_to_local: Rc<RefCell<bool>>,
-) {
-    if *should_save_to_local.borrow() && emulator.get_cartridge().has_battery() {
-        let name = emulator.get_cartridge().get_name();
-        window()
-            .local_storage()
-            .insert(&name, &ram_str.borrow())
-            .unwrap();
-        *should_save_to_local.borrow_mut() = false;
-    }
-}
-
-fn save_timestamp_data(emulator: &Emulator) {
-    if emulator.get_cartridge().has_battery() {
-        let name = format!("{}-timestamp", emulator.get_cartridge().get_name());
-        let (rtc_data, last_timestamp) = emulator.get_cartridge().get_last_timestamp();
-        let mut rtc_bytes = rtc_data.to_bytes().to_vec();
-        let mut last_timestamp_bytes = u64::to_ne_bytes(last_timestamp).to_vec();
-        rtc_bytes.append(&mut last_timestamp_bytes);
-
-        let timestamp_data_str: String = rtc_bytes
-            .iter()
-            .map(|byte| format!("{:02x}", byte))
-            .collect();
-        window()
-            .local_storage()
-            .insert(&name, &timestamp_data_str)
-            .unwrap();
+        if *run.borrow() {
+            window().request_animation_frame(move |_| {
+                main_loop(
+                    emulator,
+                    screen,
+                    controller,
+                    receiver,
+                    run,
+                    should_save_to_local,
+                    audio_running,
+                    ram_str,
+                    gl,
+                    audio_context,
+                    shader_program,
+                    texture,
+                );
+            });
+        }
     }
 }
 
@@ -477,7 +408,7 @@ fn play_audio(audio_context: &Value, audio_buffer: &[f32], audio_running: Rc<Ref
         var audioContext = @{audio_context};
         var samples = @{unsafe { UnsafeTypedArray::new(&audio_buffer) }};
         var sampleRate = 44100;
-        var sampleCount = samples.length;
+        var sampleCount = 4096;
         var audioBuffer = audioContext.createBuffer(2, sampleCount, sampleRate);
         audioBuffer.getChannelData(0).set(samples);
         var node = audioContext.createBufferSource();

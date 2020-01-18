@@ -283,14 +283,7 @@ impl Memory {
                 DIVIDER_INDEX => self.reset_div_cycles(),
                 SELECTABLE_TIMER_INDEX => self.store(index, value),
                 TIMER_RESET_INDEX => self.store(index, value),
-                TIMER_CONTROL_INDEX => {
-                    let value = value & 0x07;
-                    let current_tac = self.read_byte(TIMER_CONTROL_INDEX);
-                    if (current_tac & 0x03) != (value & 0x03) {
-                        self.reset_tima_cycles();
-                    }
-                    self.store(index, value);
-                }
+                TIMER_CONTROL_INDEX => self.store(index, value),
                 INTERRUPT_FLAGS_INDEX => self.store(index, value & 0x1F),
                 LCD_CONTROL_INDEX => self.do_lcd_control_write(value),
                 LCD_INDEX => self.do_lcd_status_write(value),
@@ -731,13 +724,7 @@ impl Memory {
     }
 
     fn reset_div_cycles(&mut self) {
-        self.div_cycles = 0;
         self.store(DIVIDER_INDEX, 0);
-    }
-
-    fn reset_tima_cycles(&mut self) {
-        self.tima_cycles = 0;
-        self.store(SELECTABLE_TIMER_INDEX, self.load(TIMER_RESET_INDEX));
     }
 
     pub fn load(&self, index: u16) -> u8 {

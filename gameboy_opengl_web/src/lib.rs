@@ -9,12 +9,11 @@ extern crate stdweb_derive;
 extern crate gameboy_core;
 
 mod gl_utils;
-mod save_utils;
 mod screen;
 mod web_rtc;
 mod webgl_rendering_context;
 
-use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, StepResult};
+use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc, StepResult};
 use screen::Screen;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -46,7 +45,6 @@ struct EmulatorState {
     js_ctx: Value,
     busy: bool,
     audio_underrun: Option<usize>,
-    audio_buffer: Vec<f32>,
 }
 
 impl EmulatorState {
@@ -67,12 +65,8 @@ impl EmulatorState {
             self.play_audio();
         }
 
-        // save_utils::save_ram_data(
-        //     &emulator,
-        //     ram_str.clone(),
-        //     should_save_to_local.clone(),
-        // );
-        // save_utils::save_timestamp_data(&emulator);
+        self.save_ram_data();
+        self.save_timestamp_data();
         loop {
             match self.controller_receiver.try_recv() {
                 Ok(ControllerEvent::Pressed(button)) => self.controller.press(button),
@@ -110,12 +104,10 @@ impl EmulatorState {
 
     pub fn play_audio(&mut self) {
         let audio_buffer = self.emulator.get_audio_buffer();
-        self.audio_buffer = vec![0.0; audio_buffer.len()];
-        self.audio_buffer.copy_from_slice(audio_buffer);
 
         let audio_buffered: f64 = js! {
             let h = @{&self.js_ctx};
-            var samples = @{unsafe { UnsafeTypedArray::new(&self.audio_buffer) }};
+            var samples = @{unsafe { UnsafeTypedArray::new(audio_buffer) }};
             var sampleRate = 44100;
             var sampleCount = samples.length;
             var latency = 0.032;
@@ -153,8 +145,70 @@ impl EmulatorState {
         } else if audio_buffered < 0.020 {
             self.audio_underrun = Some(std::cmp::max(self.audio_underrun.unwrap_or(0), 1));
         }
+    }
 
-        self.audio_buffer.clear();
+    fn save_ram_data(&mut self) {
+        if *self.should_save_to_local.borrow() && self.emulator.get_cartridge().has_battery() {
+            let name = self.emulator.get_cartridge().get_name();
+            window()
+                .local_storage()
+                .insert(&name, &self.ram_str.borrow())
+                .unwrap();
+            *self.should_save_to_local.borrow_mut() = false;
+        }
+    }
+
+    fn save_timestamp_data(&mut self) {
+        if self.emulator.get_cartridge().has_battery() {
+            let name = format!("{}-timestamp", self.emulator.get_cartridge().get_name());
+            let (rtc_data, last_timestamp) = self.emulator.get_cartridge().get_last_timestamp();
+            let mut rtc_bytes = rtc_data.to_bytes().to_vec();
+            let mut last_timestamp_bytes = u64::to_ne_bytes(last_timestamp).to_vec();
+            rtc_bytes.append(&mut last_timestamp_bytes);
+            let timestamp_data_str: String = rtc_bytes
+                .iter()
+                .map(|byte| format!("{:02x}", byte))
+                .collect();
+            window()
+                .local_storage()
+                .insert(&name, &timestamp_data_str)
+                .unwrap();
+        }
+    }
+
+    fn load_ram_save_data(&mut self) {
+        let cartridge = self.emulator.get_cartridge_mut();
+        if let Some(ram_str) = window().local_storage().get(cartridge.get_name()) {
+            let chars: Vec<char> = ram_str.chars().collect();
+            let bytes: Vec<u8> = chars
+                .chunks(2)
+                .map(|chunk| {
+                    let byte: String = chunk.iter().collect();
+                    u8::from_str_radix(&byte, 16).unwrap()
+                })
+                .collect();
+            cartridge.set_ram(bytes);
+        }
+    }
+
+    fn load_timestamp_data(&mut self) {
+        let cartridge = self.emulator.get_cartridge_mut();
+        let key = format!("{}-timestamp", cartridge.get_name());
+        if let Some(timestamp_str) = window().local_storage().get(&key) {
+            let chars: Vec<char> = timestamp_str.chars().collect();
+            let bytes: Vec<u8> = chars
+                .chunks(2)
+                .map(|chunk| {
+                    let byte: String = chunk.iter().collect();
+                    u8::from_str_radix(&byte, 16).unwrap()
+                })
+                .collect();
+            let rtc = Rtc::from_bytes(&bytes[..5]);
+            let mut timestamp_data = [0; 8];
+            timestamp_data.copy_from_slice(&bytes[5..]);
+            let timestamp = u64::from_ne_bytes(timestamp_data);
+            cartridge.set_last_timestamp(rtc, timestamp);
+        }
     }
 }
 
@@ -288,10 +342,7 @@ pub fn start(rom: Vec<u8>) {
         return h;
     };
 
-    let mut cartridge = Cartridge::from_rom(rom);
-    save_utils::load_ram_save_data(&mut cartridge);
-    save_utils::load_timestamp_data(&mut cartridge);
-
+    let cartridge = Cartridge::from_rom(rom);
     let rtc = Box::new(WebRTC::new());
     let mut emulator = Emulator::from_cartridge(cartridge, rtc);
     let screen = Screen::new();
@@ -303,7 +354,7 @@ pub fn start(rom: Vec<u8>) {
     ));
     set_ram_change_listener(&mut emulator, ram_str.clone(), should_save_to_local.clone());
 
-    let emulator_state = EmulatorState {
+    let mut emulator_state = EmulatorState {
         emulator,
         controller,
         screen,
@@ -316,8 +367,10 @@ pub fn start(rom: Vec<u8>) {
         js_ctx,
         busy: false,
         audio_underrun: None,
-        audio_buffer: Vec::with_capacity(44100),
     };
+
+    emulator_state.load_ram_save_data();
+    emulator_state.load_timestamp_data();
 
     main_loop(Rc::new(RefCell::new(emulator_state)));
 }

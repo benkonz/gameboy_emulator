@@ -1682,13 +1682,8 @@ impl Cpu {
 
     fn di(&mut self) {
         self.pending_enable_interrupts = -1;
-        if self.is_cgb {
-            if self.pending_disable_interrupts == -1 {
-                self.pending_disable_interrupts = 1;
-            }
-        } else {
-            self.pending_disable_interrupts = -1;
-            self.interrupt_enabled = false;
+        if self.pending_disable_interrupts == -1 {
+            self.pending_disable_interrupts = 1;
         }
     }
 

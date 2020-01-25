@@ -157,9 +157,8 @@ impl Sound {
     fn mix_audio(dst: &mut f32, src: f32, volume: i32) {
         let fmax_volume = 1.0f32 / 128f32;
         let fvolume = volume as f32;
-        // what the fuck?
-        let max_audioval = 3.402_823_466e+38f64;
-        let min_audioval = -3.402_823_466e+38f64;
+        let max_audioval = std::f32::MAX as f64;
+        let min_audioval = std::f32::MIN as f64;
 
         let src1 = src * fvolume * fmax_volume;
         let src2 = *dst;

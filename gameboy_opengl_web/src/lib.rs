@@ -102,6 +102,8 @@ impl EmulatorState {
         gl.draw_elements(Gl::TRIANGLES, 6, Gl::UNSIGNED_BYTE, 0);
     }
 
+    // most of this code has been copied from 
+    // https://github.com/koute/pinky
     pub fn play_audio(&mut self) {
         let audio_buffer = self.emulator.get_audio_buffer();
 

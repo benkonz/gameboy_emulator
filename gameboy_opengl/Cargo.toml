@@ -1,6 +1,6 @@
 [package]
 name = "gameboy_opengl"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/benkonz/gameboy_emulator"
@@ -10,10 +10,11 @@ description = "opengl library for use in gameboy emulation with the gameboy_core
 name = "gameboy_emulator"
 
 [dependencies]
-gameboy_core = { path = "../gameboy_core", version = "0.2.6" }
-glutin = "0.22.0-alpha6"
+gameboy_core = { path = "../gameboy_core", version = "0.2.7" }
 clap = "2.33"
 directories = "2.0"
+gl = "0.14.0"
 
-[build-dependencies]
-gl_generator = "0.14"
+[dependencies.sdl2]
+version = "0.33.0"
+features = ["bundled", "static-link"]

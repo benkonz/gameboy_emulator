@@ -116,11 +116,10 @@ impl Cpu {
             let opcode = self.get_n(memory);
             self.instruction_cycle += INSTRUCTION_TIMINGS[opcode as usize];
             self.execute_opcode(opcode, memory);
-        }
-
-        if self.halted {
+        } else {
             self.instruction_cycle = 4;
         }
+
         if self.cgb_speed {
             self.instruction_cycle / 2
         } else {

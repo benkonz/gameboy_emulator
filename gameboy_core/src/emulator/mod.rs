@@ -1,7 +1,9 @@
+pub mod step_result;
 pub mod traits;
 
+use self::step_result::StepResult;
+use self::traits::{PixelMapper, RTC};
 use cpu::Cpu;
-use emulator::traits::{PixelMapper, RTC};
 use gpu::GPU;
 use joypad::Controller;
 use mmu::cartridge::Cartridge;
@@ -27,13 +29,25 @@ impl Emulator {
         }
     }
 
-    pub fn emulate<T: PixelMapper>(&mut self, system: &mut T, controller: &mut Controller) -> bool {
+    pub fn emulate(
+        &mut self,
+        system: &mut impl PixelMapper,
+        controller: &mut Controller,
+    ) -> StepResult {
         let cycles = self.cpu.step(&mut self.memory);
         self.timer.update(cycles, &mut self.memory);
+        let audio_buffer_full = self.memory.get_sound_mut().step(cycles);
         let vblank = self.gpu.step(cycles, &mut self.memory, system);
         controller.update(&mut self.memory);
         self.handle_interrupts();
-        vblank
+
+        if audio_buffer_full {
+            StepResult::AudioBufferFull
+        } else if vblank {
+            StepResult::VBlank
+        } else {
+            StepResult::Nothing
+        }
     }
 
     fn handle_interrupts(&mut self) {
@@ -41,7 +55,6 @@ impl Emulator {
             self.process_interrupt(interrupt);
         }
     }
-    
     fn process_interrupt(&mut self, interrupt: Interrupt) {
         if self.cpu.are_interrupts_enabled() {
             self.cpu.disable_interrupts();
@@ -67,5 +80,9 @@ impl Emulator {
 
     pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
         self.memory.get_cartridge_mut()
+    }
+
+    pub fn get_audio_buffer(&self) -> &[f32] {
+        self.memory.get_sound().get_audio_buffer()
     }
 }

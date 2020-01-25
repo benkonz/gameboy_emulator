@@ -3,9 +3,9 @@
 ![crates.io](https://img.shields.io/crates/v/gameboy_opengl)
 
 This is a GameBoy emulator written in Rust. It can be compiled to native
-and web assembly, see the build section for more details. Sound not supported.
+and web assembly, see the build section for more details.
 
-Emulator supports several hardware types, RTC, gameboy color emulation,
+Emulator supports sound, several hardware types, RTC, gameboy color emulation,
 sprites, and saving to browser local storage (web) and user config directories (native)
 
 The web assembly port is currently hosted [here](https://benkonz.github.io/assets/emulator)

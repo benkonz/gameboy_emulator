@@ -35,6 +35,7 @@ pub struct Cpu {
     interrupt_enabled: bool,
     pending_enable_interrupts: i32,
     pending_disable_interrupts: i32,
+    unhalt_cycles: i32,
     instruction_cycle: i32,
     is_cgb: bool,
     cgb_speed: bool,
@@ -60,6 +61,7 @@ impl Cpu {
             interrupt_enabled: false,
             pending_enable_interrupts: -1,
             pending_disable_interrupts: -1,
+            unhalt_cycles: 0,
             instruction_cycle: 0,
             is_cgb,
             cgb_speed: false,
@@ -67,7 +69,9 @@ impl Cpu {
     }
 
     pub fn unhalt(&mut self) {
-        self.halted = false;
+        if self.halted && self.unhalt_cycles == 0 {
+            self.unhalt_cycles = 12;
+        }
     }
 
     pub fn are_interrupts_enabled(&self) -> bool {
@@ -118,6 +122,13 @@ impl Cpu {
             self.execute_opcode(opcode, memory);
         } else {
             self.instruction_cycle = 4;
+            if self.unhalt_cycles > 0 {
+                self.unhalt_cycles -= self.instruction_cycle;
+                if self.unhalt_cycles <= 0 {
+                    self.unhalt_cycles = 0;
+                    self.halted = false;
+                }
+            }
         }
 
         if self.cgb_speed {

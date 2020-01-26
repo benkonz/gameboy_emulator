@@ -88,7 +88,7 @@ impl WaveChannel {
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
         match address {
-            0xFF1A =>  self.dac_enabled = bit_utils::is_set(value, 7),
+            0xFF1A => self.dac_enabled = bit_utils::is_set(value, 7),
             0xFF1B => self.length_load = value,
             0xFF1C => self.volume_code = (value >> 5) & 0x03,
             0xFF1D => self.timer_load = (self.timer_load & 0x700) | value as u16,

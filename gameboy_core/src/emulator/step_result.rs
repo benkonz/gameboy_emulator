@@ -2,5 +2,5 @@
 pub enum StepResult {
     VBlank,
     AudioBufferFull,
-    Nothing
+    Nothing,
 }

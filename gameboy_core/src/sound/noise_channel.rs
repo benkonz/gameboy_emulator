@@ -43,7 +43,7 @@ impl NoiseChannel {
             timer: 0,
             envelope_running: false,
             lfsr: 0,
-            output_vol: 0
+            output_vol: 0,
         }
     }
 

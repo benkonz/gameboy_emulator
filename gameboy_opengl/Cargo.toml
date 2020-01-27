@@ -1,16 +1,16 @@
 [package]
 name = "gameboy_opengl"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/benkonz/gameboy_emulator"
-description = "opengl library for use in gameboy emulation with the gameboy_core library"
+description = "Native Gameboy emulator written in Rust!"
 
 [[bin]]
 name = "gameboy_emulator"
 
 [dependencies]
-gameboy_core = { path = "../gameboy_core", version = "0.2.7" }
+gameboy_core = { path = "../gameboy_core", version = "0.2.8" }
 clap = "2.33"
 directories = "2.0"
 gl = "0.14.0"

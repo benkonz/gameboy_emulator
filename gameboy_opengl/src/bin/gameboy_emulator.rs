@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate clap;
 extern crate gameboy_opengl;
 
@@ -7,10 +8,10 @@ use std::io;
 use std::io::Read;
 
 fn main() -> io::Result<()> {
-    let matches = App::new("Gameboy Emulator")
-        .version("0.2.0")
-        .author("Benjamin K. <benkonz@protonmail.com>")
-        .about("Gameboy Emulator written in Rust!")
+    let matches = App::new(crate_name!())
+        .version(crate_version!())
+        .author(crate_authors!())
+        .about(crate_description!())
         .arg(
             Arg::with_name("rom filename")
                 .help("rom file to use")

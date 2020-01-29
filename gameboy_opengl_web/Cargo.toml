@@ -1,6 +1,6 @@
 [package]
 name = "gameboy_opengl_web"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/benkonz/gameboy_emulator"

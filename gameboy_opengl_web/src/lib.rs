@@ -26,7 +26,7 @@ use stdweb::web::event::{
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
-use stdweb::{UnsafeTypedArray, Value};
+use stdweb::Value;
 use web_rtc::WebRTC;
 use webgl_rendering_context::WebGLRenderingContext;
 use webgl_rendering_context::*;
@@ -108,14 +108,14 @@ impl EmulatorState {
 
         let audio_buffered: f64 = js! {
             let h = @{&self.js_ctx};
-            var samples = @{unsafe { UnsafeTypedArray::new(audio_buffer) }};
+            var samples = @{TypedArray::<f32>::from(audio_buffer)};
             var sampleRate = 44100;
-            var sampleCount = samples.length;
+            var sampleCount = 4096;
             var latency = 0.032;
 
             var audioBuffer;
             if (h.emptyAudioBuffers.length === 0) {
-                audioBuffer = h.audio.createBuffer(2, sampleCount, sampleRate);
+                audioBuffer = h.audio.createBuffer(2, sampleCount, sampleRate * 2);
             } else {
                 audioBuffer = h.emptyAudioBuffers.pop();
             }

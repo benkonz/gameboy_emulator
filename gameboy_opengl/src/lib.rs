@@ -211,7 +211,7 @@ fn keycode_to_button(keycode: Keycode) -> Option<Button> {
         Keycode::Z => Some(Button::A),
         Keycode::X => Some(Button::B),
         Keycode::Space => Some(Button::Start),
-        Keycode::RShift => Some(Button::Select),
+        Keycode::Return => Some(Button::Select),
         Keycode::Up => Some(Button::Up),
         Keycode::Down => Some(Button::Down),
         Keycode::Left => Some(Button::Left),

@@ -1,5 +1,5 @@
-use gpu::cgb_color::CGBColor;
-use gpu::color::Color;
+use crate::gpu::cgb_color::CGBColor;
+use crate::gpu::color::Color;
 
 pub trait PixelMapper {
     fn map_pixel(&mut self, pixel: usize, color: Color);

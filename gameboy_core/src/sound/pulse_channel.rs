@@ -1,4 +1,4 @@
-use bit_utils;
+use crate::bit_utils;
 
 const DUTY_TABLE: [[bool; 8]; 4] = [
     [false, false, false, false, false, false, false, true],

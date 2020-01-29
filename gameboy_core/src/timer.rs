@@ -1,5 +1,5 @@
-use mmu::interrupt::Interrupt;
-use mmu::{self, Memory};
+use crate::mmu::interrupt::Interrupt;
+use crate::mmu::{self, Memory};
 
 pub struct Timer {}
 

@@ -1,4 +1,4 @@
-use bit_utils;
+use crate::bit_utils;
 
 const DIVISORS: [i32; 8] = [8, 16, 32, 48, 64, 80, 96, 112];
 

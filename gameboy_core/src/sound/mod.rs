@@ -1,4 +1,4 @@
-use bit_utils;
+use crate::bit_utils;
 
 mod noise_channel;
 mod pulse_channel;

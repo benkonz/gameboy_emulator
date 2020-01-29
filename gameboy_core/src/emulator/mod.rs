@@ -3,13 +3,13 @@ pub mod traits;
 
 use self::step_result::StepResult;
 use self::traits::{PixelMapper, RTC};
-use cpu::Cpu;
-use gpu::GPU;
-use joypad::Controller;
-use mmu::cartridge::Cartridge;
-use mmu::interrupt::Interrupt;
-use mmu::Memory;
-use timer::Timer;
+use crate::cpu::Cpu;
+use crate::gpu::GPU;
+use crate::joypad::Controller;
+use crate::mmu::cartridge::Cartridge;
+use crate::mmu::interrupt::Interrupt;
+use crate::mmu::Memory;
+use crate::timer::Timer;
 
 pub struct Emulator {
     cpu: Cpu,

@@ -19,11 +19,11 @@ use self::mbc3::Mbc3;
 use self::mbc5::Mbc5;
 use self::mbc_type::MbcType;
 use self::rom_only::RomOnly;
-use bit_utils;
-use emulator::traits::RTC;
-use gpu::cgb_color::CGBColor;
-use gpu::lcd_control_flag::LcdControlFlag;
-use sound::Sound;
+use crate::bit_utils;
+use crate::emulator::traits::RTC;
+use crate::gpu::cgb_color::CGBColor;
+use crate::gpu::lcd_control_flag::LcdControlFlag;
+use crate::sound::Sound;
 
 pub const SPRITES_START_INDEX: u16 = 0xFE00;
 pub const JOYPAD_INDEX: u16 = 0xFF00;

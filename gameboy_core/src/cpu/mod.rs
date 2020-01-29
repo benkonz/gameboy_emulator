@@ -2,8 +2,8 @@ mod registers;
 
 use self::registers::flag::Flag;
 use self::registers::Registers;
-use bit_utils;
-use mmu::Memory;
+use crate::bit_utils;
+use crate::mmu::Memory;
 
 const INSTRUCTION_TIMINGS: [i32; 256] = [
     4, 12, 8, 8, 4, 4, 8, 4, 20, 8, 8, 8, 4, 4, 8, 4, 4, 12, 8, 8, 4, 4, 8, 4, 12, 8, 8, 8, 4, 4,

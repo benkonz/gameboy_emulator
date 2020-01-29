@@ -1,4 +1,4 @@
-use bit_utils;
+use crate::bit_utils;
 
 pub struct WaveChannel {
     dac_enabled: bool,

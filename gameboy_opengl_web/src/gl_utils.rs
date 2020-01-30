@@ -1,5 +1,5 @@
-use webgl_rendering_context::WebGLRenderingContext;
-use webgl_rendering_context::*;
+use crate::webgl_rendering_context::WebGLRenderingContext;
+use crate::webgl_rendering_context::*;
 
 type Gl = WebGLRenderingContext;
 

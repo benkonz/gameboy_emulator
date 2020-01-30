@@ -15,7 +15,7 @@ mod web_rtc;
 mod webgl_rendering_context;
 
 use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc, StepResult};
-use screen::Screen;
+use crate::screen::Screen;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -27,9 +27,9 @@ use stdweb::web::event::{
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
 use stdweb::Value;
-use web_rtc::WebRTC;
-use webgl_rendering_context::WebGLRenderingContext;
-use webgl_rendering_context::*;
+use crate::web_rtc::WebRTC;
+use crate::webgl_rendering_context::WebGLRenderingContext;
+use crate::webgl_rendering_context::*;
 
 type Gl = WebGLRenderingContext;
 

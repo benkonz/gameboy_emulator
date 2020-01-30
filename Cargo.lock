@@ -384,7 +384,7 @@ dependencies = [
 
 [[package]]
 name = "gameboy_emulator"
-version = "0.2.0"
+version = "0.2.3"
 dependencies = [
  "gameboy_opengl 0.2.3",
  "gameboy_opengl_web 0.2.3",

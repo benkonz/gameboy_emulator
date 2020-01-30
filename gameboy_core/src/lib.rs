@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate bitflags;
-
 mod bit_utils;
 pub mod button;
 pub mod controller_event;

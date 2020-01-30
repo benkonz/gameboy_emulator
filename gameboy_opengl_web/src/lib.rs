@@ -7,15 +7,17 @@ extern crate stdweb;
 extern crate serde_derive;
 #[macro_use]
 extern crate stdweb_derive;
-extern crate gameboy_core;
 
 mod gl_utils;
 mod screen;
 mod web_rtc;
 mod webgl_rendering_context;
 
-use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc, StepResult};
 use crate::screen::Screen;
+use crate::web_rtc::WebRTC;
+use crate::webgl_rendering_context::WebGLRenderingContext;
+use crate::webgl_rendering_context::*;
+use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc, StepResult};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -27,9 +29,6 @@ use stdweb::web::event::{
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
 use stdweb::Value;
-use crate::web_rtc::WebRTC;
-use crate::webgl_rendering_context::WebGLRenderingContext;
-use crate::webgl_rendering_context::*;
 
 type Gl = WebGLRenderingContext;
 

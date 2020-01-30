@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 bitflags! {
     pub struct Buttons : u8 {
         const RIGHT      = 0b0000_0001;

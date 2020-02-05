@@ -1,7 +1,8 @@
 [package]
 name = "gameboy_emulator"
-version = "0.2.0"
-authors = ["Ben Konz <bkonz@unomaha.edu>"]
+version = "0.2.3"
+authors = ["Benjamin Konz <benkonz@protonmail.com>"]
+edition = "2018"
 
 [dependencies]
 

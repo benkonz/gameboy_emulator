@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 bitflags! {
     pub struct SpriteAttributes : u8 {
         const PALETTE_NUMBER_BIT_0  = 0b0000_0001;

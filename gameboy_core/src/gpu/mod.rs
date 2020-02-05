@@ -9,10 +9,10 @@ use self::cgb_color::CGBColor;
 use self::color::Color;
 use self::lcd_control_flag::LcdControlFlag;
 use self::sprite_attributes::SpriteAttributes;
-use bit_utils;
-use emulator::traits::PixelMapper;
-use mmu::interrupt::Interrupt;
-use mmu::{self, Memory};
+use crate::bit_utils;
+use crate::emulator::traits::PixelMapper;
+use crate::mmu::interrupt::Interrupt;
+use crate::mmu::{self, Memory};
 
 const HBLANK: u8 = 0b00;
 const VBLANK: u8 = 0b01;

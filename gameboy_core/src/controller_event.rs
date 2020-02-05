@@ -1,4 +1,4 @@
-use button::Button;
+use crate::button::Button;
 
 #[derive(Copy, Clone)]
 pub enum ControllerEvent {

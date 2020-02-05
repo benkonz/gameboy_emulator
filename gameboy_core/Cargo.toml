@@ -5,6 +5,7 @@ authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/benkonz/gameboy_emulator"
 description = "core library to be used for Gameboy emulation"
+edition = "2018"
 
 [dependencies]
 bitflags = "1.2"

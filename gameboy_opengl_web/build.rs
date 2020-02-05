@@ -1,5 +1,3 @@
-extern crate webgl_generator;
-
 use std::env;
 use std::fs::File;
 use std::path::*;

@@ -5,6 +5,7 @@ authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/benkonz/gameboy_emulator"
 description = "Native Gameboy emulator written in Rust!"
+edition = "2018"
 
 [[bin]]
 name = "gameboy_emulator"

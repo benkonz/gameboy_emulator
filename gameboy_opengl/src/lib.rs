@@ -1,21 +1,16 @@
-extern crate directories;
-extern crate gameboy_core;
-extern crate gl;
-extern crate sdl2;
-
 mod native_rtc;
 mod screen;
 mod shader;
 
+use crate::native_rtc::NativeRTC;
+use crate::screen::Screen;
+use crate::shader::Shader;
 use directories::BaseDirs;
 use gameboy_core::{Button, Cartridge, Controller, Emulator, Rtc, StepResult};
 use gl::types::*;
-use native_rtc::NativeRTC;
-use screen::Screen;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use shader::Shader;
 use std::cell::RefCell;
 use std::ffi::CString;
 use std::fs::{self, OpenOptions};

@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 bitflags! {
     pub struct LcdControlFlag : u8 {
         const BACKGROUND            = 0b0000_0001;

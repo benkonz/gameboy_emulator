@@ -4,6 +4,7 @@ version = "0.2.3"
 authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/benkonz/gameboy_emulator"
+edition = "2018"
 
 [dependencies]
 stdweb = "0.4"

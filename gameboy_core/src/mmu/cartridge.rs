@@ -1,5 +1,5 @@
 use super::mbc_type::MbcType;
-use rtc::Rtc;
+use crate::rtc::Rtc;
 
 pub struct Cartridge {
     rom_banks: i32,

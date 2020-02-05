@@ -1,8 +1,8 @@
 use super::cartridge::Cartridge;
 use super::mbc::Mbc;
-use bit_utils;
-use emulator::traits::RTC;
-use rtc::Rtc;
+use crate::bit_utils;
+use crate::emulator::traits::RTC;
+use crate::rtc::Rtc;
 
 pub struct Mbc3 {
     cartridge: Cartridge,

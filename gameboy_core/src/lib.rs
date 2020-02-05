@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate bitflags;
-
 mod bit_utils;
 pub mod button;
 pub mod controller_event;
@@ -13,13 +10,13 @@ pub mod rtc;
 pub mod sound;
 mod timer;
 
-pub use button::Button;
-pub use controller_event::ControllerEvent;
-pub use emulator::step_result::StepResult;
-pub use emulator::traits::{PixelMapper, RTC};
-pub use emulator::Emulator;
-pub use gpu::cgb_color::CGBColor;
-pub use gpu::color::Color;
-pub use joypad::Controller;
-pub use mmu::cartridge::Cartridge;
-pub use rtc::Rtc;
+pub use crate::button::Button;
+pub use crate::controller_event::ControllerEvent;
+pub use crate::emulator::step_result::StepResult;
+pub use crate::emulator::traits::{PixelMapper, RTC};
+pub use crate::emulator::Emulator;
+pub use crate::gpu::cgb_color::CGBColor;
+pub use crate::gpu::color::Color;
+pub use crate::joypad::Controller;
+pub use crate::mmu::cartridge::Cartridge;
+pub use crate::rtc::Rtc;

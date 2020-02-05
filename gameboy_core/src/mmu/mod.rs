@@ -241,7 +241,7 @@ impl Memory {
                 BACKGROUND_PALETTE_INDEX => self.load(index),
                 OBJECT_PALETTE_0_INDEX => self.load(index),
                 OBJECT_PALETTE_1_INDEX => self.load(index),
-                VRAM_BANK_INDEX => self.load(index),
+                VRAM_BANK_INDEX => self.load(index) | 0xFE,
                 CGB_BACKGROUND_PALETTE_INDEX_INDEX | CGB_SPRITE_PALETTE_INDEX_INDEX => {
                     if self.is_cgb {
                         self.load(index) | 0x40
@@ -252,6 +252,13 @@ impl Memory {
                 CGB_BACKGROUND_PALETTE_DATA_INDEX | CGB_SPRITE_PALETTE_DATA_INDEX => {
                     if self.is_cgb {
                         self.load(index) | 0xF8
+                    } else {
+                        0xFF
+                    }
+                }
+                0xFF70 => {
+                    if self.is_cgb {
+                        self.load(index) | 0x40
                     } else {
                         0xFF
                     }

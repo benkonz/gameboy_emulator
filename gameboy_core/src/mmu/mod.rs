@@ -593,12 +593,12 @@ impl Memory {
 
     fn update_color_palette(&mut self, background: bool, value: u8) {
         let hl = bit_utils::is_set(value, 0);
-        let index = (value >> 1) & 0x03;
-        let pal = (value >> 3) & 0x07;
+        let index = ((value >> 1) & 0x03) as usize;
+        let pal = ((value >> 3) & 0x07) as usize;
         let color = if background {
-            self.cgb_background_palettes[pal as usize][index as usize]
+            self.cgb_background_palettes[pal][index]
         } else {
-            self.cgb_sprite_palettes[pal as usize][index as usize]
+            self.cgb_sprite_palettes[pal][index]
         };
 
         let final_value = if hl {
@@ -608,7 +608,7 @@ impl Memory {
         } else {
             let half_green_low = (color.green & 0x07) << 5;
             let red = color.red & 0x1F;
-            (red | half_green_low)
+            red | half_green_low
         };
 
         if background {
@@ -625,8 +625,8 @@ impl Memory {
             self.load(CGB_SPRITE_PALETTE_INDEX_INDEX)
         };
         let hl = bit_utils::is_set(ps, 0);
-        let index = (ps >> 1) & 0x03;
-        let pal = (ps >> 3) & 0x07;
+        let index = ((ps >> 1) & 0x03) as usize;
+        let pal = ((ps >> 3) & 0x07) as usize;
         let increment = bit_utils::is_set(ps, 7);
 
         if increment {
@@ -647,30 +647,26 @@ impl Memory {
             let half_green_hi = (value & 0x03) << 3;
 
             if background {
-                self.cgb_background_palettes[pal as usize][index as usize].blue = blue;
-                self.cgb_background_palettes[pal as usize][index as usize].green =
-                    (self.cgb_background_palettes[pal as usize][index as usize].green & 0x07)
-                        | half_green_hi;
+                self.cgb_background_palettes[pal][index].blue = blue;
+                self.cgb_background_palettes[pal][index].green =
+                    (self.cgb_background_palettes[pal][index].green & 0x07) | half_green_hi;
             } else {
-                self.cgb_sprite_palettes[pal as usize][index as usize].blue = blue;
-                self.cgb_sprite_palettes[pal as usize][index as usize].green =
-                    (self.cgb_sprite_palettes[pal as usize][index as usize].green & 0x07)
-                        | half_green_hi;
+                self.cgb_sprite_palettes[pal][index].blue = blue;
+                self.cgb_sprite_palettes[pal][index].green =
+                    (self.cgb_sprite_palettes[pal][index].green & 0x07) | half_green_hi;
             }
         } else {
             let half_green_low = (value >> 5) & 0x07;
             let red = value & 0x1F;
 
             if background {
-                self.cgb_background_palettes[pal as usize][index as usize].red = red;
-                self.cgb_background_palettes[pal as usize][index as usize].green =
-                    (self.cgb_background_palettes[pal as usize][index as usize].green & 0x18)
-                        | half_green_low;
+                self.cgb_background_palettes[pal][index].red = red;
+                self.cgb_background_palettes[pal][index].green =
+                    (self.cgb_background_palettes[pal][index].green & 0x18) | half_green_low;
             } else {
-                self.cgb_sprite_palettes[pal as usize][index as usize].red = red;
-                self.cgb_sprite_palettes[pal as usize][index as usize].green =
-                    (self.cgb_sprite_palettes[pal as usize][index as usize].green & 0x18)
-                        | half_green_low;
+                self.cgb_sprite_palettes[pal][index].red = red;
+                self.cgb_sprite_palettes[pal][index].green =
+                    (self.cgb_sprite_palettes[pal][index].green & 0x18) | half_green_low;
             }
         }
     }

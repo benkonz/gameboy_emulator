@@ -41,7 +41,7 @@ impl WaveChannel {
             if self.enabled && self.dac_enabled {
                 let position = self.position_counter / 2;
                 let mut output_byte = self.wave_table[position as usize];
-                let high_bit = (self.position_counter & 0x1) == 0;
+                let high_bit =  !bit_utils::is_set(self.position_counter, 0);
                 if high_bit {
                     output_byte >>= 4;
                 }
@@ -115,7 +115,7 @@ impl WaveChannel {
     }
 
     pub fn get_status(&self) -> bool {
-        self.length_counter > 0
+        self.enabled && self.dac_enabled
     }
 
     pub fn reset_length_counter(&mut self) {

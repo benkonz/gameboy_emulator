@@ -716,7 +716,7 @@ impl GPU {
     }
 
     fn cgb_color_to_byte(color: u8) -> u8 {
-        ((color as u16) * 0xFF / 0x1F) as u8
+        ((color as i32 * 255) / 31) as u8
     }
 
     fn gb_color_from_palette(palette: u8, pixel: u8) -> Color {

@@ -328,7 +328,7 @@ impl GPU {
                 let map_tile = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
                     i32::from(memory.read_cgb_lcd_ram(map_tile_addr, 0))
                 } else {
-                    (i32::from(memory.read_cgb_lcd_ram(map_tile_addr, 0) as i8) + 128)
+                    i32::from(memory.read_cgb_lcd_ram(map_tile_addr, 0) as i8) + 128
                 };
 
                 let cgb_tile_attrs = if self.is_cgb {
@@ -337,7 +337,7 @@ impl GPU {
                     BgAttributes::empty()
                 };
                 let cgb_tile_pal = if self.is_cgb {
-                    cgb_tile_attrs.bits() & 0b111
+                    cgb_tile_attrs.bits() & 0x07
                 } else {
                     0
                 };
@@ -477,7 +477,7 @@ impl GPU {
             let tile = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
                 i32::from(memory.read_cgb_lcd_ram((map + y_32 + x) as u16, 0))
             } else {
-                (i32::from(memory.read_cgb_lcd_ram((map + y_32 + x) as u16, 0) as i8) + 128)
+                i32::from(memory.read_cgb_lcd_ram((map + y_32 + x) as u16, 0) as i8) + 128
             };
 
             let cgb_tile_attrs = if self.is_cgb {
@@ -488,7 +488,7 @@ impl GPU {
                 BgAttributes::empty()
             };
             let cgb_tile_pal = if self.is_cgb {
-                cgb_tile_attrs.bits() & 0b111
+                cgb_tile_attrs.bits() & 0x07
             } else {
                 0
             };
@@ -716,7 +716,7 @@ impl GPU {
     }
 
     fn cgb_color_to_byte(color: u8) -> u8 {
-        ((color as u16) * 0xFF / 0x1F) as u8
+        ((color as i32 * 255) / 31) as u8
     }
 
     fn gb_color_from_palette(palette: u8, pixel: u8) -> Color {

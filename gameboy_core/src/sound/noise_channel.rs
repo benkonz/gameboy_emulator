@@ -157,7 +157,7 @@ impl NoiseChannel {
     }
 
     pub fn get_status(&self) -> bool {
-        self.length_counter > 0
+        self.enabled && self.dac_enabled
     }
 
     pub fn reset_length_counter(&mut self) {

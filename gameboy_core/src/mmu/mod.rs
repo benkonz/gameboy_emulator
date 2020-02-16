@@ -218,10 +218,12 @@ impl Memory {
             0xFE00..=0xFEFF => self.oam[index as usize - 0xFE00],
             0xFF00..=0xFFFF => match index {
                 JOYPAD_INDEX => self.get_joypad_state(),
+                0xFF03 => 0xFF,
                 DIVIDER_INDEX => self.load(index),
                 SELECTABLE_TIMER_INDEX => self.load(index),
                 TIMER_RESET_INDEX => self.load(index),
                 TIMER_CONTROL_INDEX => self.load(index) | 0xF8,
+                0xFF0E => 0xFF,
                 INTERRUPT_FLAGS_INDEX => self.load(index) | 0xE0,
                 APU_INDEX_START..=APU_INDEX_END => self.sound.read_byte(index),
                 LCD_CONTROL_INDEX => self.load(index),
@@ -238,6 +240,7 @@ impl Memory {
                 LYC_INDEX => self.load(index),
                 WINDOW_Y_INDEX => self.load(index),
                 WINDOW_X_INDEX => self.load(index),
+                0xFF4C => 0xFF,
                 BACKGROUND_PALETTE_INDEX => self.load(index),
                 OBJECT_PALETTE_0_INDEX => self.load(index),
                 OBJECT_PALETTE_1_INDEX => self.load(index),
@@ -259,6 +262,20 @@ impl Memory {
                 0xFF70 => {
                     if self.is_cgb {
                         self.load(index) | 0x40
+                    } else {
+                        0xFF
+                    }
+                }
+                0xFF76 => {
+                    if self.is_cgb {
+                        0x00
+                    } else {
+                        0xFF
+                    }
+                }
+                0xFF77 => {
+                    if self.is_cgb {
+                        0x00
                     } else {
                         0xFF
                     }
@@ -361,22 +378,31 @@ impl Memory {
                     self.store(index, value);
                 }
                 0xFF55 if self.is_cgb => self.do_cgb_dma(value),
-                CGB_BACKGROUND_PALETTE_INDEX_INDEX if self.is_cgb => {
+                CGB_BACKGROUND_PALETTE_INDEX_INDEX => {
                     self.store(index, value);
-                    self.update_color_palette(true, value);
+                    if self.is_cgb {
+                        self.update_color_palette(true, value);
+                    }
                 }
-                CGB_BACKGROUND_PALETTE_DATA_INDEX if self.is_cgb => {
+                CGB_BACKGROUND_PALETTE_DATA_INDEX => {
                     self.store(index, value);
-                    self.set_color_palette(true, value);
+                    if self.is_cgb {
+                        self.set_color_palette(true, value);
+                    }
                 }
-                CGB_SPRITE_PALETTE_INDEX_INDEX if self.is_cgb => {
+                CGB_SPRITE_PALETTE_INDEX_INDEX => {
                     self.store(index, value);
-                    self.update_color_palette(false, value);
+                    if self.is_cgb {
+                        self.update_color_palette(false, value);
+                    }
                 }
-                CGB_SPRITE_PALETTE_DATA_INDEX if self.is_cgb => {
+                CGB_SPRITE_PALETTE_DATA_INDEX => {
                     self.store(index, value);
-                    self.set_color_palette(false, value);
+                    if self.is_cgb {
+                        self.set_color_palette(false, value);
+                    }
                 }
+                0xFF6C => self.store(0xFF6C, value | 0xFE),
                 0xFF70 if self.is_cgb => {
                     let value = value & 0x07;
                     self.wram_bank = value as i32;
@@ -385,6 +411,7 @@ impl Memory {
                     }
                     self.store(index, value);
                 }
+                0xFF75 => self.store(0xFF75, value | 0x8F),
                 INTERRUPT_ENABLE_INDEX => self.store(index, value & 0x1F),
                 _ => self.store(index, value),
             },

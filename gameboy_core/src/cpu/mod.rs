@@ -6,39 +6,72 @@ use crate::bit_utils;
 use crate::mmu::Memory;
 
 const INSTRUCTION_TIMINGS: [i32; 256] = [
-    4, 12, 8, 8, 4, 4, 8, 4, 20, 8, 8, 8, 4, 4, 8, 4, 4, 12, 8, 8, 4, 4, 8, 4, 12, 8, 8, 8, 4, 4,
-    8, 4, 8, 12, 8, 8, 4, 4, 8, 4, 8, 8, 8, 8, 4, 4, 8, 4, 8, 12, 8, 8, 12, 12, 12, 4, 8, 8, 8, 8,
-    4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4,
-    4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 8, 8, 8, 8, 8, 8, 4, 8, 4, 4, 4, 4,
-    4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4,
-    4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4,
-    4, 4, 8, 4, 8, 12, 12, 16, 12, 16, 8, 16, 8, 16, 12, 4, 12, 24, 8, 16, 8, 12, 12, 0, 12, 16, 8,
-    16, 8, 16, 12, 0, 12, 0, 8, 16, 12, 12, 8, 0, 0, 16, 8, 16, 16, 4, 16, 0, 0, 0, 8, 16, 12, 12,
-    8, 4, 0, 16, 8, 16, 12, 8, 16, 4, 0, 0, 8, 16,
+    1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1, 1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+    2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1, 2, 3, 2, 2, 3, 3, 3, 1, 2, 2, 2, 2, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    2, 3, 3, 4, 3, 4, 2, 4, 2, 4, 3, 0, 3, 6, 2, 4, 2, 3, 3, 0, 3, 4, 2, 4, 2, 4, 3, 0, 3, 0, 2, 4,
+    3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4, 3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4,
 ];
 
 const CB_INSTRUCTION_TIMINGS: [i32; 256] = [
-    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8,
-    16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8,
-    8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8,
-    8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8,
-    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8,
-    16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8,
-    8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8,
-    8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
-    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+];
+
+const BRANCH_INSTRUCTION_TIMINGS: [i32; 256] = [
+    1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1, 1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+    3, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1, 3, 3, 2, 2, 3, 3, 3, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+    5, 3, 4, 4, 6, 4, 2, 4, 5, 4, 4, 0, 6, 6, 2, 4, 5, 3, 4, 0, 6, 4, 2, 4, 5, 4, 4, 0, 6, 0, 2, 4,
+    3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4, 3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4,
+];
+
+const ACCURATE_INSTRUCTION_CYCLES: [i32; 256] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+];
+
+const ACCURATE_CB_INSTRUCTION_CYCLES: [i32; 256] = [
+    0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0,
+    0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0,
+    0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+    0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+    0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0,
+    0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0,
+    0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0,
+    0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0,
 ];
 
 pub struct Cpu {
     registers: Registers,
     halted: bool,
     interrupt_enabled: bool,
-    pending_enable_interrupts: i32,
-    pending_disable_interrupts: i32,
+    pending_ime_cycles: i32,
     unhalt_cycles: i32,
     instruction_cycle: i32,
     is_cgb: bool,
     cgb_speed: bool,
+    branch_taken: bool,
+    accurage_opcode_state: i32,
+    read_cache: u8,
 }
 
 impl Cpu {
@@ -59,12 +92,14 @@ impl Cpu {
             registers,
             halted: false,
             interrupt_enabled: false,
-            pending_enable_interrupts: -1,
-            pending_disable_interrupts: -1,
+            pending_ime_cycles: 0,
             unhalt_cycles: 0,
             instruction_cycle: 0,
             is_cgb,
             cgb_speed: false,
+            branch_taken: false,
+            accurage_opcode_state: 0,
+            read_cache: 0,
         }
     }
 
@@ -98,29 +133,7 @@ impl Cpu {
 
     pub fn step(&mut self, memory: &mut Memory) -> i32 {
         self.instruction_cycle = 0;
-        if !self.halted {
-            if self.pending_enable_interrupts != -1 {
-                let pending_enable_interrupts = self.pending_enable_interrupts;
-                self.pending_enable_interrupts -= 1;
-                if pending_enable_interrupts == 0 {
-                    self.pending_enable_interrupts = -1;
-                    self.interrupt_enabled = true;
-                }
-            }
-
-            if self.pending_disable_interrupts != -1 {
-                let pending_disable_interrupts = self.pending_disable_interrupts;
-                self.pending_disable_interrupts -= 1;
-                if pending_disable_interrupts == 0 {
-                    self.pending_disable_interrupts = -1;
-                    self.interrupt_enabled = false;
-                }
-            }
-
-            let opcode = self.get_n(memory);
-            self.instruction_cycle += INSTRUCTION_TIMINGS[opcode as usize];
-            self.execute_opcode(opcode, memory);
-        } else {
+        if self.accurage_opcode_state == 0 && self.halted {
             self.instruction_cycle = 4;
             if self.unhalt_cycles > 0 {
                 self.unhalt_cycles -= self.instruction_cycle;
@@ -131,11 +144,88 @@ impl Cpu {
             }
         }
 
-        if self.cgb_speed {
-            self.instruction_cycle / 2
-        } else {
-            self.instruction_cycle
+        if !self.halted {
+            let mut opcode = self.get_n(memory);
+
+            let is_cb = opcode == 0xCB;
+
+            let (accurate_opcode_cycles, machine_cycles) = if is_cb {
+                opcode = self.get_n(memory);
+                (ACCURATE_CB_INSTRUCTION_CYCLES, CB_INSTRUCTION_TIMINGS)
+            } else {
+                (ACCURATE_INSTRUCTION_CYCLES, INSTRUCTION_TIMINGS)
+            };
+
+            if accurate_opcode_cycles[opcode as usize] != 0 && self.accurage_opcode_state == 0 {
+                let cycles_left = if accurate_opcode_cycles[opcode as usize] < 3 {
+                    2
+                } else {
+                    3
+                };
+                self.instruction_cycle += (machine_cycles[opcode as usize] - cycles_left) * 4;
+                self.accurage_opcode_state = 1;
+                self.registers.pc -= 1;
+                if is_cb {
+                    self.registers.pc -= 1;
+                }
+
+                if self.cgb_speed {
+                    self.instruction_cycle /= 2;
+                }
+
+                return self.instruction_cycle;
+            }
+
+            if is_cb {
+                self.ext_ops(opcode, memory);
+            } else {
+                self.execute_opcode(opcode, memory);
+            }
+
+            if self.branch_taken {
+                self.branch_taken = false;
+                self.instruction_cycle += BRANCH_INSTRUCTION_TIMINGS[opcode as usize] * 4;
+            } else {
+                match self.accurage_opcode_state {
+                    0 => {
+                        self.instruction_cycle += machine_cycles[opcode as usize] * 4;
+                    }
+                    1 => {
+                        if accurate_opcode_cycles[opcode as usize] == 3 {
+                            self.instruction_cycle += 4;
+                            self.accurage_opcode_state = 2;
+                            self.registers.pc -= 1;
+                            if is_cb {
+                                self.registers.pc -= 1;
+                            }
+                        } else {
+                            self.instruction_cycle += 2 * 4;
+                            self.accurage_opcode_state = 0;
+                        }
+                    }
+                    2 => {
+                        self.instruction_cycle += 2 * 4;
+                        self.accurage_opcode_state = 0;
+                    }
+                    _ => (),
+                };
+            }
         }
+
+        if self.cgb_speed {
+            self.instruction_cycle /= 2;
+        }
+
+        if self.accurage_opcode_state == 0 && self.pending_ime_cycles > 0 {
+            self.pending_ime_cycles -= self.instruction_cycle;
+
+            if self.pending_ime_cycles <= 0 {
+                self.pending_ime_cycles = 0;
+                self.interrupt_enabled = true;
+            }
+        }
+
+        self.instruction_cycle
     }
 
     fn execute_opcode(&mut self, opcode: u8, memory: &mut Memory) {
@@ -1005,14 +1095,9 @@ impl Cpu {
     }
 
     fn halt(&mut self) {
-        // if interrupt_enabled is about to be set, set it and repeat the halt instruction
-        if self.pending_enable_interrupts != -1 {
+        if self.pending_ime_cycles > 0 {
+            self.pending_ime_cycles = 0;
             self.interrupt_enabled = true;
-            self.pending_enable_interrupts = -1;
-            self.registers.pc -= 1;
-        } else if self.pending_disable_interrupts != -1 {
-            self.interrupt_enabled = false;
-            self.pending_enable_interrupts = -1;
             self.registers.pc -= 1;
         } else {
             self.halted = true;
@@ -1327,8 +1412,6 @@ impl Cpu {
     }
 
     fn ext_ops(&mut self, opcode: u8, memory: &mut Memory) {
-        self.instruction_cycle = CB_INSTRUCTION_TIMINGS[opcode as usize];
-
         match opcode {
             0x00 => self.rlc_b(),
             0x01 => self.rlc_c(),
@@ -1645,10 +1728,7 @@ impl Cpu {
 
     fn ret_i(&mut self, memory: &Memory) {
         self.registers.pc = self.pop(memory);
-        self.pending_disable_interrupts = -1;
-        self.pending_enable_interrupts = -1;
         self.interrupt_enabled = true;
-        self.instruction_cycle = 16;
     }
 
     fn jp_c_nn(&mut self, nn: u16) {
@@ -1691,10 +1771,8 @@ impl Cpu {
     }
 
     fn di(&mut self) {
-        self.pending_enable_interrupts = -1;
-        if self.pending_disable_interrupts == -1 {
-            self.pending_disable_interrupts = 1;
-        }
+        self.interrupt_enabled = false;
+        self.pending_ime_cycles = 0;
     }
 
     fn push_af(&mut self, memory: &mut Memory) {
@@ -1707,10 +1785,8 @@ impl Cpu {
     }
 
     fn ei(&mut self) {
-        self.pending_disable_interrupts = -1;
-        if self.pending_enable_interrupts == -1 {
-            self.pending_enable_interrupts = 1;
-        }
+        let ei_cycles = INSTRUCTION_TIMINGS[0xFB] * 4;
+        self.pending_ime_cycles = ei_cycles + 1;
     }
 
     fn rst_38(&mut self, memory: &mut Memory) {
@@ -3070,8 +3146,11 @@ impl Cpu {
     }
 
     fn inc_hl_ref(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.inc(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.inc(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
     }
 
@@ -3096,8 +3175,11 @@ impl Cpu {
     }
 
     fn dec_hl_ref(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.dec(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.dec(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
     }
 
@@ -3165,8 +3247,11 @@ impl Cpu {
     }
 
     fn rlc_hl(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.rlc(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.rlc(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
 
         self.registers.f.set(Flag::ZERO, n == 0);
@@ -3199,8 +3284,11 @@ impl Cpu {
     }
 
     fn rrc_hl(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.rrc(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.rrc(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
 
         self.registers.f.set(Flag::ZERO, n == 0);
@@ -3236,8 +3324,11 @@ impl Cpu {
     }
 
     fn rr_hl(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.rr(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.rr(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
 
         self.registers.f.set(Flag::ZERO, n == 0);
@@ -3272,8 +3363,11 @@ impl Cpu {
     }
 
     fn rl_hl(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.rl(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.rl(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
 
         self.registers.f.set(Flag::ZERO, n == 0);
@@ -3296,8 +3390,11 @@ impl Cpu {
     }
 
     fn sla_hl(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.sla(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.sla(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
     }
 
@@ -3320,8 +3417,11 @@ impl Cpu {
     }
 
     fn sra_hl(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.sra(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.sra(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
     }
 
@@ -3341,8 +3441,11 @@ impl Cpu {
     }
 
     fn srl_hl(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.srl(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.srl(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
     }
 
@@ -3372,8 +3475,11 @@ impl Cpu {
     }
 
     fn set_i_hl(&mut self, i: u8, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.set_i(i, n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.set_i(i, self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
     }
 
@@ -3386,8 +3492,11 @@ impl Cpu {
     }
 
     fn res_i_hl(&mut self, i: u8, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.res_i(i, n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.res_i(i, self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
     }
 
@@ -3402,7 +3511,7 @@ impl Cpu {
         if cc {
             self.push(self.registers.pc, memory);
             self.registers.pc = nn;
-            self.instruction_cycle = 24;
+            self.branch_taken = true;
         }
     }
 
@@ -3413,27 +3522,27 @@ impl Cpu {
 
     fn ret(&mut self, memory: &Memory) {
         self.registers.pc = self.pop(memory);
-        self.instruction_cycle = 16;
+        self.branch_taken = true;
     }
 
     fn ret_cc(&mut self, cc: bool, memory: &Memory) {
         if cc {
             self.registers.pc = self.pop(memory);
-            self.instruction_cycle = 20;
+            self.branch_taken = true;
         }
     }
 
     fn jp_cc_nn(&mut self, cc: bool, nn: u16) {
         if cc {
             self.registers.pc = nn;
-            self.instruction_cycle = 16;
+            self.branch_taken = true;
         }
     }
 
     fn jr_cc_n(&mut self, cc: bool, n: u8) {
         if cc {
             self.registers.pc = self.registers.pc.wrapping_add(i16::from(n as i8) as u16);
-            self.instruction_cycle = 12;
+            self.branch_taken = true;
         }
     }
 
@@ -3458,8 +3567,11 @@ impl Cpu {
     }
 
     fn swap_hl(&mut self, memory: &mut Memory) {
-        let mut n = memory.read_byte(self.registers.get_hl());
-        n = self.swap(n);
+        if self.accurage_opcode_state == 1 {
+            self.read_cache = memory.read_byte(self.registers.get_hl());
+            return;
+        }
+        let n = self.swap(self.read_cache);
         memory.write_byte(self.registers.get_hl(), n);
     }
 }

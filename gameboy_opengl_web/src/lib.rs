@@ -196,23 +196,49 @@ impl EmulatorState {
             }));
     }
 }
-
-pub fn start(rom: Vec<u8>) {
+#[derive(Serialize)]
+pub struct DOMInfo{
+    pub up_button_id:String,
+    pub down_button_id:String,
+    pub left_button_id:String,
+    pub right_button_id:String,
+    pub up_left_button_id:String,
+    pub up_right_button_id:String,
+    pub down_left_button_id:String,
+    pub down_right_button_id:String,
+    pub a_button_id:String,
+    pub b_button_id:String,
+    pub start_button_id:String,
+    pub select_button_id:String,
+}
+pub fn start(rom: Vec<u8>,dom_ids: DOMInfo) {
     let (sender, receiver) = mpsc::channel();
     let should_save_to_local = Rc::new(RefCell::new(false));
 
-    let up_btn = document().get_element_by_id("up-btn").unwrap();
-    let down_btn = document().get_element_by_id("down-btn").unwrap();
-    let left_btn = document().get_element_by_id("left-btn").unwrap();
-    let right_btn = document().get_element_by_id("right-btn").unwrap();
-    let up_left_btn = document().get_element_by_id("up-left-btn").unwrap();
-    let up_right_btn = document().get_element_by_id("up-right-btn").unwrap();
-    let down_left_btn = document().get_element_by_id("down-left-btn").unwrap();
-    let down_right_btn = document().get_element_by_id("down-right-btn").unwrap();
-    let a_btn = document().get_element_by_id("a-btn").unwrap();
-    let b_btn = document().get_element_by_id("b-btn").unwrap();
-    let start_btn = document().get_element_by_id("start-btn").unwrap();
-    let select_btn = document().get_element_by_id("select-btn").unwrap();
+    let up_btn = document().get_element_by_id(
+        dom_ids.up_button_id.as_str()).unwrap();
+    let down_btn = document().get_element_by_id(
+        dom_ids.down_button_id.as_str()).unwrap();
+    let left_btn = document().get_element_by_id(
+        dom_ids.left_button_id.as_str()).unwrap();
+    let right_btn = document().get_element_by_id(
+        dom_ids.right_button_id.as_str()).unwrap();
+    let up_left_btn = document().get_element_by_id(
+        dom_ids.up_left_button_id.as_str()).unwrap();
+    let up_right_btn = document().get_element_by_id(
+        dom_ids.up_right_button_id.as_str()).unwrap();
+    let down_left_btn = document().get_element_by_id(
+        dom_ids.down_left_button_id.as_str()).unwrap();
+    let down_right_btn = document().get_element_by_id(
+        dom_ids.down_right_button_id.as_str()).unwrap();
+    let a_btn = document().get_element_by_id(
+        dom_ids.a_button_id.as_str()).unwrap();
+    let b_btn = document().get_element_by_id(
+        dom_ids.b_button_id.as_str()).unwrap();
+    let start_btn = document().get_element_by_id(
+        dom_ids.start_button_id.as_str()).unwrap();
+    let select_btn = document().get_element_by_id(
+        dom_ids.select_button_id.as_str()).unwrap();
 
     add_button_event_listeners(&up_btn, Button::Up, sender.clone());
     add_button_event_listeners(&down_btn, Button::Down, sender.clone());

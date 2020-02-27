@@ -3,13 +3,16 @@ extern crate gameboy_opengl_web;
 #[cfg(target_arch = "wasm32")]
 pub use gameboy_opengl_web::DOMInfo;
 #[cfg(target_arch = "wasm32")]
+#[macro_use]
 extern crate stdweb;
 #[cfg(target_arch = "wasm32")]
 use stdweb::js_export;
+#[cfg(target_arch = "wasm32")]
+use stdweb::JsSerialize;
+
 
 #[cfg(not(target_arch = "wasm32"))]
 extern crate gameboy_opengl;
-
 
 
 /// # Safety
@@ -24,6 +27,17 @@ pub unsafe fn start(pointer: *mut u8, length: usize) {
 
 #[cfg(target_arch = "wasm32")]
 #[js_export]
-fn start(rom: Vec<u8>,dom_ids: DOMInfo) {
-    gameboy_opengl_web::start(rom,dom_ids);
+pub fn start(rom: Vec<u8>,dom_ids: String) {
+    js!{
+        alert("hello?");
+    }
+    let res = serde_json::from_str(dom_ids.as_str());
+    if res.is_ok(){
+        
+        gameboy_opengl_web::start(rom,res.ok().unwrap());
+    }else{
+        js!{
+            alert("bad parse");
+        }
+    }
 }

@@ -68,7 +68,7 @@
     							start_button_id:"start-btn",
     							select_button_id:"select-btn",
 							}
-							emulator.start(rom);
+							emulator.start(rom,JSON.stringify(dom_info));
 						};
 
 						reader.readAsArrayBuffer(this.files[0]);

@@ -210,6 +210,7 @@ pub struct DOMInfo{
     pub b_button_id:String,
     pub start_button_id:String,
     pub select_button_id:String,
+    pub canvas_id:String,
 }
 pub fn start(rom: Vec<u8>,dom_ids: DOMInfo) {
     let (sender, receiver) = mpsc::channel();
@@ -286,7 +287,7 @@ pub fn start(rom: Vec<u8>,dom_ids: DOMInfo) {
     });
 
     let canvas: CanvasElement = document()
-        .get_element_by_id("canvas")
+        .get_element_by_id(dom_ids.canvas_id.as_str())
         .unwrap()
         .try_into()
         .unwrap();

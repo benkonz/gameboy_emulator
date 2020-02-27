@@ -28,16 +28,13 @@ pub unsafe fn start(pointer: *mut u8, length: usize) {
 #[cfg(target_arch = "wasm32")]
 #[js_export]
 pub fn start(rom: Vec<u8>,dom_ids: String) {
-    js!{
-        alert("hello?");
-    }
     let res = serde_json::from_str(dom_ids.as_str());
     if res.is_ok(){
         
         gameboy_opengl_web::start(rom,res.ok().unwrap());
     }else{
         js!{
-            alert("bad parse");
+            console.log("bad parse");
         }
     }
 }

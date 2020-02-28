@@ -55,18 +55,12 @@
 							const bytes = new Uint8Array(arrayBuffer);
 							const rom = Array.prototype.slice.call(bytes);
 							let dom_info = {
-    							up_button_id:"up-btn",
-    							down_button_id:"down-btn",
-    							left_button_id:"left-btn",
-    							right_button_id:"right-btn",
-    							up_left_button_id:"up-left-btn",
-    							up_right_button_id:"up-right-btn",
-    							down_left_button_id:"down-left-btn",
-    							down_right_button_id:"down-right-btn",
-    							a_button_id:"a-btn",
-    							b_button_id:"b-btn",
-    							start_button_id:"start-btn",
-								select_button_id:"select-btn",
+    							up_button_id:"up-btn", down_button_id:"down-btn",
+    							left_button_id:"left-btn", right_button_id:"right-btn",
+    							up_left_button_id:"up-left-btn", up_right_button_id:"up-right-btn",
+    							down_left_button_id:"down-left-btn", down_right_button_id:"down-right-btn",
+    							a_button_id:"a-btn", b_button_id:"b-btn",
+    							start_button_id:"start-btn", select_button_id:"select-btn",
 								canvas_id:"canvas",
 							}
 							emulator.start(rom,JSON.stringify(dom_info));

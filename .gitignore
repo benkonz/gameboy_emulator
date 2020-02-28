@@ -12,4 +12,3 @@ dist/
 node_modules/
 
 .DS_Store
-Cargo.lock

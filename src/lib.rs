@@ -10,10 +10,8 @@ use stdweb::js_export;
 #[cfg(target_arch = "wasm32")]
 use stdweb::JsSerialize;
 
-
 #[cfg(not(target_arch = "wasm32"))]
 extern crate gameboy_opengl;
-
 
 /// # Safety
 ///
@@ -27,13 +25,12 @@ pub unsafe fn start(pointer: *mut u8, length: usize) {
 
 #[cfg(target_arch = "wasm32")]
 #[js_export]
-pub fn start(rom: Vec<u8>,dom_ids: String) {
+pub fn start(rom: Vec<u8>, dom_ids: String) {
     let res = serde_json::from_str(dom_ids.as_str());
-    if res.is_ok(){
-        
-        gameboy_opengl_web::start(rom,res.ok().unwrap());
-    }else{
-        js!{
+    if res.is_ok() {
+        gameboy_opengl_web::start(rom, res.ok().unwrap());
+    } else {
+        js! {
             console.log("bad parse");
         }
     }

@@ -377,36 +377,36 @@ dependencies = [
 
 [[package]]
 name = "gameboy_core"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "gameboy_emulator"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
- "gameboy_opengl 0.2.3",
- "gameboy_opengl_web 0.2.3",
+ "gameboy_opengl 0.2.4",
+ "gameboy_opengl_web 0.2.4",
  "stdweb 0.4.20 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "gameboy_opengl"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "directories 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "gameboy_core 0.2.8",
+ "gameboy_core 0.2.9",
  "gl 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sdl2 0.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "gameboy_opengl_web"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
- "gameboy_core 0.2.8",
+ "gameboy_core 0.2.9",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "stdweb 0.4.20 (registry+https://github.com/rust-lang/crates.io-index)",

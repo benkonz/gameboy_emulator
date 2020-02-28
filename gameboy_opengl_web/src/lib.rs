@@ -196,7 +196,7 @@ impl EmulatorState {
             }));
     }
 }
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DOMInfo {
     up_button_id: String,
     down_button_id: String,

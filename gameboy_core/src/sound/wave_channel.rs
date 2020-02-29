@@ -41,7 +41,7 @@ impl WaveChannel {
             if self.enabled && self.dac_enabled {
                 let position = self.position_counter / 2;
                 let mut output_byte = self.wave_table[position as usize];
-                let high_bit = !bit_utils::is_set(self.position_counter, 0);
+                let high_bit =  !bit_utils::is_set(self.position_counter, 0);
                 if high_bit {
                     output_byte >>= 4;
                 }

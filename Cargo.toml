@@ -19,3 +19,7 @@ gameboy_opengl = { path = "gameboy_opengl", version = "0.2.5" }
 [lib]
 name = "gameboy_lib"
 crate-type = ["cdylib"]
+
+[profile.release]
+lto = true
+codegen-units = 1

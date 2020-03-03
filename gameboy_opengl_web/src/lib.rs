@@ -118,7 +118,9 @@ impl EmulatorState {
             var h = @{&self.js_ctx};
             var frame_buffer = @{TypedArray::<u8>::from(frame_buffer)};
             h.buffer.set(frame_buffer);
-            h.ctx.putImageData(h.img, 0, 0);
+            createImageBitmap(h.img).then(function (bitmap) {
+                h.ctx.drawImage(bitmap, 0, 0, 160, 144, 0, 0, h.canvas.width, h.canvas.height);
+            });
         }
     }
 
@@ -284,7 +286,9 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
     let js_ctx = js! {
         var h = {};
         var canvas = @{canvas};
+        h.canvas = canvas;
         h.ctx = canvas.getContext("2d");
+        h.ctx.imageSmoothingEnabled = false;
         h.img = h.ctx.createImageData(160, 144);
         h.buffer = new Uint8Array(h.img.data.buffer);
         h.audio = new AudioContext();

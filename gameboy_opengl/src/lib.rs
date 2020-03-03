@@ -8,8 +8,7 @@ use gameboy_core::{Button, Cartridge, Controller, Emulator, Rtc, StepResult};
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::Color;
-use sdl2::pixels::PixelFormatEnum;
+use sdl2::pixels::{Color, PixelFormatEnum};
 use std::cell::RefCell;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -30,11 +29,6 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     device.resume();
 
     let video_subsystem = sdl_context.video().unwrap();
-
-    let gl_attr = video_subsystem.gl_attr();
-    gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-    gl_attr.set_context_version(3, 3);
-
     let window = video_subsystem
         .window("Gameboy Emulator", 900, 700)
         .position_centered()

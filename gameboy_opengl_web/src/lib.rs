@@ -5,18 +5,12 @@
 extern crate stdweb;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate stdweb_derive;
 
-mod gl_utils;
 mod screen;
 mod web_rtc;
-mod webgl_rendering_context;
 
 use crate::screen::Screen;
 use crate::web_rtc::WebRTC;
-use crate::webgl_rendering_context::WebGLRenderingContext;
-use crate::webgl_rendering_context::*;
 use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc, StepResult};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -30,8 +24,6 @@ use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, Element, IEventTarget, TypedArray};
 use stdweb::Value;
 
-type Gl = WebGLRenderingContext;
-
 struct EmulatorState {
     emulator: Emulator,
     controller: Controller,
@@ -39,9 +31,6 @@ struct EmulatorState {
     controller_receiver: mpsc::Receiver<ControllerEvent>,
     should_save_to_local: Rc<RefCell<bool>>,
     ram_str: Rc<RefCell<String>>,
-    gl: Gl,
-    shader_program: WebGLProgram,
-    texture: WebGLTexture,
     js_ctx: Value,
     busy: bool,
     audio_underrun: Option<usize>,
@@ -74,30 +63,6 @@ impl EmulatorState {
         }
 
         step_result
-    }
-
-    pub fn render(&self) {
-        let gl = &self.gl;
-        let frame_buffer: &[u8] = self.screen.get_frame_buffer();
-        gl.bind_texture(Gl::TEXTURE_2D, Some(&self.texture));
-        gl.tex_image2_d(
-            Gl::TEXTURE_2D,
-            0,
-            Gl::RGB as i32,
-            160,
-            144,
-            0,
-            Gl::RGB,
-            Gl::UNSIGNED_BYTE,
-            Some(frame_buffer),
-        );
-        gl.active_texture(Gl::TEXTURE0);
-        gl.use_program(Some(&self.shader_program));
-        let screen_uniform = gl
-            .get_uniform_location(&self.shader_program, "screen")
-            .unwrap();
-        gl.uniform1i(Some(&screen_uniform), 0);
-        gl.draw_elements(Gl::TRIANGLES, 6, Gl::UNSIGNED_BYTE, 0);
     }
 
     // most of this code has been copied from
@@ -144,6 +109,16 @@ impl EmulatorState {
             self.audio_underrun = Some(std::cmp::max(self.audio_underrun.unwrap_or(0), 2));
         } else if audio_buffered < 0.020 {
             self.audio_underrun = Some(std::cmp::max(self.audio_underrun.unwrap_or(0), 1));
+        }
+    }
+
+    pub fn render(&self) {
+        let frame_buffer: &[u8] = self.screen.get_frame_buffer();
+        js! {
+            var h = @{&self.js_ctx};
+            var frame_buffer = @{TypedArray::<u8>::from(frame_buffer)};
+            h.buffer.set(frame_buffer);
+            h.ctx.putImageData(h.img, 0, 0);
         }
     }
 
@@ -196,6 +171,7 @@ impl EmulatorState {
             }));
     }
 }
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct DOMInfo {
     up_button_id: String,
@@ -212,6 +188,7 @@ pub struct DOMInfo {
     select_button_id: String,
     canvas_id: String,
 }
+
 pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
     let (sender, receiver) = mpsc::channel();
     let should_save_to_local = Rc::new(RefCell::new(false));
@@ -304,62 +281,12 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
         .try_into()
         .unwrap();
 
-    let gl: Gl = canvas.get_context().unwrap();
-    gl.clear_color(1.0, 0.0, 0.0, 1.0);
-    gl.clear(Gl::COLOR_BUFFER_BIT);
-
-    let verticies: [f32; 12] = [
-        1.0, 1.0, 0.0, 1.0, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, 1.0, 0.0,
-    ];
-    let vertex_array = TypedArray::<f32>::from(verticies.as_ref()).buffer();
-    let vertex_buffer = gl.create_buffer().unwrap();
-    gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&vertex_buffer));
-    gl.buffer_data_1(Gl::ARRAY_BUFFER, Some(&vertex_array), Gl::STATIC_DRAW);
-
-    let texture_coordinate: [f32; 8] = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
-    let texture_array = TypedArray::<f32>::from(texture_coordinate.as_ref()).buffer();
-    let texture_buffer = gl.create_buffer().unwrap();
-    gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&texture_buffer));
-    gl.buffer_data_1(Gl::ARRAY_BUFFER, Some(&texture_array), Gl::STATIC_DRAW);
-
-    let indicies: [u8; 6] = [0, 1, 3, 1, 2, 3];
-    let indicies_array = TypedArray::<u8>::from(indicies.as_ref()).buffer();
-    let index_buffer = gl.create_buffer().unwrap();
-    gl.bind_buffer(Gl::ELEMENT_ARRAY_BUFFER, Some(&index_buffer));
-    gl.buffer_data_1(
-        Gl::ELEMENT_ARRAY_BUFFER,
-        Some(&indicies_array),
-        Gl::STATIC_DRAW,
-    );
-
-    let vertex_source: &str = include_str!("shaders/vertex.glsl");
-    let vert_shader = gl_utils::compile_shader(&gl, Gl::VERTEX_SHADER, vertex_source).unwrap();
-
-    let fragment_source: &str = include_str!("shaders/fragment.glsl");
-    let frag_shader = gl_utils::compile_shader(&gl, Gl::FRAGMENT_SHADER, fragment_source).unwrap();
-
-    let shader_program = gl_utils::link_program(&gl, &vert_shader, &frag_shader);
-
-    gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&vertex_buffer));
-    let pos_attr = gl.get_attrib_location(&shader_program, "aPos") as u32;
-    gl.vertex_attrib_pointer(pos_attr, 3, Gl::FLOAT, false, 0, 0);
-    gl.enable_vertex_attrib_array(pos_attr);
-
-    gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&texture_buffer));
-    let tex_attr = gl.get_attrib_location(&shader_program, "aTexCoord") as u32;
-    gl.vertex_attrib_pointer(tex_attr, 2, Gl::FLOAT, false, 0, 0);
-    gl.enable_vertex_attrib_array(tex_attr);
-
-    let texture = gl.create_texture().unwrap();
-    gl.bind_texture(Gl::TEXTURE_2D, Some(&texture));
-
-    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MIN_FILTER, Gl::NEAREST as i32);
-    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MAG_FILTER, Gl::NEAREST as i32);
-    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_S, Gl::CLAMP_TO_EDGE as i32);
-    gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::CLAMP_TO_EDGE as i32);
-
     let js_ctx = js! {
         var h = {};
+        var canvas = @{canvas};
+        h.ctx = canvas.getContext("2d");
+        h.img = h.ctx.createImageData(160, 144);
+        h.buffer = new Uint8Array(h.img.data.buffer);
         h.audio = new AudioContext();
         h.emptyAudioBuffers = [];
         h.playTimestamp = 0;
@@ -385,9 +312,6 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
         controller_receiver: receiver,
         should_save_to_local,
         ram_str,
-        gl,
-        shader_program,
-        texture,
         js_ctx,
         busy: false,
         audio_underrun: None,

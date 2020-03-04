@@ -14,7 +14,6 @@ name = "gameboy_emulator"
 gameboy_core = { path = "../gameboy_core", version = "0.3.0" }
 clap = "2.33"
 directories = "2.0"
-gl = "0.14.0"
 
 [dependencies.sdl2]
 version = "0.33.0"

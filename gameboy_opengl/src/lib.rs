@@ -1,32 +1,19 @@
 mod native_rtc;
 mod screen;
-mod shader;
 
 use crate::native_rtc::NativeRTC;
 use crate::screen::Screen;
-use crate::shader::Shader;
 use directories::BaseDirs;
 use gameboy_core::{Button, Cartridge, Controller, Emulator, Rtc, StepResult};
-use gl::types::*;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::pixels::{Color, PixelFormatEnum};
 use std::cell::RefCell;
-use std::ffi::CString;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::os::raw::c_void;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::{mem, ptr};
-
-const VERTEX_SOURCE: &str = include_str!("shaders/vertex.glsl");
-const FRAGMENT_SOURCE: &str = include_str!("shaders/fragment.glsl");
-const VERTICIES: [f32; 20] = [
-    1.0, 1.0, 0.0, 1.0, 1.0, 1.0, -1.0, 0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 1.0, 0.0,
-    0.0, 1.0,
-];
-const INDICIES: [u32; 6] = [0, 1, 3, 1, 2, 3];
 
 pub fn start(rom: Vec<u8>) -> Result<(), String> {
     let sdl_context = sdl2::init().unwrap();
@@ -42,76 +29,22 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     device.resume();
 
     let video_subsystem = sdl_context.video().unwrap();
-
-    let gl_attr = video_subsystem.gl_attr();
-    gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-    gl_attr.set_context_version(3, 3);
-
     let window = video_subsystem
         .window("Gameboy Emulator", 900, 700)
+        .position_centered()
         .resizable()
         .opengl()
         .build()
         .unwrap();
 
-    let _ctx = window.gl_create_context().unwrap();
-    gl::load_with(|s| video_subsystem.gl_get_proc_address(s) as *const _);
+    let mut canvas = window.into_canvas().present_vsync().build().unwrap();
+    let texture_creator = canvas.texture_creator();
+    let mut texture = texture_creator
+        .create_texture_streaming(PixelFormatEnum::RGB24, 160, 144)
+        .unwrap();
 
-    let shader = Shader::new(VERTEX_SOURCE, FRAGMENT_SOURCE);
-    let (mut vao, mut vbo, mut ebo, mut texture) = (0, 0, 0, 0);
-
-    unsafe {
-        //setup vertex data
-        gl::GenVertexArrays(1, &mut vao);
-        gl::GenBuffers(1, &mut vbo);
-        gl::GenBuffers(1, &mut ebo);
-
-        gl::BindVertexArray(vao);
-
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-        gl::BufferData(
-            gl::ARRAY_BUFFER,
-            (VERTICIES.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-            VERTICIES.as_ptr() as *const c_void,
-            gl::STATIC_DRAW,
-        );
-
-        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-        gl::BufferData(
-            gl::ELEMENT_ARRAY_BUFFER,
-            (INDICIES.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-            INDICIES.as_ptr() as *const c_void,
-            gl::STATIC_DRAW,
-        );
-
-        let stride = 5 * mem::size_of::<GLfloat>() as GLsizei;
-
-        //position attribute
-        gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, ptr::null());
-        gl::EnableVertexAttribArray(0);
-
-        //texture attribute
-        gl::VertexAttribPointer(
-            1,
-            2,
-            gl::FLOAT,
-            gl::FALSE,
-            stride,
-            (3 * mem::size_of::<GLfloat>()) as *const c_void,
-        );
-        gl::EnableVertexAttribArray(1);
-
-        //load and create texture
-        gl::GenTextures(1, &mut texture);
-        gl::BindTexture(gl::TEXTURE_2D, texture);
-
-        //set texture wrapping params
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-        //set texture filtering params
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
-    }
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
+    canvas.clear();
 
     let mut cartridge = Cartridge::from_rom(rom);
     load_ram_save_data(&mut cartridge);
@@ -140,18 +73,17 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
             match step_result {
                 StepResult::VBlank => {
                     let frame_buffer = screen.get_frame_buffer();
-                    draw_texture(texture, &shader, frame_buffer);
-                    unsafe {
-                        gl::BindVertexArray(vao);
-                        gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
-                        gl::BindVertexArray(0);
-                    }
-                    window.gl_swap_window();
+                    texture
+                        .with_lock(None, |buffer, _| buffer.clone_from_slice(frame_buffer))
+                        .unwrap();
+                    canvas.clear();
+                    canvas.copy(&texture, None, None).unwrap();
+                    canvas.present();
                     break;
                 }
                 StepResult::AudioBufferFull => {
                     let audio_buffer = emulator.get_audio_buffer();
-                    while device.size() > (audio_buffer.len() * mem::size_of::<f32>()) as u32 {
+                    while device.size() > (audio_buffer.len() * std::mem::size_of::<f32>()) as u32 {
                         timer_subsystem.delay(1);
                     }
                     device.queue(audio_buffer);
@@ -222,33 +154,6 @@ fn get_ram_saves_path() -> Option<PathBuf> {
         .join("gameboy_emulator")
         .join("ram_saves");
     Some(path_buf)
-}
-
-fn draw_texture(texture: GLuint, shader: &Shader, frame_buffer: &[u8]) {
-    let screen_uniform_str = CString::new("screen").unwrap();
-
-    unsafe {
-        gl::ClearColor(0.0, 0.0, 0.0, 1.0);
-        gl::Clear(gl::COLOR_BUFFER_BIT);
-        gl::BindTexture(gl::TEXTURE_2D, texture);
-        gl::TexImage2D(
-            gl::TEXTURE_2D,
-            0,
-            gl::RGB as i32,
-            160,
-            144,
-            0,
-            gl::RGB,
-            gl::UNSIGNED_BYTE,
-            frame_buffer.as_ptr() as *const c_void,
-        );
-        gl::GenerateMipmap(gl::TEXTURE_2D);
-        gl::ActiveTexture(gl::TEXTURE0);
-        shader.use_program();
-
-        let screen_uniform = gl::GetUniformLocation(shader.program, screen_uniform_str.as_ptr());
-        gl::Uniform1i(screen_uniform, 0);
-    }
 }
 
 fn load_ram_save_data(cartridge: &mut Cartridge) {

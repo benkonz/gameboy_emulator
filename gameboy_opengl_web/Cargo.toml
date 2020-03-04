@@ -13,6 +13,3 @@ serde_derive = "1.0"
 stdweb-derive = "0.5"
 gameboy_core = { path = "../gameboy_core", version = "0.3.0" }
 wasm-bindgen = {version="0.2.58",features=["serde-serialize"]}
-
-[build-dependencies]
-webgl_generator = "0.2"

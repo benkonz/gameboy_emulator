@@ -19,7 +19,7 @@ pub fn start(rom: Vec<u8>, dom_ids: String) {
         Ok(dom_info) => gameboy_opengl_web::start(rom, dom_info),
         Err(err) => {
             let msg = format!("{:?}", err);
-            console!(log, "bad parse: ", msg);
+            console!(error, "bad parse: ", msg);
         }
     }
 }

@@ -16,39 +16,43 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 pub fn start(rom: Vec<u8>) -> Result<(), String> {
-    let sdl_context = sdl2::init().unwrap();
-    let mut timer_subsystem = sdl_context.timer().unwrap();
+    let sdl_context = sdl2::init()?;
+    let mut timer_subsystem = sdl_context.timer()?;
 
-    let audio_subsystem = sdl_context.audio().unwrap();
+    let audio_subsystem = sdl_context.audio()?;
     let desired_spec = AudioSpecDesired {
         freq: Some(44_100),
         channels: Some(2),
         samples: Some(4096),
     };
-    let device = audio_subsystem.open_queue(None, &desired_spec).unwrap();
+    let device = audio_subsystem.open_queue(None, &desired_spec)?;
     device.resume();
 
-    let video_subsystem = sdl_context.video().unwrap();
+    let video_subsystem = sdl_context.video()?;
     let window = video_subsystem
         .window("Gameboy Emulator", 900, 700)
         .position_centered()
         .resizable()
         .opengl()
         .build()
-        .unwrap();
+        .map_err(|e| format!("{:?}", e))?;
 
-    let mut canvas = window.into_canvas().present_vsync().build().unwrap();
+    let mut canvas = window
+        .into_canvas()
+        .present_vsync()
+        .build()
+        .map_err(|e| format!("{:?}", e))?;
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator
         .create_texture_streaming(PixelFormatEnum::RGB24, 160, 144)
-        .unwrap();
+        .map_err(|e| format!("{:?}", e))?;
 
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
 
     let mut cartridge = Cartridge::from_rom(rom);
-    load_ram_save_data(&mut cartridge);
-    load_timestamp_data(&mut cartridge);
+    load_ram_save_data(&mut cartridge).map_err(|e| format!("{:?}", e))?;
+    load_timestamp_data(&mut cartridge).map_err(|e| format!("{:?}", e))?;
 
     let rtc = Box::new(NativeRTC::new());
     let mut emulator = Emulator::from_cartridge(cartridge, rtc);
@@ -73,11 +77,9 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
             match step_result {
                 StepResult::VBlank => {
                     let frame_buffer = screen.get_frame_buffer();
-                    texture
-                        .with_lock(None, |buffer, _| buffer.clone_from_slice(frame_buffer))
-                        .unwrap();
+                    texture.with_lock(None, |buffer, _| buffer.clone_from_slice(frame_buffer))?;
                     canvas.clear();
-                    canvas.copy(&texture, None, None).unwrap();
+                    canvas.copy(&texture, None, None)?;
                     canvas.present();
                     break;
                 }
@@ -95,14 +97,16 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
 
         if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
             if let Some(ref mut ram_save_file) = ram_save_file {
-                save_ram_data(emulator.get_cartridge(), ram_save_file);
+                save_ram_data(emulator.get_cartridge(), ram_save_file)
+                    .map_err(|e| format!("{:?}", e))?;
             }
             *ram_changed.borrow_mut() = false;
         }
 
         if emulator.get_cartridge().has_rtc() {
             if let Some(ref mut timestamp_save_file) = timestamp_save_file {
-                save_timestamp_data(emulator.get_cartridge(), timestamp_save_file);
+                save_timestamp_data(emulator.get_cartridge(), timestamp_save_file)
+                    .map_err(|e| format!("{:?}", e))?;
             }
         }
 
@@ -156,44 +160,44 @@ fn get_ram_saves_path() -> Option<PathBuf> {
     Some(path_buf)
 }
 
-fn load_ram_save_data(cartridge: &mut Cartridge) {
+fn load_ram_save_data(cartridge: &mut Cartridge) -> std::io::Result<()> {
     if cartridge.has_battery() {
         if let Some(ram_saves_dir) = get_ram_saves_path() {
             let ram_save_file = ram_saves_dir.join(format!("{}.bin", cartridge.get_name()));
             if ram_save_file.exists() {
-                let mut ram_save_file = OpenOptions::new().read(true).open(ram_save_file).unwrap();
+                let mut ram_save_file = OpenOptions::new().read(true).open(ram_save_file)?;
                 if let Ok(metadata) = ram_save_file.metadata() {
                     // sometimes two different roms have the same name,
                     // so we make sure that the ram length is the same before reading
                     if metadata.len() == cartridge.get_ram().len() as u64 {
-                        ram_save_file.read_exact(cartridge.get_ram_mut()).unwrap();
+                        ram_save_file.read_exact(cartridge.get_ram_mut())?;
                     }
                 }
             }
         }
     }
+    Ok(())
 }
 
-fn load_timestamp_data(cartridge: &mut Cartridge) {
+fn load_timestamp_data(cartridge: &mut Cartridge) -> std::io::Result<()> {
     if cartridge.has_rtc() {
         if let Some(ram_saves_dir) = get_ram_saves_path() {
             let timestamp_save_file =
                 ram_saves_dir.join(format!("{}-timestamp.bin", cartridge.get_name()));
             if timestamp_save_file.exists() {
-                let mut timestamp_save_file = OpenOptions::new()
-                    .read(true)
-                    .open(timestamp_save_file)
-                    .unwrap();
+                let mut timestamp_save_file =
+                    OpenOptions::new().read(true).open(timestamp_save_file)?;
                 let mut rtc_data = [0; 5];
-                timestamp_save_file.read_exact(&mut rtc_data).unwrap();
+                timestamp_save_file.read_exact(&mut rtc_data)?;
                 let mut timestamp_data = [0; 8];
-                timestamp_save_file.read_exact(&mut timestamp_data).unwrap();
+                timestamp_save_file.read_exact(&mut timestamp_data)?;
                 let last_rtc = Rtc::from_bytes(&rtc_data);
                 let last_timestamp = u64::from_ne_bytes(timestamp_data);
                 cartridge.set_last_timestamp(last_rtc, last_timestamp);
             }
         }
     }
+    Ok(())
 }
 
 fn get_ram_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
@@ -235,19 +239,27 @@ fn get_timestamp_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
     }
 }
 
-fn save_ram_data<T: Write + Seek>(cartridge: &Cartridge, ram_save_file: &mut T) {
+fn save_ram_data<T: Write + Seek>(
+    cartridge: &Cartridge,
+    ram_save_file: &mut T,
+) -> std::io::Result<()> {
     if cartridge.has_battery() {
         let ram = cartridge.get_ram();
-        ram_save_file.seek(SeekFrom::Start(0)).unwrap();
-        ram_save_file.write_all(ram).unwrap();
+        ram_save_file.seek(SeekFrom::Start(0))?;
+        ram_save_file.write_all(ram)?;
     }
+    Ok(())
 }
 
-fn save_timestamp_data<T: Write + Seek>(cartridge: &Cartridge, timestamp_save_file: &mut T) {
+fn save_timestamp_data<T: Write + Seek>(
+    cartridge: &Cartridge,
+    timestamp_save_file: &mut T,
+) -> std::io::Result<()> {
     let (rtc_data, rtc_last_time) = cartridge.get_last_timestamp();
     let mut rtc_data = rtc_data.to_bytes().to_vec();
     let mut rtc_last_time_data = rtc_last_time.to_ne_bytes().to_vec();
     rtc_data.append(&mut rtc_last_time_data);
-    timestamp_save_file.seek(SeekFrom::Start(0)).unwrap();
-    timestamp_save_file.write_all(&rtc_data).unwrap();
+    timestamp_save_file.seek(SeekFrom::Start(0))?;
+    timestamp_save_file.write_all(&rtc_data)?;
+    Ok(())
 }

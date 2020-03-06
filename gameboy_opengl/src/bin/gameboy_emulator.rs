@@ -1,13 +1,11 @@
 #[macro_use]
 extern crate clap;
-extern crate gameboy_opengl;
 
 use clap::{App, Arg};
 use std::fs::File;
-use std::io;
 use std::io::Read;
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), String> {
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
@@ -21,10 +19,10 @@ fn main() -> io::Result<()> {
         .get_matches();
 
     let rom_filename = matches.value_of("rom filename").unwrap();
-    let mut file = File::open(rom_filename)?;
+    let mut file = File::open(rom_filename).map_err(|e| format!("{:?}", e))?;
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    gameboy_opengl::start(buffer).unwrap();
+    file.read_to_end(&mut buffer).map_err(|e| format!("{:?}", e))?;
+    gameboy_opengl::start(buffer)?;
 
     Ok(())
 }

@@ -21,7 +21,8 @@ fn main() -> Result<(), String> {
     let rom_filename = matches.value_of("rom filename").unwrap();
     let mut file = File::open(rom_filename).map_err(|e| format!("{:?}", e))?;
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).map_err(|e| format!("{:?}", e))?;
+    file.read_to_end(&mut buffer)
+        .map_err(|e| format!("{:?}", e))?;
     gameboy_opengl::start(buffer)?;
 
     Ok(())

@@ -14,10 +14,11 @@ use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::time::Duration;
 
 pub fn start(rom: Vec<u8>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
-    let mut timer_subsystem = sdl_context.timer()?;
+    let _timer_subsystem = sdl_context.timer()?;
 
     let audio_subsystem = sdl_context.audio()?;
     let desired_spec = AudioSpecDesired {
@@ -86,7 +87,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                 StepResult::AudioBufferFull => {
                     let audio_buffer = emulator.get_audio_buffer();
                     while device.size() > (audio_buffer.len() * std::mem::size_of::<f32>()) as u32 {
-                        timer_subsystem.delay(1);
+                        std::thread::sleep(Duration::from_millis(1));
                     }
                     device.queue(audio_buffer);
                     break;
@@ -204,7 +205,7 @@ fn get_ram_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
     if cartridge.has_battery() {
         let ram_saves_path = get_ram_saves_path()?;
         if !ram_saves_path.exists() {
-            fs::create_dir_all(&ram_saves_path).unwrap();
+            fs::create_dir_all(&ram_saves_path).ok()?;
         }
         let ram_save_file_path = ram_saves_path.join(format!("{}.bin", cartridge.get_name()));
         Some(
@@ -212,7 +213,7 @@ fn get_ram_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
                 .write(true)
                 .create(true)
                 .open(ram_save_file_path)
-                .unwrap(),
+                .ok()?,
         )
     } else {
         None
@@ -223,7 +224,7 @@ fn get_timestamp_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
     if cartridge.has_rtc() {
         let ram_saves_path = get_ram_saves_path()?;
         if !ram_saves_path.exists() {
-            fs::create_dir_all(&ram_saves_path).unwrap();
+            fs::create_dir_all(&ram_saves_path).ok()?;
         }
         let timestamp_save_file_path =
             ram_saves_path.join(format!("{}-timestamp.bin", cartridge.get_name()));
@@ -232,7 +233,7 @@ fn get_timestamp_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
                 .write(true)
                 .create(true)
                 .open(timestamp_save_file_path)
-                .unwrap(),
+                .ok()?,
         )
     } else {
         None

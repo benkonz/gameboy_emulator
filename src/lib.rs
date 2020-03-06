@@ -1,15 +1,6 @@
 #[cfg(target_arch = "wasm32")]
-extern crate gameboy_opengl_web;
-#[cfg(target_arch = "wasm32")]
-pub use gameboy_opengl_web::DOMInfo;
-#[cfg(target_arch = "wasm32")]
 #[macro_use]
 extern crate stdweb;
-#[cfg(target_arch = "wasm32")]
-use stdweb::js_export;
-
-#[cfg(not(target_arch = "wasm32"))]
-extern crate gameboy_opengl;
 
 /// # Safety
 ///
@@ -28,7 +19,7 @@ pub fn start(rom: Vec<u8>, dom_ids: String) {
         Ok(dom_info) => gameboy_opengl_web::start(rom, dom_info),
         Err(err) => {
             let msg = format!("{:?}", err);
-            console!(log, "bad parse: ", msg);
+            console!(error, "bad parse: ", msg);
         }
     }
 }

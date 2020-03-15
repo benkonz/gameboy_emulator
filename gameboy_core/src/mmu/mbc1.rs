@@ -3,11 +3,11 @@ use super::mbc::Mbc;
 
 pub struct Mbc1 {
     cartridge: Cartridge,
-    selected_rom_bank: u8,
-    selected_eram_bank: u8,
+    selected_rom_bank: usize,
+    selected_eram_bank: usize,
     in_ram_banking_mode: bool,
     external_ram_enabled: bool,
-    higher_rom_bank_bits: u8,
+    higher_rom_bank_bits: usize,
     ram_change_callback: Box<dyn FnMut(usize, u8)>,
 }
 
@@ -20,13 +20,13 @@ impl Mbc for Mbc1 {
             }
             0x4000..=0x7FFF => {
                 let rom = self.cartridge.get_rom();
-                let offset = self.selected_rom_bank as usize * 0x4000;
+                let offset = self.selected_rom_bank * 0x4000;
                 rom[index as usize - 0x4000 + offset]
             }
             0xA000..=0xBFFF => {
                 if self.external_ram_enabled {
                     let selected_bank = if self.in_ram_banking_mode {
-                        self.selected_eram_bank as usize
+                        self.selected_eram_bank
                     } else {
                         0
                     };
@@ -51,9 +51,10 @@ impl Mbc for Mbc1 {
             }
             0x2000..=0x3FFF => {
                 if self.in_ram_banking_mode {
-                    self.selected_rom_bank = value & 0x1F;
+                    self.selected_rom_bank = usize::from(value & 0x1F);
                 } else {
-                    self.selected_rom_bank = (value & 0x1F) | (self.higher_rom_bank_bits << 5);
+                    self.selected_rom_bank =
+                        usize::from(value & 0x1F) | (self.higher_rom_bank_bits << 5);
                 }
 
                 if self.selected_rom_bank == 0x00
@@ -64,14 +65,14 @@ impl Mbc for Mbc1 {
                     self.selected_rom_bank += 1;
                 }
 
-                self.selected_rom_bank &= (self.cartridge.get_rom_banks() - 1) as u8;
+                self.selected_rom_bank &= self.cartridge.get_rom_banks() - 1;
             }
             0x4000..=0x5FFF => {
                 if self.in_ram_banking_mode {
-                    self.selected_eram_bank = value & 0x03;
-                    self.selected_eram_bank &= (self.cartridge.get_ram_banks() - 1) as u8;
+                    self.selected_eram_bank = usize::from(value & 0x03);
+                    self.selected_eram_bank &= self.cartridge.get_ram_banks() - 1;
                 } else {
-                    self.higher_rom_bank_bits = value & 0x03;
+                    self.higher_rom_bank_bits = usize::from(value & 0x03);
                     self.selected_rom_bank =
                         (self.selected_rom_bank & 0x1F) | (self.higher_rom_bank_bits << 5);
 
@@ -82,7 +83,7 @@ impl Mbc for Mbc1 {
                     {
                         self.selected_rom_bank += 1;
                     }
-                    self.selected_rom_bank &= (self.cartridge.get_rom_banks() - 1) as u8;
+                    self.selected_rom_bank &= self.cartridge.get_rom_banks() - 1;
                 }
             }
             0x6000..=0x7FFF => {
@@ -93,7 +94,7 @@ impl Mbc for Mbc1 {
             0xA000..=0xBFFF => {
                 if self.external_ram_enabled {
                     let selected_bank = if self.in_ram_banking_mode {
-                        self.selected_eram_bank as usize
+                        self.selected_eram_bank
                     } else {
                         0
                     };

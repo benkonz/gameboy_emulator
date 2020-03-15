@@ -56,7 +56,7 @@ impl Mbc for Mbc5 {
             0xA000..=0xBFFF => {
                 if self.external_ram_enabled && self.cartridge.get_ram_size() > 0 {
                     let ram = self.cartridge.get_ram_mut();
-                    let offset = self.selected_eram_bank as usize;
+                    let offset = self.selected_eram_bank as usize * 0x2000;
                     let address = index as usize - 0xA000 + offset;
                     ram[address] = value;
 

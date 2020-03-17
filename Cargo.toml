@@ -8,12 +8,13 @@ edition = "2018"
 
 [target.wasm32-unknown-unknown.dependencies]
 gameboy_opengl_web = { path = "gameboy_opengl_web", version = "0.2.4" }
+
 stdweb = "0.4"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_derive = "1.0.0"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gameboy_opengl = { path = "gameboy_opengl", version = "0.2.4" }
-
+LibIO = {path="lib_io",version="0.1.0"}
 [workspace]
 
 [lib]

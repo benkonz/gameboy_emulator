@@ -20,3 +20,29 @@ pub use crate::gpu::color::Color;
 pub use crate::joypad::Controller;
 pub use crate::mmu::cartridge::Cartridge;
 pub use crate::rtc::Rtc;
+
+pub struct Gameboy {
+    emulator: Emulator,
+}
+impl Gameboy {
+    pub fn from_rom(rom: Vec<u8>,rtc:Box<dyn RTC>) -> Gameboy {
+        Gameboy {
+            emulator: Emulator::from_cartridge(Cartridge::from_rom(rom), rtc),
+        }
+    }
+    pub fn emulate(&mut self,system: &mut impl PixelMapper,controller: &mut Controller)->emulator::step_result::StepResult{
+        self.emulator.emulate(system, controller)
+    }
+    pub fn get_audio_buffer(&self)->&[f32]{
+        self.emulator.get_audio_buffer()
+    }
+    pub fn get_cartridge(&self)->&Cartridge{
+        self.emulator.get_cartridge()
+    }
+    pub fn get_cartridge_mut(&mut self)->&mut Cartridge{
+        self.emulator.get_cartridge_mut()
+    }
+    pub fn set_ram_change_callback(&mut self,f: Box<dyn FnMut(usize, u8)>){
+        self.emulator.set_ram_change_callback(f)
+    }
+}

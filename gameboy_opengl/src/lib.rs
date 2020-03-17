@@ -6,7 +6,7 @@ use crate::native_rtc::NativeRTC;
 use crate::screen::Screen;
 use crate::shader::Shader;
 use directories::BaseDirs;
-use gameboy_core::{Button, Cartridge, Controller, Emulator, Rtc, StepResult};
+use gameboy_core::{Gameboy,Button, Cartridge, Controller, Rtc, StepResult};
 use gl::types::*;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
@@ -113,12 +113,13 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
     }
 
-    let mut cartridge = Cartridge::from_rom(rom);
-    load_ram_save_data(&mut cartridge);
-    load_timestamp_data(&mut cartridge);
+
 
     let rtc = Box::new(NativeRTC::new());
-    let mut emulator = Emulator::from_cartridge(cartridge, rtc);
+    let mut emulator = Gameboy::from_rom(rom, rtc);
+
+    load_ram_save_data(emulator.get_cartridge_mut());
+    load_timestamp_data(emulator.get_cartridge_mut());
 
     let mut ram_save_file = get_ram_save_file(emulator.get_cartridge());
     let mut timestamp_save_file = get_timestamp_save_file(emulator.get_cartridge());
@@ -136,7 +137,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     let mut event_pump = sdl_context.event_pump()?;
     'game_loop: loop {
         loop {
-            let step_result = emulator.emulate(&mut screen, &mut controller);
+            let step_result = emulator.emulate(&mut screen);
             match step_result {
                 StepResult::VBlank => {
                     let frame_buffer = screen.get_frame_buffer();

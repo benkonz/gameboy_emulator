@@ -17,7 +17,7 @@ use crate::screen::Screen;
 use crate::web_rtc::WebRTC;
 use crate::webgl_rendering_context::WebGLRenderingContext;
 use crate::webgl_rendering_context::*;
-use gameboy_core::{Gameboy,Button, Cartridge, Controller, ControllerEvent, Emulator, Rtc, StepResult};
+use gameboy_core::{Gameboy,Button,Cartridge,Controller, ControllerEvent, Rtc, StepResult};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -35,7 +35,7 @@ type Gl = WebGLRenderingContext;
 struct EmulatorState {
     gameboy: Gameboy,
     //emulator: Emulator,
-    controller: Controller,
+    //controller: Controller,
     screen: Screen,
     controller_receiver: mpsc::Receiver<ControllerEvent>,
     should_save_to_local: Rc<RefCell<bool>>,
@@ -52,7 +52,7 @@ impl EmulatorState {
     pub fn emulate_until_vblank_or_audio(&mut self) -> StepResult {
         let step_result = loop {
             let step_result = self.
-                gameboy.emulate(&mut self.screen, &mut self.controller);
+                gameboy.emulate(&mut self.screen);
             match step_result {
                 StepResult::VBlank | StepResult::AudioBufferFull => {
                     break step_result;
@@ -67,8 +67,8 @@ impl EmulatorState {
 
         loop {
             match self.controller_receiver.try_recv() {
-                Ok(ControllerEvent::Pressed(button)) => self.controller.press(button),
-                Ok(ControllerEvent::Released(button)) => self.controller.release(button),
+                Ok(ControllerEvent::Pressed(button)) => self.gameboy.press_button(button),
+                Ok(ControllerEvent::Released(button)) => self.gameboy.release_button(button),
                 Err(_) => break,
             }
         }
@@ -374,22 +374,20 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
         ram.iter().map(|byte| format!("{:02x}", byte)).collect(),
     ));
     let screen = Screen::new();
-    let controller = Controller::new();
    
 
     let mut emulator_state = EmulatorState {//from opengl_web
         gameboy,
-        controller,//from gameboy_core
-        screen,//in gameboy_opengl_web
-        controller_receiver: receiver,//something to do with threads
-        should_save_to_local,//something else to do with threads bool
-        ram_str,//??
-        gl,//opengl context
-        shader_program,//shader program,compilled
-        texture,//opengl textyre
-        js_ctx,//??
-        busy: false,//simple bool
-        audio_underrun: None,//optional uint
+        screen,
+        controller_receiver: receiver,
+        should_save_to_local,
+        ram_str,
+        gl,
+        shader_program,
+        texture,
+        js_ctx,
+        busy: false,
+        audio_underrun: None,
     };
 
     emulator_state.set_ram_change_listener();

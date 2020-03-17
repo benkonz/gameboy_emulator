@@ -266,7 +266,7 @@ impl GPU {
             self.render_window(memory, line, pixel_mapper);
             self.render_sprites(memory, line, pixel_mapper);
         } else {
-            let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
+            let line_width = line * GAMEBOY_WIDTH;
             for x in 0..GAMEBOY_WIDTH {
                 let index = (line_width + x) as usize;
                 if self.is_cgb {
@@ -295,7 +295,7 @@ impl GPU {
         let offset_x_end = offset_x_start + count;
         let screen_tile = pixel / 8;
         let lcd_control = LcdControlFlag::from_bits_truncate(memory.load(mmu::LCD_CONTROL_INDEX));
-        let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
+        let line_width = line * GAMEBOY_WIDTH;
 
         if self.is_cgb || lcd_control.contains(LcdControlFlag::DISPLAY) {
             let tile_start_addr = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
@@ -471,7 +471,7 @@ impl GPU {
         let pixely = line_adjusted % 8;
         let pixely_2 = pixely * 2;
         let pixely_2_flip = (7 - pixely) * 2;
-        let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
+        let line_width = line * GAMEBOY_WIDTH;
 
         for x in 0..32 {
             let tile = if lcd_control.contains(LcdControlFlag::BACKGROUND_TILE_SET) {
@@ -586,7 +586,7 @@ impl GPU {
             8
         };
 
-        let line_width = (GAMEBOY_HEIGHT - 1 - line) * GAMEBOY_WIDTH;
+        let line_width = line * GAMEBOY_WIDTH;
 
         for sprite in (0..40).rev() {
             let sprite_4 = sprite * 4;

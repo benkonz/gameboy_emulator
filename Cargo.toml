@@ -1,22 +1,38 @@
 [package]
 name = "gameboy_emulator"
-version = "0.2.4"
+version = "0.2.6"
 authors = ["Benjamin Konz <benkonz@protonmail.com>","Nicholas Alexeev <scifi6546@protonmail.com"]
 edition = "2018"
 
 [dependencies]
 
 [target.wasm32-unknown-unknown.dependencies]
-gameboy_opengl_web = { path = "gameboy_opengl_web", version = "0.2.4" }
-
+gameboy_opengl_web = { path = "gameboy_opengl_web", version = "0.2.6" }
 stdweb = "0.4"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_derive = "1.0.0"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gameboy_opengl = { path = "gameboy_opengl", version = "0.2.4" }
-LibIO = {path="lib_io",version="0.1.0"}
+gameboy_opengl = { path = "gameboy_opengl", version = "0.2.6" }
+
 [workspace]
 
 [lib]
 name = "gameboy_lib"
 crate-type = ["cdylib"]
+
+[profile.dev]
+opt-level = 2
+debug = true
+rpath = false
+lto = false
+debug-assertions = true
+codegen-units = 4
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = "fat"
+debug-assertions = false
+codegen-units = 1
+panic = "abort"

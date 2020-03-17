@@ -6,7 +6,7 @@ use crate::native_rtc::NativeRTC;
 use crate::screen::Screen;
 use crate::shader::Shader;
 use directories::BaseDirs;
-use gameboy_core::{Gameboy,Button, Cartridge, Controller, Rtc, StepResult};
+use gameboy_core::{Button, Cartridge, Controller, Gameboy, Rtc, StepResult};
 use gl::types::*;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
@@ -112,8 +112,6 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
     }
-
-
 
     let rtc = Box::new(NativeRTC::new());
     let mut emulator = Gameboy::from_rom(rom, rtc);

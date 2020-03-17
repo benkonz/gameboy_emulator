@@ -17,7 +17,7 @@ use crate::screen::Screen;
 use crate::web_rtc::WebRTC;
 use crate::webgl_rendering_context::WebGLRenderingContext;
 use crate::webgl_rendering_context::*;
-use gameboy_core::{Gameboy,Button,Cartridge,Controller, ControllerEvent, Rtc, StepResult};
+use gameboy_core::{Button, Cartridge, Controller, ControllerEvent, Gameboy, Rtc, StepResult};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -51,8 +51,7 @@ struct EmulatorState {
 impl EmulatorState {
     pub fn emulate_until_vblank_or_audio(&mut self) -> StepResult {
         let step_result = loop {
-            let step_result = self.
-                gameboy.emulate(&mut self.screen);
+            let step_result = self.gameboy.emulate(&mut self.screen);
             match step_result {
                 StepResult::VBlank | StepResult::AudioBufferFull => {
                     break step_result;
@@ -374,9 +373,9 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
         ram.iter().map(|byte| format!("{:02x}", byte)).collect(),
     ));
     let screen = Screen::new();
-   
 
-    let mut emulator_state = EmulatorState {//from opengl_web
+    let mut emulator_state = EmulatorState {
+        //from opengl_web
         gameboy,
         screen,
         controller_receiver: receiver,

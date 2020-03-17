@@ -30,39 +30,7 @@ The web assembly port is currently hosted [here](https://benkonz.github.io/asset
 </p>
 <p align="center">
     <img src="screenshots/kirby2.png" height=240 />
-    <img src="screenshots/zelda_ooa.png" height=240 />
-</p>
-
-## Blargg Tests
-
-### CPU Instrs
-
-<p>
-    <img src="screenshots/cpu_instrs.png" height=240 />
-</p>
-
-### Instr Timings
-
-<p>
-    <img src="screenshots/instr_timings.png" height=240 />
-</p>
-
-### Mem Timings
-
-<p>
-    <img src="screenshots/mem_timings.png" height=240 />
-</p>
-
-### Mem Timings 2
-
-<p>
-    <img src="screenshots/mem_timings_2.png" height=240 />
-</p>
-
-### DMG Sound
-
-<p>
-    <img src="screenshots/dmg_sound.png" height=240 />
+    <img src="screenshots/blaarg_tests.png" height=240 />
 </p>
 
 ## Installing
@@ -73,10 +41,6 @@ installed by running:
 ```text
 cargo install gameboy_opengl
 ```
-
-Note: this library uses [Rust-SDL2](https://github.com/Rust-SDL2/rust-sdl2), so you will need
-some sort of distribution of the SDL2 development libraries and CMake installed on your system before you can compile
-this application. If you're having errros compiling, please look [here](https://github.com/Rust-SDL2/rust-sdl2#sdl20-development-libraries).
 
 Then you can run it by running: `gameboy_emulator` from your terminal
 

@@ -2,9 +2,9 @@ use super::mbc_type::MbcType;
 use crate::rtc::Rtc;
 
 pub struct Cartridge {
-    rom_banks: i32,
-    ram_banks: i32,
-    ram_size: i32,
+    rom_banks: usize,
+    ram_banks: usize,
+    ram_size: usize,
     has_rtc: bool,
     has_battery: bool,
     rom: Vec<u8>,
@@ -16,23 +16,13 @@ pub struct Cartridge {
     last_time: u64,
 }
 
-fn pow2ceil(i: i32) -> i32 {
-    let mut i = i - 1;
-    i |= i >> 1;
-    i |= i >> 2;
-    i |= i >> 4;
-    i |= i >> 8;
-    i += 1;
-    i
-}
-
 impl Cartridge {
     pub fn from_rom(rom: Vec<u8>) -> Cartridge {
         let cartridge_type = i32::from(rom[0x0147]);
 
-        let rom_banks = std::cmp::max(pow2ceil(rom.len() as i32 / 0x4000), 2);
+        let rom_banks = std::cmp::max(Cartridge::pow2ceil(rom.len() / 0x4000), 2);
 
-        let ram_size = i32::from(rom[0x0149]);
+        let ram_size = usize::from(rom[0x0149]);
         let ram_banks = match ram_size {
             0x0 => 0,
             0x1 => 1,
@@ -93,15 +83,25 @@ impl Cartridge {
         }
     }
 
-    pub fn get_rom_banks(&self) -> i32 {
+    fn pow2ceil(i: usize) -> usize {
+        let mut i = i - 1;
+        i |= i >> 1;
+        i |= i >> 2;
+        i |= i >> 4;
+        i |= i >> 8;
+        i += 1;
+        i
+    }
+
+    pub fn get_rom_banks(&self) -> usize {
         self.rom_banks
     }
 
-    pub fn get_ram_banks(&self) -> i32 {
+    pub fn get_ram_banks(&self) -> usize {
         self.ram_banks
     }
 
-    pub fn get_ram_size(&self) -> i32 {
+    pub fn get_ram_size(&self) -> usize {
         self.ram_size
     }
 

@@ -1,6 +1,4 @@
 #[cfg(target_arch = "wasm32")]
-extern crate gameboy_opengl_web;
-#[cfg(target_arch = "wasm32")]
 pub use gameboy_opengl_web::DOMInfo;
 #[cfg(target_arch = "wasm32")]
 #[macro_use]

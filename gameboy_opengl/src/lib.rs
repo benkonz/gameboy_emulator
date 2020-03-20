@@ -4,7 +4,7 @@ mod screen;
 use crate::native_rtc::NativeRTC;
 use crate::screen::Screen;
 use directories::BaseDirs;
-use gameboy_core::{Button, Cartridge, Controller, Gameboy, Rtc, StepResult};
+use gameboy_core::{Button, Cartridge, Gameboy, Rtc, StepResult};
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;

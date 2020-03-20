@@ -67,7 +67,6 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
             *ram_changed.borrow_mut() = true;
         }));
     }
-    let mut controller = Controller::new();
     let mut screen = Screen::new();
 
     let mut event_pump = sdl_context.event_pump()?;
@@ -118,7 +117,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                     ..
                 } => {
                     if let Some(button) = keycode_to_button(keycode) {
-                        controller.press(button);
+                        emulator.press_button(button);
                     }
                 }
                 Event::KeyUp {
@@ -126,7 +125,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                     ..
                 } => {
                     if let Some(button) = keycode_to_button(keycode) {
-                        controller.release(button);
+                        emulator.release_button(button);
                     }
                 }
                 _ => (),

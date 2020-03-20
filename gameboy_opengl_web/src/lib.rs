@@ -26,8 +26,6 @@ use stdweb::Value;
 
 struct EmulatorState {
     gameboy: Gameboy,
-    //emulator: Emulator,
-    //controller: Controller,
     screen: Screen,
     controller_receiver: mpsc::Receiver<ControllerEvent>,
     should_save_to_local: Rc<RefCell<bool>>,

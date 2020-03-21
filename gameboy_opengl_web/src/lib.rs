@@ -11,7 +11,7 @@ mod web_rtc;
 
 use crate::screen::Screen;
 use crate::web_rtc::WebRTC;
-use gameboy_core::{Button, Cartridge, ControllerEvent, Gameboy, Rtc, StepResult};
+use gameboy_core::{Button, ControllerEvent, Gameboy, Rtc, StepResult};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -122,8 +122,8 @@ impl EmulatorState {
     }
 
     pub fn save_ram_data(&mut self) {
-        if *self.should_save_to_local.borrow() && self.gameboy.get_cartridge().has_battery() {
-            let name = self.gameboy.get_cartridge().get_name();
+        if *self.should_save_to_local.borrow() && self.gameboy.has_battery() {
+            let name = self.gameboy.get_cartridge_name();
             window()
                 .local_storage()
                 .insert(&name, &self.ram_str.borrow())
@@ -133,9 +133,9 @@ impl EmulatorState {
     }
 
     pub fn save_timestamp_data(&mut self) {
-        if self.gameboy.get_cartridge().has_rtc() {
-            let name = format!("{}-timestamp", self.gameboy.get_cartridge().get_name());
-            let (rtc_data, last_timestamp) = self.gameboy.get_cartridge().get_last_timestamp();
+        if self.gameboy.has_rtc() {
+            let name = format!("{}-timestamp", self.gameboy.get_cartridge_name());
+            let (rtc_data, last_timestamp) = self.gameboy.get_last_timestamp();
             let mut rtc_bytes = rtc_data.to_bytes().to_vec();
             let mut last_timestamp_bytes = u64::to_ne_bytes(last_timestamp).to_vec();
             rtc_bytes.append(&mut last_timestamp_bytes);
@@ -153,7 +153,7 @@ impl EmulatorState {
     pub fn set_ram_change_listener(&mut self) {
         let ram_str = self.ram_str.clone();
         let should_save_to_local = self.should_save_to_local.clone();
-        let has_battery = self.gameboy.get_cartridge().has_battery();
+        let has_battery = self.gameboy.has_battery();
         self.gameboy
             .set_ram_change_callback(Box::new(move |address, value| {
                 if has_battery {
@@ -295,7 +295,7 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
     let mut gameboy = Gameboy::from_rom(rom, rtc);
     load_ram_save_data(&mut gameboy);
     load_timestamp_data(&mut gameboy);
-    let ram = gameboy.get_cartridge().get_ram().to_vec();
+    let ram = gameboy.get_cartridge_ram().to_vec();
     let ram_str = Rc::new(RefCell::new(
         ram.iter().map(|byte| format!("{:02x}", byte)).collect(),
     ));

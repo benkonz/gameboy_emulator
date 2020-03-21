@@ -4,7 +4,7 @@ mod screen;
 use crate::native_rtc::NativeRTC;
 use crate::screen::Screen;
 use directories::BaseDirs;
-use gameboy_core::{Button, Cartridge, Gameboy, Rtc, StepResult};
+use gameboy_core::{Button, Gameboy, Rtc, StepResult};
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -57,8 +57,8 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     load_ram_save_data(&mut emulator).map_err(|e| format!("{:?}", e))?;
     load_timestamp_data(&mut emulator).map_err(|e| format!("{:?}", e))?;
 
-    let mut ram_save_file = get_ram_save_file(emulator.get_cartridge());
-    let mut timestamp_save_file = get_timestamp_save_file(emulator.get_cartridge());
+    let mut ram_save_file = get_ram_save_file(&emulator);
+    let mut timestamp_save_file = get_timestamp_save_file(&emulator);
 
     let ram_changed = Rc::new(RefCell::new(true));
     {
@@ -94,17 +94,17 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
             }
         }
 
-        if *ram_changed.borrow() && emulator.get_cartridge().has_battery() {
+        if *ram_changed.borrow() && emulator.has_battery() {
             if let Some(ref mut ram_save_file) = ram_save_file {
-                save_ram_data(emulator.get_cartridge(), ram_save_file)
+                save_ram_data(&emulator, ram_save_file)
                     .map_err(|e| format!("{:?}", e))?;
             }
             *ram_changed.borrow_mut() = false;
         }
 
-        if emulator.get_cartridge().has_rtc() {
+        if emulator.has_rtc() {
             if let Some(ref mut timestamp_save_file) = timestamp_save_file {
-                save_timestamp_data(emulator.get_cartridge(), timestamp_save_file)
+                save_timestamp_data(&emulator, timestamp_save_file)
                     .map_err(|e| format!("{:?}", e))?;
             }
         }
@@ -201,13 +201,13 @@ fn load_timestamp_data(gameboy: &mut Gameboy) -> std::io::Result<()> {
     Ok(())
 }
 
-fn get_ram_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
-    if cartridge.has_battery() {
+fn get_ram_save_file(gameboy:&Gameboy) -> Option<impl Write + Seek> {
+    if gameboy.has_battery() {
         let ram_saves_path = get_ram_saves_path()?;
         if !ram_saves_path.exists() {
             fs::create_dir_all(&ram_saves_path).ok()?;
         }
-        let ram_save_file_path = ram_saves_path.join(format!("{}.bin", cartridge.get_name()));
+        let ram_save_file_path = ram_saves_path.join(format!("{}.bin", gameboy.get_cartridge_name()));
         Some(
             OpenOptions::new()
                 .write(true)
@@ -220,14 +220,14 @@ fn get_ram_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
     }
 }
 
-fn get_timestamp_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
-    if cartridge.has_rtc() {
+fn get_timestamp_save_file(gameboy: &Gameboy) -> Option<impl Write + Seek> {
+    if gameboy.has_rtc() {
         let ram_saves_path = get_ram_saves_path()?;
         if !ram_saves_path.exists() {
             fs::create_dir_all(&ram_saves_path).ok()?;
         }
         let timestamp_save_file_path =
-            ram_saves_path.join(format!("{}-timestamp.bin", cartridge.get_name()));
+            ram_saves_path.join(format!("{}-timestamp.bin", gameboy.get_cartridge_name()));
         Some(
             OpenOptions::new()
                 .write(true)
@@ -241,11 +241,11 @@ fn get_timestamp_save_file(cartridge: &Cartridge) -> Option<impl Write + Seek> {
 }
 
 fn save_ram_data<T: Write + Seek>(
-    cartridge: &Cartridge,
+    gameboy: &Gameboy,
     ram_save_file: &mut T,
 ) -> std::io::Result<()> {
-    if cartridge.has_battery() {
-        let ram = cartridge.get_ram();
+    if gameboy.has_battery() {
+        let ram = gameboy.get_cartridge_ram();
         ram_save_file.seek(SeekFrom::Start(0))?;
         ram_save_file.write_all(ram)?;
     }
@@ -253,10 +253,10 @@ fn save_ram_data<T: Write + Seek>(
 }
 
 fn save_timestamp_data<T: Write + Seek>(
-    cartridge: &Cartridge,
+    gameboy: &Gameboy,
     timestamp_save_file: &mut T,
 ) -> std::io::Result<()> {
-    let (rtc_data, rtc_last_time) = cartridge.get_last_timestamp();
+    let (rtc_data, rtc_last_time) = gameboy.get_last_timestamp();
     let mut rtc_data = rtc_data.to_bytes().to_vec();
     let mut rtc_last_time_data = rtc_last_time.to_ne_bytes().to_vec();
     rtc_data.append(&mut rtc_last_time_data);

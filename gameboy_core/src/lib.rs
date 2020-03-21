@@ -43,8 +43,14 @@ impl Gameboy {
     pub fn get_cartridge(&self) -> &Cartridge {
         self.emulator.get_cartridge()
     }
-    pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
-        self.emulator.get_cartridge_mut()
+    pub fn set_cartridge_ram(&mut self,ram:Vec<u8>){
+        self.emulator.get_cartridge_mut().set_ram(ram)
+    }
+    pub fn get_cartridge_name(&mut self)->&str{
+        self.emulator.get_cartridge().get_name()
+    }
+    pub fn set_last_timestamp(&mut self,rtc:Rtc,timestamp:u64){
+        self.emulator.get_cartridge_mut().set_last_timestamp(rtc, timestamp)
     }
     pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
         self.emulator.set_ram_change_callback(f)

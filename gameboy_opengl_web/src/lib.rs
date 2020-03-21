@@ -293,8 +293,8 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
     };
     let rtc = Box::new(WebRTC::new());
     let mut gameboy = Gameboy::from_rom(rom, rtc);
-    load_ram_save_data(gameboy.get_cartridge_mut());
-    load_timestamp_data(gameboy.get_cartridge_mut());
+    load_ram_save_data(&mut gameboy);
+    load_timestamp_data(&mut gameboy);
     let ram = gameboy.get_cartridge().get_ram().to_vec();
     let ram_str = Rc::new(RefCell::new(
         ram.iter().map(|byte| format!("{:02x}", byte)).collect(),
@@ -302,7 +302,6 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
     let screen = Screen::new();
 
     let mut emulator_state = EmulatorState {
-        //from opengl_web
         gameboy,
         screen,
         controller_receiver: receiver,
@@ -394,8 +393,8 @@ fn add_multi_controller_event_listener<T: ConcreteEvent>(
     });
 }
 
-fn load_ram_save_data(cartridge: &mut Cartridge) {
-    if let Some(ram_str) = window().local_storage().get(cartridge.get_name()) {
+fn load_ram_save_data(cartridge: &mut Gameboy) {
+    if let Some(ram_str) = window().local_storage().get(cartridge.get_cartridge_name()) {
         let chars: Vec<char> = ram_str.chars().collect();
         let bytes: Vec<u8> = chars
             .chunks(2)
@@ -404,12 +403,12 @@ fn load_ram_save_data(cartridge: &mut Cartridge) {
                 u8::from_str_radix(&byte, 16).unwrap()
             })
             .collect();
-        cartridge.set_ram(bytes);
+        cartridge.set_cartridge_ram(bytes);
     }
 }
 
-fn load_timestamp_data(cartridge: &mut Cartridge) {
-    let key = format!("{}-timestamp", cartridge.get_name());
+fn load_timestamp_data(cartridge: &mut Gameboy) {
+    let key = format!("{}-timestamp", cartridge.get_cartridge_name());
     if let Some(timestamp_str) = window().local_storage().get(&key) {
         let chars: Vec<char> = timestamp_str.chars().collect();
         let bytes: Vec<u8> = chars

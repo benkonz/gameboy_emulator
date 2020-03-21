@@ -8,7 +8,6 @@ mod mbc3;
 mod mbc5;
 mod mbc_type;
 mod rom_only;
-
 use self::cartridge::Cartridge;
 use self::gpu_cycles::GpuCycles;
 use self::interrupt::Interrupt;

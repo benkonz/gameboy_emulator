@@ -4,7 +4,7 @@ mod screen;
 use crate::native_rtc::NativeRTC;
 use crate::screen::Screen;
 use directories::BaseDirs;
-use gameboy_core::{Button, Cartridge, Controller, Emulator, Rtc, StepResult};
+use gameboy_core::{Button, Cartridge, Gameboy, Rtc, StepResult};
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -51,12 +51,11 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
 
-    let mut cartridge = Cartridge::from_rom(rom);
-    load_ram_save_data(&mut cartridge).map_err(|e| format!("{:?}", e))?;
-    load_timestamp_data(&mut cartridge).map_err(|e| format!("{:?}", e))?;
-
     let rtc = Box::new(NativeRTC::new());
-    let mut emulator = Emulator::from_cartridge(cartridge, rtc);
+    let mut emulator = Gameboy::from_rom(rom, rtc);
+
+    load_ram_save_data(emulator.get_cartridge_mut()).map_err(|e| format!("{:?}", e))?;
+    load_timestamp_data(emulator.get_cartridge_mut()).map_err(|e| format!("{:?}", e))?;
 
     let mut ram_save_file = get_ram_save_file(emulator.get_cartridge());
     let mut timestamp_save_file = get_timestamp_save_file(emulator.get_cartridge());
@@ -68,13 +67,12 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
             *ram_changed.borrow_mut() = true;
         }));
     }
-    let mut controller = Controller::new();
     let mut screen = Screen::new();
 
     let mut event_pump = sdl_context.event_pump()?;
     'game_loop: loop {
         loop {
-            let step_result = emulator.emulate(&mut screen, &mut controller);
+            let step_result = emulator.emulate(&mut screen);
             match step_result {
                 StepResult::VBlank => {
                     let frame_buffer = screen.get_frame_buffer();
@@ -119,7 +117,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                     ..
                 } => {
                     if let Some(button) = keycode_to_button(keycode) {
-                        controller.press(button);
+                        emulator.press_button(button);
                     }
                 }
                 Event::KeyUp {
@@ -127,7 +125,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                     ..
                 } => {
                     if let Some(button) = keycode_to_button(keycode) {
-                        controller.release(button);
+                        emulator.release_button(button);
                     }
                 }
                 _ => (),

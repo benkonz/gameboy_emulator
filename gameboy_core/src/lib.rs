@@ -46,6 +46,15 @@ impl Gameboy {
     pub fn set_cartridge_ram(&mut self,ram:Vec<u8>){
         self.emulator.get_cartridge_mut().set_ram(ram)
     }
+    pub fn has_battery(&self)->bool{
+        self.emulator.get_cartridge().has_battery()
+    }
+    pub fn has_rtc(&self)->bool{
+        self.emulator.get_cartridge().has_rtc()
+    }
+    pub fn get_cartridge_ram(&self)->&[u8]{
+        self.emulator.get_cartridge().get_ram()
+    }
     pub fn get_cartridge_name(&mut self)->&str{
         self.emulator.get_cartridge().get_name()
     }
@@ -61,4 +70,5 @@ impl Gameboy {
     pub fn release_button(&mut self, button: Button) {
         self.controller.release(button)
     }
+    
 }

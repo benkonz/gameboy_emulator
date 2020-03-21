@@ -54,8 +54,8 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     let rtc = Box::new(NativeRTC::new());
     let mut emulator = Gameboy::from_rom(rom, rtc);
 
-    load_ram_save_data(emulator.get_cartridge_mut()).map_err(|e| format!("{:?}", e))?;
-    load_timestamp_data(emulator.get_cartridge_mut()).map_err(|e| format!("{:?}", e))?;
+    load_ram_save_data(&mut emulator).map_err(|e| format!("{:?}", e))?;
+    load_timestamp_data(&mut emulator).map_err(|e| format!("{:?}", e))?;
 
     let mut ram_save_file = get_ram_save_file(emulator.get_cartridge());
     let mut timestamp_save_file = get_timestamp_save_file(emulator.get_cartridge());
@@ -159,17 +159,19 @@ fn get_ram_saves_path() -> Option<PathBuf> {
     Some(path_buf)
 }
 
-fn load_ram_save_data(cartridge: &mut Cartridge) -> std::io::Result<()> {
-    if cartridge.has_battery() {
+fn load_ram_save_data(gameboy: &mut Gameboy) -> std::io::Result<()> {
+    if gameboy.has_battery() {
         if let Some(ram_saves_dir) = get_ram_saves_path() {
-            let ram_save_file = ram_saves_dir.join(format!("{}.bin", cartridge.get_name()));
+            let ram_save_file = ram_saves_dir.join(format!("{}.bin", gameboy.get_cartridge_name()));
             if ram_save_file.exists() {
                 let mut ram_save_file = OpenOptions::new().read(true).open(ram_save_file)?;
                 if let Ok(metadata) = ram_save_file.metadata() {
                     // sometimes two different roms have the same name,
                     // so we make sure that the ram length is the same before reading
-                    if metadata.len() == cartridge.get_ram().len() as u64 {
-                        ram_save_file.read_exact(cartridge.get_ram_mut())?;
+                    if metadata.len() == gameboy.get_cartridge_ram().len() as u64 {
+                        let mut buffer = vec![0;metadata.len() as usize];
+                        ram_save_file.read_exact(&mut buffer)?;
+                        gameboy.set_cartridge_ram(buffer);
                     }
                 }
             }
@@ -178,11 +180,11 @@ fn load_ram_save_data(cartridge: &mut Cartridge) -> std::io::Result<()> {
     Ok(())
 }
 
-fn load_timestamp_data(cartridge: &mut Cartridge) -> std::io::Result<()> {
-    if cartridge.has_rtc() {
+fn load_timestamp_data(gameboy: &mut Gameboy) -> std::io::Result<()> {
+    if gameboy.has_rtc() {
         if let Some(ram_saves_dir) = get_ram_saves_path() {
             let timestamp_save_file =
-                ram_saves_dir.join(format!("{}-timestamp.bin", cartridge.get_name()));
+                ram_saves_dir.join(format!("{}-timestamp.bin", gameboy.get_cartridge_name()));
             if timestamp_save_file.exists() {
                 let mut timestamp_save_file =
                     OpenOptions::new().read(true).open(timestamp_save_file)?;
@@ -192,7 +194,7 @@ fn load_timestamp_data(cartridge: &mut Cartridge) -> std::io::Result<()> {
                 timestamp_save_file.read_exact(&mut timestamp_data)?;
                 let last_rtc = Rtc::from_bytes(&rtc_data);
                 let last_timestamp = u64::from_ne_bytes(timestamp_data);
-                cartridge.set_last_timestamp(last_rtc, last_timestamp);
+                gameboy.set_last_timestamp(last_rtc, last_timestamp);
             }
         }
     }

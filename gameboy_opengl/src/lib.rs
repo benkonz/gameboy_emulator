@@ -18,7 +18,6 @@ use std::time::Duration;
 
 pub fn start(rom: Vec<u8>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
-    let _timer_subsystem = sdl_context.timer()?;
 
     let audio_subsystem = sdl_context.audio()?;
     let desired_spec = AudioSpecDesired {

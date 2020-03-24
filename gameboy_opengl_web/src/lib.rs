@@ -186,7 +186,7 @@ pub struct DOMInfo {
     select_button_id: String,
     canvas_id: String,
 }
-pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
+pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) -> Result<(), String> {
     let (sender, receiver) = mpsc::channel();
     let should_save_to_local = Rc::new(RefCell::new(false));
 
@@ -292,7 +292,7 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
         return h;
     };
     let rtc = Box::new(WebRTC::new());
-    let mut gameboy = Gameboy::from_rom(rom, rtc);
+    let mut gameboy = Gameboy::from_rom(rom, rtc)?;
     load_ram_save_data(gameboy.get_cartridge_mut());
     load_timestamp_data(gameboy.get_cartridge_mut());
     let ram = gameboy.get_cartridge().get_ram().to_vec();
@@ -315,6 +315,8 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
 
     emulator_state.set_ram_change_listener();
     main_loop(Rc::new(RefCell::new(emulator_state)));
+
+    Ok(())
 }
 
 fn add_button_event_listeners(

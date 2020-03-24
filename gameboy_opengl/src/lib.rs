@@ -52,7 +52,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     canvas.clear();
 
     let rtc = Box::new(NativeRTC::new());
-    let mut emulator = Gameboy::from_rom(rom, rtc);
+    let mut emulator = Gameboy::from_rom(rom, rtc)?;
 
     load_ram_save_data(emulator.get_cartridge_mut()).map_err(|e| format!("{:?}", e))?;
     load_timestamp_data(emulator.get_cartridge_mut()).map_err(|e| format!("{:?}", e))?;

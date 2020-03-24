@@ -80,6 +80,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                     canvas.clear();
                     canvas.copy(&texture, None, None)?;
                     canvas.present();
+                    std::thread::sleep(Duration::from_millis(10));
                     break;
                 }
                 StepResult::AudioBufferFull => {

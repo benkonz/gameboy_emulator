@@ -34,6 +34,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
         .position_centered()
         .resizable()
         .opengl()
+        .allow_highdpi()
         .build()
         .map_err(|e| format!("{:?}", e))?;
 

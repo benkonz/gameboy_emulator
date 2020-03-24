@@ -190,42 +190,18 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) -> Result<(), String> {
     let (sender, receiver) = mpsc::channel();
     let should_save_to_local = Rc::new(RefCell::new(false));
 
-    let up_btn = document()
-        .get_element_by_id(dom_ids.up_button_id.as_str())
-        .unwrap();
-    let down_btn = document()
-        .get_element_by_id(dom_ids.down_button_id.as_str())
-        .unwrap();
-    let left_btn = document()
-        .get_element_by_id(dom_ids.left_button_id.as_str())
-        .unwrap();
-    let right_btn = document()
-        .get_element_by_id(dom_ids.right_button_id.as_str())
-        .unwrap();
-    let up_left_btn = document()
-        .get_element_by_id(dom_ids.up_left_button_id.as_str())
-        .unwrap();
-    let up_right_btn = document()
-        .get_element_by_id(dom_ids.up_right_button_id.as_str())
-        .unwrap();
-    let down_left_btn = document()
-        .get_element_by_id(dom_ids.down_left_button_id.as_str())
-        .unwrap();
-    let down_right_btn = document()
-        .get_element_by_id(dom_ids.down_right_button_id.as_str())
-        .unwrap();
-    let a_btn = document()
-        .get_element_by_id(dom_ids.a_button_id.as_str())
-        .unwrap();
-    let b_btn = document()
-        .get_element_by_id(dom_ids.b_button_id.as_str())
-        .unwrap();
-    let start_btn = document()
-        .get_element_by_id(dom_ids.start_button_id.as_str())
-        .unwrap();
-    let select_btn = document()
-        .get_element_by_id(dom_ids.select_button_id.as_str())
-        .unwrap();
+    let up_btn = get_element_by_id(dom_ids.up_button_id.as_str())?;
+    let down_btn = get_element_by_id(dom_ids.down_button_id.as_str())?;
+    let left_btn = get_element_by_id(dom_ids.left_button_id.as_str())?;
+    let right_btn = get_element_by_id(dom_ids.right_button_id.as_str())?;
+    let up_left_btn = get_element_by_id(dom_ids.up_left_button_id.as_str())?;
+    let up_right_btn = get_element_by_id(dom_ids.up_right_button_id.as_str())?;
+    let down_left_btn = get_element_by_id(dom_ids.down_left_button_id.as_str())?;
+    let down_right_btn = get_element_by_id(dom_ids.down_right_button_id.as_str())?;
+    let a_btn = get_element_by_id(dom_ids.a_button_id.as_str())?;
+    let b_btn = get_element_by_id(dom_ids.b_button_id.as_str())?;
+    let start_btn = get_element_by_id(dom_ids.start_button_id.as_str())?;
+    let select_btn = get_element_by_id(dom_ids.select_button_id.as_str())?;
 
     add_button_event_listeners(&up_btn, Button::Up, sender.clone());
     add_button_event_listeners(&down_btn, Button::Down, sender.clone());
@@ -244,39 +220,39 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) -> Result<(), String> {
     {
         let sender = sender.clone();
         window().add_event_listener(move |event: KeyDownEvent| {
-            let _send_result = match event.key().as_ref() {
-                "ArrowUp" => Some(sender.send(ControllerEvent::Pressed(Button::Up))),
-                "ArrowDown" => Some(sender.send(ControllerEvent::Pressed(Button::Down))),
-                "ArrowLeft" => Some(sender.send(ControllerEvent::Pressed(Button::Left))),
-                "ArrowRight" => Some(sender.send(ControllerEvent::Pressed(Button::Right))),
-                "z" => Some(sender.send(ControllerEvent::Pressed(Button::A))),
-                "x" => Some(sender.send(ControllerEvent::Pressed(Button::B))),
-                "Enter" => Some(sender.send(ControllerEvent::Pressed(Button::Select))),
-                " " => Some(sender.send(ControllerEvent::Pressed(Button::Start))),
-                _ => None,
-            };
+            match event.key().as_ref() {
+                "ArrowUp" => sender.send(ControllerEvent::Pressed(Button::Up)),
+                "ArrowDown" => sender.send(ControllerEvent::Pressed(Button::Down)),
+                "ArrowLeft" => sender.send(ControllerEvent::Pressed(Button::Left)),
+                "ArrowRight" => sender.send(ControllerEvent::Pressed(Button::Right)),
+                "z" => sender.send(ControllerEvent::Pressed(Button::A)),
+                "x" => sender.send(ControllerEvent::Pressed(Button::B)),
+                "Enter" => sender.send(ControllerEvent::Pressed(Button::Select)),
+                " " => sender.send(ControllerEvent::Pressed(Button::Start)),
+                _ => Ok(()),
+            }
+            .unwrap();
         });
     }
 
     window().add_event_listener(move |event: KeyUpEvent| {
-        let _send_result = match event.key().as_ref() {
-            "ArrowUp" => Some(sender.send(ControllerEvent::Released(Button::Up))),
-            "ArrowDown" => Some(sender.send(ControllerEvent::Released(Button::Down))),
-            "ArrowLeft" => Some(sender.send(ControllerEvent::Released(Button::Left))),
-            "ArrowRight" => Some(sender.send(ControllerEvent::Released(Button::Right))),
-            "z" => Some(sender.send(ControllerEvent::Released(Button::A))),
-            "x" => Some(sender.send(ControllerEvent::Released(Button::B))),
-            "Enter" => Some(sender.send(ControllerEvent::Released(Button::Select))),
-            " " => Some(sender.send(ControllerEvent::Released(Button::Start))),
-            _ => None,
-        };
+        match event.key().as_ref() {
+            "ArrowUp" => sender.send(ControllerEvent::Released(Button::Up)),
+            "ArrowDown" => sender.send(ControllerEvent::Released(Button::Down)),
+            "ArrowLeft" => sender.send(ControllerEvent::Released(Button::Left)),
+            "ArrowRight" => sender.send(ControllerEvent::Released(Button::Right)),
+            "z" => sender.send(ControllerEvent::Released(Button::A)),
+            "x" => sender.send(ControllerEvent::Released(Button::B)),
+            "Enter" => sender.send(ControllerEvent::Released(Button::Select)),
+            " " => sender.send(ControllerEvent::Released(Button::Start)),
+            _ => Ok(()),
+        }
+        .unwrap();
     });
 
-    let canvas: CanvasElement = document()
-        .get_element_by_id(dom_ids.canvas_id.as_str())
-        .unwrap()
+    let canvas: CanvasElement = get_element_by_id(dom_ids.canvas_id.as_str())?
         .try_into()
-        .unwrap();
+        .map_err(|e| format!("{:?}", e))?;
 
     let js_ctx = js! {
         var h = {};
@@ -317,6 +293,12 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) -> Result<(), String> {
     main_loop(Rc::new(RefCell::new(emulator_state)));
 
     Ok(())
+}
+
+fn get_element_by_id(id: &str) -> Result<Element, String> {
+    document()
+        .get_element_by_id(id)
+        .ok_or_else(|| format!("unable to find element with id: {}", id))
 }
 
 fn add_button_event_listeners(

@@ -293,7 +293,9 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
     };
     let rtc = Box::new(WebRTC::new());
     let mut gameboy = Gameboy::from_rom(rom, rtc);
-    load_ram_save_data(&mut gameboy);
+    if let Some(ram) = load_ram_save_data(gameboy.get_cartridge_name()){
+        gameboy.set_cartridge_ram(ram)
+    }
     load_timestamp_data(&mut gameboy);
     let ram = gameboy.get_cartridge_ram().to_vec();
     let ram_str = Rc::new(RefCell::new(
@@ -393,8 +395,8 @@ fn add_multi_controller_event_listener<T: ConcreteEvent>(
     });
 }
 
-fn load_ram_save_data(cartridge: &mut Gameboy) {
-    if let Some(ram_str) = window().local_storage().get(cartridge.get_cartridge_name()) {
+fn load_ram_save_data(save_name: &str) ->Option<Vec<u8>>{
+    if let Some(ram_str) = window().local_storage().get(save_name) {
         let chars: Vec<char> = ram_str.chars().collect();
         let bytes: Vec<u8> = chars
             .chunks(2)
@@ -403,8 +405,9 @@ fn load_ram_save_data(cartridge: &mut Gameboy) {
                 u8::from_str_radix(&byte, 16).unwrap()
             })
             .collect();
-        cartridge.set_cartridge_ram(bytes);
+        return Some(bytes);
     }
+    None
 }
 
 fn load_timestamp_data(cartridge: &mut Gameboy) {

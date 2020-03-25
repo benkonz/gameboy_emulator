@@ -33,8 +33,45 @@ struct EmulatorState {
     js_ctx: Value,
     busy: bool,
     audio_underrun: Option<usize>,
+    save:Box<dyn SaveFile>,
 }
-
+//Generic object for saving emulator state
+trait SaveFile{
+    fn load(&mut self)->Option<Vec<u8>>;
+    fn save(&mut self,ram:Vec<u8>);
+}
+struct LocalStorageSaveFile{
+    save_name:String,
+}
+impl LocalStorageSaveFile{
+    pub fn new(name:String)->LocalStorageSaveFile{
+        return LocalStorageSaveFile{
+            save_name:name
+        }
+    }
+}
+impl SaveFile for LocalStorageSaveFile{
+    fn load(&self)->Option<Vec<u8>>{
+        if let Some(ram_str) = window().local_storage().get(save_name) {
+            let chars: Vec<char> = ram_str.chars().collect();
+            let bytes: Vec<u8> = chars
+                .chunks(2)
+                .map(|chunk| {
+                    let byte: String = chunk.iter().collect();
+                    u8::from_str_radix(&byte, 16).unwrap()
+                })
+                .collect();
+            return Some(bytes);
+        }
+        None
+    }
+    fn save(&mut self,ram:Vec<u8>){
+        window()
+        .local_storage()
+        .insert(&self.name, &self.ram_str.borrow())
+        .unwrap();
+    }
+}
 impl EmulatorState {
     pub fn emulate_until_vblank_or_audio(&mut self) -> StepResult {
         let step_result = loop {
@@ -293,9 +330,14 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
     };
     let rtc = Box::new(WebRTC::new());
     let mut gameboy = Gameboy::from_rom(rom, rtc);
-    if let Some(ram) = load_ram_save_data(gameboy.get_cartridge_name()){
+    let mut save = LocalStorageSaveFile::new();
+    if let Some(ram) = save.load(){
         gameboy.set_cartridge_ram(ram)
     }
+    /* TODO load ram from generic object
+    if let Some(ram) = load_ram_save_data(gameboy.get_cartridge_name()){
+        gameboy.set_cartridge_ram(ram)
+    }*/
     load_timestamp_data(&mut gameboy);
     let ram = gameboy.get_cartridge_ram().to_vec();
     let ram_str = Rc::new(RefCell::new(
@@ -312,6 +354,8 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
         js_ctx,
         busy: false,
         audio_underrun: None,
+        save:Box::new(save)
+
     };
 
     emulator_state.set_ram_change_listener();
@@ -394,7 +438,7 @@ fn add_multi_controller_event_listener<T: ConcreteEvent>(
         sender.send(second_controller_event).unwrap();
     });
 }
-
+/*
 fn load_ram_save_data(save_name: &str) ->Option<Vec<u8>>{
     if let Some(ram_str) = window().local_storage().get(save_name) {
         let chars: Vec<char> = ram_str.chars().collect();
@@ -408,7 +452,7 @@ fn load_ram_save_data(save_name: &str) ->Option<Vec<u8>>{
         return Some(bytes);
     }
     None
-}
+}*/
 
 fn load_timestamp_data(cartridge: &mut Gameboy) {
     let key = format!("{}-timestamp", cartridge.get_cartridge_name());

@@ -51,8 +51,8 @@ impl LocalStorageSaveFile{
     }
 }
 impl SaveFile for LocalStorageSaveFile{
-    fn load(&self)->Option<Vec<u8>>{
-        if let Some(ram_str) = window().local_storage().get(save_name) {
+    fn load(&mut self)->Option<Vec<u8>>{
+        if let Some(ram_str) = window().local_storage().get(&self.save_name) {
             let chars: Vec<char> = ram_str.chars().collect();
             let bytes: Vec<u8> = chars
                 .chunks(2)
@@ -66,9 +66,10 @@ impl SaveFile for LocalStorageSaveFile{
         None
     }
     fn save(&mut self,ram:Vec<u8>){
+        let save_str:String = ram.iter().map(|x| format!("{:02X}",x)).collect();
         window()
         .local_storage()
-        .insert(&self.name, &self.ram_str.borrow())
+        .insert(&self.save_name, &save_str)
         .unwrap();
     }
 }
@@ -160,12 +161,7 @@ impl EmulatorState {
 
     pub fn save_ram_data(&mut self) {
         if *self.should_save_to_local.borrow() && self.gameboy.has_battery() {
-            let name = self.gameboy.get_cartridge_name();
-            window()
-                .local_storage()
-                .insert(&name, &self.ram_str.borrow())
-                .unwrap();
-            *self.should_save_to_local.borrow_mut() = false;
+            self.save.save(self.gameboy.get_cartridge_ram().to_vec());
         }
     }
 
@@ -330,14 +326,10 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) {
     };
     let rtc = Box::new(WebRTC::new());
     let mut gameboy = Gameboy::from_rom(rom, rtc);
-    let mut save = LocalStorageSaveFile::new();
+    let mut save = LocalStorageSaveFile::new(gameboy.get_cartridge_name().to_string());
     if let Some(ram) = save.load(){
         gameboy.set_cartridge_ram(ram)
     }
-    /* TODO load ram from generic object
-    if let Some(ram) = load_ram_save_data(gameboy.get_cartridge_name()){
-        gameboy.set_cartridge_ram(ram)
-    }*/
     load_timestamp_data(&mut gameboy);
     let ram = gameboy.get_cartridge_ram().to_vec();
     let ram_str = Rc::new(RefCell::new(
@@ -438,22 +430,6 @@ fn add_multi_controller_event_listener<T: ConcreteEvent>(
         sender.send(second_controller_event).unwrap();
     });
 }
-/*
-fn load_ram_save_data(save_name: &str) ->Option<Vec<u8>>{
-    if let Some(ram_str) = window().local_storage().get(save_name) {
-        let chars: Vec<char> = ram_str.chars().collect();
-        let bytes: Vec<u8> = chars
-            .chunks(2)
-            .map(|chunk| {
-                let byte: String = chunk.iter().collect();
-                u8::from_str_radix(&byte, 16).unwrap()
-            })
-            .collect();
-        return Some(bytes);
-    }
-    None
-}*/
-
 fn load_timestamp_data(cartridge: &mut Gameboy) {
     let key = format!("{}-timestamp", cartridge.get_cartridge_name());
     if let Some(timestamp_str) = window().local_storage().get(&key) {

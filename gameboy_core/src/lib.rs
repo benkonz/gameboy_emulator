@@ -27,11 +27,12 @@ pub struct Gameboy {
 }
 impl Gameboy {
     /// Loads game from rom. Needs a Real Time Clock
-    pub fn from_rom(rom: Vec<u8>, rtc: Box<dyn RTC>) -> Gameboy {
-        Gameboy {
-            emulator: Emulator::from_cartridge(Cartridge::from_rom(rom), rtc),
+    pub fn from_rom(rom: Vec<u8>, rtc: Box<dyn RTC>) -> Result<Gameboy, String> {
+        let cartridge = Cartridge::from_rom(rom)?;
+        Ok(Gameboy {
+            emulator: Emulator::from_cartridge(cartridge, rtc),
             controller: Controller::new(),
-        }
+        })
     }
     /// Run emulation step
     pub fn emulate(&mut self, system: &mut impl PixelMapper) -> emulator::step_result::StepResult {

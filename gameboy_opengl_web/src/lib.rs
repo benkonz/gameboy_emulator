@@ -11,7 +11,7 @@ mod web_rtc;
 
 use crate::screen::Screen;
 use crate::web_rtc::WebRTC;
-use gameboy_core::{Button, Cartridge, ControllerEvent, Gameboy, Rtc, StepResult};
+use gameboy_core::{Button, ControllerEvent, Gameboy, Rtc, StepResult};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;

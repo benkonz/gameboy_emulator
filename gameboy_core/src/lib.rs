@@ -27,11 +27,12 @@ pub struct Gameboy {
 }
 impl Gameboy {
     /// Loads game from rom. Needs a Real Time Clock
-    pub fn from_rom(rom: Vec<u8>, rtc: Box<dyn RTC>) -> Gameboy {
-        Gameboy {
-            emulator: Emulator::from_cartridge(Cartridge::from_rom(rom), rtc),
+    pub fn from_rom(rom: Vec<u8>, rtc: Box<dyn RTC>) -> Result<Gameboy, String> {
+        let cartridge = Cartridge::from_rom(rom)?;
+        Ok(Gameboy {
+            emulator: Emulator::from_cartridge(cartridge, rtc),
             controller: Controller::new(),
-        }
+        })
     }
     /// Run emulation step
     pub fn emulate(&mut self, system: &mut impl PixelMapper) -> emulator::step_result::StepResult {
@@ -40,26 +41,28 @@ impl Gameboy {
     pub fn get_audio_buffer(&self) -> &[f32] {
         self.emulator.get_audio_buffer()
     }
-    pub fn set_cartridge_ram(&mut self,ram:Vec<u8>){
+    pub fn set_cartridge_ram(&mut self, ram: Vec<u8>) {
         self.emulator.get_cartridge_mut().set_ram(ram)
     }
-    pub fn has_battery(&self)->bool{
+    pub fn has_battery(&self) -> bool {
         self.emulator.get_cartridge().has_battery()
     }
-    pub fn has_rtc(&self)->bool{
+    pub fn has_rtc(&self) -> bool {
         self.emulator.get_cartridge().has_rtc()
     }
-    pub fn get_cartridge_ram(&self)->&[u8]{
+    pub fn get_cartridge_ram(&self) -> &[u8] {
         self.emulator.get_cartridge().get_ram()
     }
-    pub fn get_cartridge_name(&self)->&str{
+    pub fn get_cartridge_name(&self) -> &str {
         self.emulator.get_cartridge().get_name()
     }
-    pub fn get_last_timestamp(&self)->(rtc::Rtc,u64){
+    pub fn get_last_timestamp(&self) -> (rtc::Rtc, u64) {
         self.emulator.get_cartridge().get_last_timestamp()
     }
-    pub fn set_last_timestamp(&mut self,rtc:Rtc,timestamp:u64){
-        self.emulator.get_cartridge_mut().set_last_timestamp(rtc, timestamp)
+    pub fn set_last_timestamp(&mut self, rtc: Rtc, timestamp: u64) {
+        self.emulator
+            .get_cartridge_mut()
+            .set_last_timestamp(rtc, timestamp)
     }
     pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
         self.emulator.set_ram_change_callback(f)
@@ -70,5 +73,4 @@ impl Gameboy {
     pub fn release_button(&mut self, button: Button) {
         self.controller.release(button)
     }
-    
 }

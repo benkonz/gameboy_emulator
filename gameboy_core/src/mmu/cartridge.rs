@@ -17,20 +17,31 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn from_rom(rom: Vec<u8>) -> Cartridge {
+    pub fn from_rom(rom: Vec<u8>) -> Result<Cartridge, String> {
         let cartridge_type = i32::from(rom[0x0147]);
+        let mbc_type = match cartridge_type {
+            0x00 | 0x08 | 0x09 => Ok(MbcType::RomOnly),
+            0x01 | 0x02 | 0x03 | 0xEA | 0xFF => Ok(MbcType::Mbc1),
+            0x05 | 0x06 => Ok(MbcType::Mbc2),
+            0x0F | 0x10 | 0x11 | 0x12 | 0x13 | 0xFC => Ok(MbcType::Mbc3),
+            0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E => Ok(MbcType::Mbc5),
+            _ => Err(format!(
+                "Unsupported cartridge type: 0x{:02X}",
+                cartridge_type
+            )),
+        }?;
 
         let rom_banks = std::cmp::max(Cartridge::pow2ceil(rom.len() / 0x4000), 2);
 
         let ram_size = usize::from(rom[0x0149]);
         let ram_banks = match ram_size {
-            0x0 => 0,
-            0x1 => 1,
-            0x2 => 1,
-            0x3 => 4,
-            0x4 => 16,
-            _ => panic!("Unknown number of RAM banks"),
-        };
+            0x0 => Ok(0),
+            0x1 => Ok(1),
+            0x2 => Ok(1),
+            0x3 => Ok(4),
+            0x4 => Ok(16),
+            _ => Err(format!("Unknown number of RAM banks: 0x{:02X}", ram_size)),
+        }?;
 
         let has_rtc = match cartridge_type {
             0x0F | 0x10 => true,
@@ -50,15 +61,6 @@ impl Cartridge {
             name_index += 1;
         }
 
-        let mbc_type = match cartridge_type {
-            0x00 | 0x08 | 0x09 => MbcType::RomOnly,
-            0x01 | 0x02 | 0x03 | 0xEA | 0xFF => MbcType::Mbc1,
-            0x05 | 0x06 => MbcType::Mbc2,
-            0x0F | 0x10 | 0x11 | 0x12 | 0x13 | 0xFC => MbcType::Mbc3,
-            0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E => MbcType::Mbc5,
-            _ => panic!("Unsupported cartridge type: {:?}", cartridge_type),
-        };
-
         let is_cgb = rom[0x0143] == 0xC0 || rom[0x0143] == 0x80;
 
         let ram = match mbc_type {
@@ -67,7 +69,7 @@ impl Cartridge {
             _ => vec![0xFF; 0x8000],
         };
 
-        Cartridge {
+        Ok(Cartridge {
             rom_banks,
             ram_banks,
             ram_size,
@@ -80,7 +82,7 @@ impl Cartridge {
             is_cgb,
             rtc: Rtc::new(),
             last_time: 0,
-        }
+        })
     }
 
     fn pow2ceil(i: usize) -> usize {

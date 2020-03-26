@@ -18,7 +18,6 @@ use std::time::Duration;
 
 pub fn start(rom: Vec<u8>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
-    let _timer_subsystem = sdl_context.timer()?;
 
     let audio_subsystem = sdl_context.audio()?;
     let desired_spec = AudioSpecDesired {
@@ -35,6 +34,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
         .position_centered()
         .resizable()
         .opengl()
+        .allow_highdpi()
         .build()
         .map_err(|e| format!("{:?}", e))?;
 
@@ -52,7 +52,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     canvas.clear();
 
     let rtc = Box::new(NativeRTC::new());
-    let mut emulator = Gameboy::from_rom(rom, rtc);
+    let mut emulator = Gameboy::from_rom(rom, rtc)?;
 
     load_ram_save_data(&mut emulator).map_err(|e| format!("{:?}", e))?;
     load_timestamp_data(&mut emulator).map_err(|e| format!("{:?}", e))?;
@@ -80,6 +80,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                     canvas.clear();
                     canvas.copy(&texture, None, None)?;
                     canvas.present();
+                    std::thread::sleep(Duration::from_millis(10));
                     break;
                 }
                 StepResult::AudioBufferFull => {
@@ -96,8 +97,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
 
         if *ram_changed.borrow() && emulator.has_battery() {
             if let Some(ref mut ram_save_file) = ram_save_file {
-                save_ram_data(&emulator, ram_save_file)
-                    .map_err(|e| format!("{:?}", e))?;
+                save_ram_data(&emulator, ram_save_file).map_err(|e| format!("{:?}", e))?;
             }
             *ram_changed.borrow_mut() = false;
         }
@@ -169,7 +169,7 @@ fn load_ram_save_data(gameboy: &mut Gameboy) -> std::io::Result<()> {
                     // sometimes two different roms have the same name,
                     // so we make sure that the ram length is the same before reading
                     if metadata.len() == gameboy.get_cartridge_ram().len() as u64 {
-                        let mut buffer = vec![0;metadata.len() as usize];
+                        let mut buffer = vec![0; metadata.len() as usize];
                         ram_save_file.read_exact(&mut buffer)?;
                         gameboy.set_cartridge_ram(buffer);
                     }
@@ -201,13 +201,14 @@ fn load_timestamp_data(gameboy: &mut Gameboy) -> std::io::Result<()> {
     Ok(())
 }
 
-fn get_ram_save_file(gameboy:&Gameboy) -> Option<impl Write + Seek> {
+fn get_ram_save_file(gameboy: &Gameboy) -> Option<impl Write + Seek> {
     if gameboy.has_battery() {
         let ram_saves_path = get_ram_saves_path()?;
         if !ram_saves_path.exists() {
             fs::create_dir_all(&ram_saves_path).ok()?;
         }
-        let ram_save_file_path = ram_saves_path.join(format!("{}.bin", gameboy.get_cartridge_name()));
+        let ram_save_file_path =
+            ram_saves_path.join(format!("{}.bin", gameboy.get_cartridge_name()));
         Some(
             OpenOptions::new()
                 .write(true)
@@ -240,10 +241,7 @@ fn get_timestamp_save_file(gameboy: &Gameboy) -> Option<impl Write + Seek> {
     }
 }
 
-fn save_ram_data<T: Write + Seek>(
-    gameboy: &Gameboy,
-    ram_save_file: &mut T,
-) -> std::io::Result<()> {
+fn save_ram_data<T: Write + Seek>(gameboy: &Gameboy, ram_save_file: &mut T) -> std::io::Result<()> {
     if gameboy.has_battery() {
         let ram = gameboy.get_cartridge_ram();
         ram_save_file.seek(SeekFrom::Start(0))?;

@@ -4,7 +4,7 @@ mod screen;
 use crate::native_rtc::NativeRTC;
 use crate::screen::Screen;
 use directories::BaseDirs;
-use gameboy_core::{Button, Gameboy, Rtc, StepResult};
+use gameboy_core::{Button, Cartridge, Gameboy, Rtc, StepResult};
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -18,7 +18,6 @@ use std::time::Duration;
 
 pub fn start(rom: Vec<u8>) -> Result<(), String> {
     let sdl_context = sdl2::init()?;
-    let _timer_subsystem = sdl_context.timer()?;
 
     let audio_subsystem = sdl_context.audio()?;
     let desired_spec = AudioSpecDesired {
@@ -35,6 +34,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
         .position_centered()
         .resizable()
         .opengl()
+        .allow_highdpi()
         .build()
         .map_err(|e| format!("{:?}", e))?;
 
@@ -80,6 +80,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
                     canvas.clear();
                     canvas.copy(&texture, None, None)?;
                     canvas.present();
+                    std::thread::sleep(Duration::from_millis(10));
                     break;
                 }
                 StepResult::AudioBufferFull => {

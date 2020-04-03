@@ -1,6 +1,6 @@
 [package]
 name = "gameboy_opengl_web"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/benkonz/gameboy_emulator"
@@ -11,5 +11,5 @@ stdweb = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
 stdweb-derive = "0.5"
-gameboy_core = { path = "../gameboy_core", version = "0.3.1" }
+gameboy_core = { path = "../gameboy_core", version = "0.3.2" }
 wasm-bindgen = {version="0.2.58",features=["serde-serialize"]}

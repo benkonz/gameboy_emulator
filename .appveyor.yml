@@ -1,0 +1,35 @@
+environment:
+  global:
+    RUSTFLAGS: -C target-feature=+crt-static
+
+install:
+  - appveyor-retry appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
+  - rustup-init.exe -y --default-host x86_64-pc-windows-msvc --default-toolchain stable
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - set RUST_BACKTRACE=1
+  - rustc -V
+  - cargo -V
+
+build_script:
+  - cargo build --package gameboy_opengl --bin gameboy_emulator --release
+
+before_deploy:
+  - ps: |
+        $NAME = "gameboy_emulator-${env:APPVEYOR_REPO_TAG_NAME}-x86_64-pc-windows-msvc"
+        New-Item -Path $NAME -ItemType directory
+        Copy-Item target/release/gameboy_emulator.exe "${NAME}/"
+        Copy-Item LICENSE-APACHE "${NAME}/"
+        Copy-Item README.md "${NAME}/"
+        7z a -ttar "${NAME}.tar" "${NAME}"
+        7z a "${NAME}.tar.gz" "${NAME}.tar"
+        Push-AppveyorArtifact "${NAME}.tar.gz"
+deploy:
+  artifact: /.*\.tar.gz/, /.*\.exe/
+  description: 'Appveyor Automated Release'
+  provider: GitHub
+  draft: false
+  prerelease: false
+  auth_token:
+    secure: rzRJ7w0FqGtm2yVm6NHzend3whwXhHhQHR7mhniWo8JNwCMrqoNo5ZcR6xv/YO0w
+  on:
+    appveyor_repo_tag: true

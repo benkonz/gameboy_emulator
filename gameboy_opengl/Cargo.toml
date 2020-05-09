@@ -1,6 +1,6 @@
 [package]
 name = "gameboy_opengl"
-version = "0.2.6"
+version = "0.2.8"
 authors = ["Ben Konz <benkonz@protonmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/benkonz/gameboy_emulator"
@@ -11,10 +11,10 @@ edition = "2018"
 name = "gameboy_emulator"
 
 [dependencies]
-gameboy_core = { path = "../gameboy_core", version = "0.3.1" }
+gameboy_core = { path = "../gameboy_core", version = "0.3.3" }
 clap = "2.33"
 directories = "2.0"
 
 [dependencies.sdl2]
-version = "0.33.0"
+version = "0.34.0"
 features = ["bundled", "static-link"]

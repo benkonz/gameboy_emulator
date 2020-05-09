@@ -1,5 +1,5 @@
 language: rust
-sudo: true
+sudo: false
 cache:
   directories:
   - "/home/travis/.cargo"
@@ -25,11 +25,9 @@ DEPLOY_TO_GITHUB:
 matrix:
   include:
   - name: Linux Binary
-    env: TARGET=x86_64-unknown-linux-musl
+    env: TARGET=x86_64-unknown-linux-gnu
     rust: stable
-    before_script:
-      - sudo ln -s /bin/g++ /bin/musl-g++
-      - rustup target add $TARGET
+    before_script: rustup target add $TARGET
     script: cargo build --package gameboy_opengl --bin gameboy_emulator --release --target $TARGET --locked
     addons:
       apt:

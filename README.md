@@ -1,6 +1,8 @@
 # GameBoy Emulator
 
 ![crates.io](https://img.shields.io/crates/v/gameboy_opengl)
+[![Build Status](https://travis-ci.org/benkonz/gameboy_emulator.svg?branch=master)](https://travis-ci.org/benkonz/gameboy_emulator)
+[![Build status](https://ci.appveyor.com/api/projects/status/mllgt64mwj4966lu/branch/master?svg=true)](https://ci.appveyor.com/project/benkonz/gameboy-emulator/branch/master)
 
 This is a GameBoy emulator written in Rust. It can be compiled to native
 and web assembly, see the build section for more details.

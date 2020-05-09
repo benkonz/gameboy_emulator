@@ -16,5 +16,5 @@ clap = "2.33"
 directories = "2.0"
 
 [dependencies.sdl2]
-version = "0.33.0"
+version = "0.34.0"
 features = ["bundled", "static-link"]

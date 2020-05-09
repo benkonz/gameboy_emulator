@@ -12,7 +12,7 @@ DEPLOY_TO_GITHUB:
   - name="gameboy_emulator-$TRAVIS_TAG-$TARGET"
   - mkdir $name
   - cp target/$TARGET/release/gameboy_emulator $name/
-  - cp README.md LICENSE-APACHE $name/
+  - cp README.md LICENSE $name/
   - tar czvf $name.tar.gz $name
   deploy: &3
     provider: releases

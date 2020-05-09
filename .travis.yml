@@ -1,0 +1,48 @@
+language: rust
+sudo: false
+cache:
+  directories:
+  - "/home/travis/.cargo"
+GH_TOKEN: &1
+  secure: M8/RVJvEfWPSdcsNYT4lPipfzCT76ssdTUAmB97/Q4jj7hNkpk6loUt3MNDYfhMOLn78ctk2fcaGGP3y2ssSagNej4PEcX7Mn0Q3e3A1czYunxLlERUy3A/9RhNuQtEgufseNY7m/en8i9AgS+DOTNMRhE2rBLFVW8JINddzkTLHm9/WQq+ewJeAXEmHWm+99tZqunkvj7kMhE6T/1BuNSZ3qS0BHQNLYYlMLE/+9f2zJZ4y7C8MY3/LL7w+t4FHJfevjm8OjaJGGOj6t7+m6v+XbkQN7SoqqwXpzBuTQGHUFqepTcLzgVUNM0SVyOxIxCOd2XXdcEIlY1drPd4z7eX7FXuyPPRRiqqIF9/sbf6J5ysPoQv/pZw/1+4TKvBFIE0uZU6GFhvVMgm7IxW4AtoBITtq4jffnL/lQdAEVGPmtsLMRKusvdAF8AuHdK7AP5LHQ4/b686LTHEGX+7WYcidJOGPYZ93k5NfBk67hRHyOShEFlDuNqbfWOqIStVZj5Jp7FkQt9lPKIOQhZDcn1ixSc6vkgk3VMaY2NV3Cff7cpNf43H+jCeWy3d3qWWycRMwyFPQGXSV3prC78Accpb+30pmYdR7x/RU73vFrUyYQnThqNLW/QGkKyz64+9cPsRetK3/btM7rjHIKIy+CgKMNV6+3YThEM1zcBYHv5I=
+DEPLOY_TO_GITHUB:
+  before_deploy: &2
+  - git config --local user.name "Ben Konz"
+  - git config --local user.email "benkonz@protonmail.com"
+  - name="gameboy_emulator-$TRAVIS_TAG-$TARGET"
+  - mkdir $name
+  - cp target/$TARGET/release/gameboy_emulator $name/
+  - cp README.md LICENSE-APACHE $name/
+  - tar czvf $name.tar.gz $name
+  deploy: &3
+    provider: releases
+    api_key: *1
+    file: gameboy_emulator-$TRAVIS_TAG-$TARGET.tar.gz
+    skip_cleanup: true
+    on:
+      branch: master
+      tags: true
+matrix:
+  include:
+  - name: Linux Binary
+    env: TARGET=x86_64-unknown-linux-gnu
+    rust: stable
+    before_script: rustup target add $TARGET
+    script: cargo build --package gameboy_opengl --bin gameboy_emulator --release --target $TARGET --locked
+    addons:
+      apt:
+        packages:
+        - musl-tools
+    before_deploy: *2
+    deploy: *3
+  - name: macOS Binary
+    env: MACOSX_DEPLOYMENT_TARGET=10.7 TARGET=x86_64-apple-darwin
+    os: osx
+    rust: stable
+    script: cargo build --release --package gameboy_opengl --bin gameboy_emulator --target $TARGET --locked
+    install: true
+    before_deploy: *2
+    deploy: *3
+notifications:
+  email:
+    on_success: never

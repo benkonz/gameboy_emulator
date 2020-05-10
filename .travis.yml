@@ -16,16 +16,15 @@ DEPLOY_TO_GITHUB: &DEPLOY_TO_GITHUB
   - tar czvf $name.tar.gz $name
   deploy:
     provider: releases
-    github_token: $GH_TOKEN
+    api_key:
+      secure: NYeZLevhp+ew/zP0DBAGqVz/QD6YtSgyfdjT6Tu3/1UzHnrm6YgoViUMwIgVuiZoxuejsaen6IenX0QhbhjYYFuIjfX2asSb3S+is+Eap3AfSMZbLkruu6KoVGcebEI5bnf+4knzejtXhuQgOxAemZWTYoD0Dvq2XVnb5gX/lyBLDEcanyZKJHhhn3RlfjgzT6Fj4EcBFzLGcHY1fE6WJXh6uwUh3Cj2zf3wy0KmVftnV7GzKePadmrPdm+CMfmYD0ecX/mn1+7dsDBLEhhkcyh6oBMDcl/LoImLlngVk+aWdZARkBfYP+dcrK4RUULwSrB3iS70Kt57eHZNyvwPPAfq+6YK+i45tOtDjM1+DnwhB5mncKVBKLqWcAZbga4TyG7mQxxQDNxpSf6+eqgPFf1TGTRCvnvUJG/Mm0kUIrgeJHq6p5Cuoe1o2DX9W04TW1A6B91ozh5+tD8kYoGYHA9b9kmw8+2rTK7i3U6rYaDV2AWp4ng1kw/Armfu2gsO1Sb1hPZM2/+tQEIuJU4BfLZDxzOIEYU84biMZlga9s7+NffJFRnXB57wu30BIgUurWbpl4xdYr59/Yau7dU3S0NEhIneTTNsVuAZogGV4Zc5xLT9FfgjyCUaeAOs+y5QwZUmQCoZuTNVLO33lf69Qosw+n8XsnSJOFzQHVDKnTM=
     file: gameboy_emulator-$TRAVIS_TAG-$TARGET.tar.gz
     skip_cleanup: true
     on:
       branch: master
       tags: true
-
 matrix:
   include:
-
   - name: Linux Binary
     env: TARGET=x86_64-unknown-linux-gnu
     rust: stable

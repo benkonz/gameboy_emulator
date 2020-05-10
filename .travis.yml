@@ -5,9 +5,6 @@ cache:
   directories:
   - "/home/travis/.cargo"
 
-GH_TOKEN: &GH_TOKEN
-  secure: SKtsE2gzk08KDY99XoC/mlKFE3RL1U1pzmk5tDvsdHuc0lsUx8QifuM89kfnrcU7D48Ox/33udxqUvc2KEmzjrvFYL8rTUGgtPJUltW4L1x/LMVpcrYmc4NMhoUe4jiPWbK3ZpgqQH0Wm5BBmHDL+CfJEZpyQ2mWmKYtEZzxIFF+rAA4mmV6NVJ1q0FQQ0jYLtaFvcdNkTqUCPPX/EzAQnZuRREnCFaPSIYHO/Tps6YPgFUAc4y8Pst9wJO+fM5k24G5L6RSoFSA5q6CHzaZ8fC71+wQAMdqtZSoUOi+X5HkX7FFrYNOIjngt77/O95NEs1wg1nNbxjzxHYZrgZlJUT4ME5qTM60KP0f7aRKYUqEnqbLWiV+OEfIhrXoePzIOXwu0GRnBsvSndIUEkLsNOs59JmiHo6cNsjapWKMcHMePo0c7HZoffT2eBQpj+69YIMsUHQysrv93OgV3Kh7deC7A0nhlIrc42+QhG6dEoq2lu/fQmiP179cmhk1tALtVmznlpxp545grylg83nB7MCSz5XFmoGzgHexMwazb5iSfAXFzoQKr68cRPae7rv1bxDN8VixC2xsB0F2sLYTjDBtENDFZfQ7pB1L5fO5UAwygT2+fjHWh+qhzwBIw1sDIRjVdC10F4nETC4ms+hTPsansWKDYBfvudbp2IXkYTk=
-
 DEPLOY_TO_GITHUB: &DEPLOY_TO_GITHUB
   before_deploy:
   - git config --local user.name "Ben Konz"
@@ -19,7 +16,7 @@ DEPLOY_TO_GITHUB: &DEPLOY_TO_GITHUB
   - tar czvf $name.tar.gz $name
   deploy:
     provider: releases
-    api_key: *GH_TOKEN
+    github_token: $GH_TOKEN
     file: gameboy_emulator-$TRAVIS_TAG-$TARGET.tar.gz
     skip_cleanup: true
     on:

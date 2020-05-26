@@ -18,7 +18,7 @@ before_deploy:
         $NAME = "gameboy_emulator-${env:APPVEYOR_REPO_TAG_NAME}-x86_64-pc-windows-msvc"
         New-Item -Path $NAME -ItemType directory
         Copy-Item target/release/gameboy_emulator.exe "${NAME}/"
-        Copy-Item LICENSE-APACHE "${NAME}/"
+        Copy-Item LICENSE "${NAME}/"
         Copy-Item README.md "${NAME}/"
         7z a -ttar "${NAME}.tar" "${NAME}"
         7z a "${NAME}.tar.gz" "${NAME}.tar"

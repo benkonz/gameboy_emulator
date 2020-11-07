@@ -1,17 +1,17 @@
 use gameboy_core::{CGBColor, Color, PixelMapper};
 
 pub struct Screen {
-    frame_buffer: [u8; 144 * 160 * 3],
+    frame_buffer: Vec<u8>,
 }
 
 impl Screen {
     pub fn new() -> Screen {
         Screen {
-            frame_buffer: [0; 144 * 160 * 3],
+            frame_buffer: vec![0; 144 * 160 * 3],
         }
     }
 
-    pub fn get_frame_buffer(&self) -> &[u8; 144 * 160 * 3] {
+    pub fn get_frame_buffer(&self) -> &[u8] {
         &self.frame_buffer
     }
 }

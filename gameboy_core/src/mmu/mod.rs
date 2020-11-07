@@ -165,11 +165,7 @@ impl Memory {
         // setup initial values for the sound module
         let mut sound = Sound::new();
         for i in 0xFF10..=0xFF3F {
-            let value = if is_cgb {
-                INITIAL_VALUES_FOR_COLOR_FFXX[i - 0xFF00]
-            } else {
-                INITIAL_VALUES_FOR_FFXX[i - 0xFF00]
-            };
+            let value = high_ram[i - 0xFF00];
             sound.write_byte(i as u16, value);
         }
 

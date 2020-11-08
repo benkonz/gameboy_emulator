@@ -1,10 +1,6 @@
-#[macro_use]
-extern crate clap;
-
 extern crate gio;
 extern crate gtk;
 
-use clap::{App, Arg};
 use std::fs::File;
 use std::io::Read;
 
@@ -13,90 +9,106 @@ use gio::prelude::*;
 use gio::Menu;
 use glib::clone;
 use gtk::prelude::*;
-use gtk::AboutDialog;
+use gtk::{FileChooserAction, FileChooserDialog, ResponseType};
 use std::sync::Arc;
 use std::sync::Mutex;
 
 fn build_system_menu(application: &gtk::Application) {
-    let menu = Menu::new();
     let menu_bar = Menu::new();
-    let more_menu = Menu::new();
-    let switch_menu = Menu::new();
-    let settings_menu = Menu::new();
-    let submenu = Menu::new();
+    let file_bar = Menu::new();
+    let emulation_bar = Menu::new();
+    let options_bar = Menu::new();
+    let tools_bar = Menu::new();
 
-    // The first argument is the label of the menu item whereas the second is the action name. It'll
-    // makes more sense when you'll be reading the "add_actions" function.
-    menu.append(Some("Quit"), Some("app.quit"));
+    file_bar.append(Some("Open"), Some("app.open"));
+    file_bar.append(Some("Exit"), Some("app.exit"));
+    menu_bar.append_submenu(Some("_File"), &file_bar);
 
-    switch_menu.append(Some("Switch"), Some("app.switch"));
-    menu_bar.append_submenu(Some("_Switch"), &switch_menu);
+    emulation_bar.append(Some("Play"), Some("app.play"));
+    emulation_bar.append(Some("Stop"), Some("app.stop"));
+    emulation_bar.append(Some("Reset"), Some("app.reset"));
+    menu_bar.append_submenu(Some("_Emulation"), &emulation_bar);
 
-    settings_menu.append(Some("Sub another"), Some("app.sub_another"));
-    submenu.append(Some("Sub sub another"), Some("app.sub_sub_another"));
-    submenu.append(Some("Sub sub another2"), Some("app.sub_sub_another2"));
-    settings_menu.append_submenu(Some("Sub menu"), &submenu);
-    menu_bar.append_submenu(Some("_Another"), &settings_menu);
+    options_bar.append(Some("Controler Settings"), Some("app.controller_settings"));
+    menu_bar.append_submenu(Some("_Options"), &options_bar);
 
-    more_menu.append(Some("About"), Some("app.about"));
-    menu_bar.append_submenu(Some("?"), &more_menu);
+    tools_bar.append(Some("Tile Viewer"), Some("app.tile_viewer"));
+    tools_bar.append(Some("Debugger"), Some("app.debugger"));
+    menu_bar.append_submenu(Some("_Tools"), &tools_bar);
 
-    application.set_app_menu(Some(&menu));
     application.set_menubar(Some(&menu_bar));
 }
 
 /// This function creates "actions" which connect on the declared actions from the menu items.
-fn add_actions(application: &gtk::Application, window: &gtk::ApplicationWindow) {
-    let sub_another = gio::SimpleAction::new("sub_another", None);
-    sub_another.connect_activate(move |_, _| {
-        println!("sub another menu item clicked");
-    });
-    let sub_sub_another = gio::SimpleAction::new("sub_sub_another", None);
-    sub_sub_another.connect_activate(move |_, _| {
-        println!("sub sub another menu item clicked");
-    });
-    let sub_sub_another2 = gio::SimpleAction::new("sub_sub_another2", None);
-    sub_sub_another2.connect_activate(move |_, _| {
-        println!("sub sub another 2 menu item clicked");
-    });
+fn add_actions(
+    application: &gtk::Application,
+    window: &gtk::ApplicationWindow,
+    sdl_subsystems: Arc<Mutex<SdlSubsystems>>,
+) {
+    let open_action = gio::SimpleAction::new("open", None);
+    open_action.connect_activate(clone!(@weak window => move |_, _| {
+        let dialog = FileChooserDialog::with_buttons(
+            Some("open file"),
+            Some(&window),
+            FileChooserAction::Open,
+            &[("_Cancel", ResponseType::Cancel), ("_Open", ResponseType::Accept)]
+        );
+        if dialog.run() == ResponseType::Accept {
+            let filename_opt = dialog.get_filename();
+            println!("{:?}", filename_opt);
+            if let Some(filename) = filename_opt {
+                let sdl_subsystems = Arc::clone(&sdl_subsystems);
+                std::thread::spawn(move || {
+                    let mut file = File::open(filename)
+                        .map_err(|e| format!("{:?}", e))
+                        .unwrap();
+                    let mut buffer = Vec::new();
+                    file.read_to_end(&mut buffer)
+                        .map_err(|e| format!("{:?}", e))
+                        .unwrap();
+                    gameboy_opengl::start(buffer, sdl_subsystems).unwrap();
+                });
+            }
+        }
+        unsafe{dialog.destroy()};
+    }));
 
-    let quit = gio::SimpleAction::new("quit", None);
-    quit.connect_activate(clone!(@weak window => move |_, _| {
+    let exit_action = gio::SimpleAction::new("exit", None);
+    exit_action.connect_activate(clone!(@weak window => move |_, _| {
         window.close();
     }));
 
-    let about = gio::SimpleAction::new("about", None);
-    about.connect_activate(clone!(@weak window => move |_, _| {
-        let p = AboutDialog::new();
-        p.set_website_label(Some("gtk-rs"));
-        p.set_website(Some("http://gtk-rs.org"));
-        p.set_authors(&["Gtk-rs developers"]);
-        p.set_title("About!");
-        p.set_transient_for(Some(&window));
-        p.show_all();
-    }));
+    let play_action = gio::SimpleAction::new("play", None);
+    play_action.connect_activate(move |_, _| {});
 
-    // We need to add all the actions to the application so they can be taken into account.
-    application.add_action(&about);
-    application.add_action(&quit);
-    application.add_action(&sub_another);
-    application.add_action(&sub_sub_another);
-    application.add_action(&sub_sub_another2);
+    let stop_action = gio::SimpleAction::new("stop", None);
+    stop_action.connect_activate(move |_, _| {});
+
+    let reset_action = gio::SimpleAction::new("reset", None);
+    reset_action.connect_activate(move |_, _| {});
+
+    let controller_settings_action = gio::SimpleAction::new("controller_settings", None);
+    controller_settings_action.connect_activate(move |_, _| {});
+
+    let tile_viewer_action = gio::SimpleAction::new("tile_viewer", None);
+    tile_viewer_action.connect_activate(move |_, _| {});
+
+    let debugger_action = gio::SimpleAction::new("debugger", None);
+    debugger_action.connect_activate(move |_, _| {});
+
+    application.add_action(&open_action);
+    application.add_action(&exit_action);
+    application.add_action(&play_action);
+    application.add_action(&stop_action);
+    application.add_action(&reset_action);
+    application.add_action(&controller_settings_action);
+    application.add_action(&tile_viewer_action);
+    application.add_action(&debugger_action);
 }
 
 fn main() -> Result<(), String> {
-    let matches = App::new(crate_name!())
-        .version(crate_version!())
-        .author(crate_authors!())
-        .about(crate_description!())
-        .arg(
-            Arg::with_name("rom filename")
-                .help("rom file to use")
-                .required(true)
-                .index(1),
-        )
-        .get_matches();
-
+    // SDL2 subsystems need to be initialized in the main thread
+    // and passed down to the GTK3 event loop via an Arc<Mutex<SdlSubsystems>>
     let sdl_context = sdl2::init()?;
     let audio_subsystem = sdl_context.audio()?;
     let video_subsystem = sdl_context.video()?;
@@ -109,34 +121,21 @@ fn main() -> Result<(), String> {
     }));
 
     let application =
-        gtk::Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default())
+        gtk::Application::new(Some("com.benkonz.gameboy_emulator"), Default::default())
             .expect("failed to initialize GTK application");
 
     application.connect_activate(move |app| {
         let sdl_subsystems = Arc::clone(&sdl_subsystems);
         let window = gtk::ApplicationWindow::new(app);
 
-        window.set_title("System menu bar");
+        window.set_title("Gameboy Emulator");
         window.set_border_width(10);
         window.set_position(gtk::WindowPosition::Center);
         window.set_default_size(350, 70);
 
         build_system_menu(app);
-        add_actions(app, &window);
+        add_actions(app, &window, sdl_subsystems);
         window.show_all();
-
-        let rom_filename = matches.value_of("rom filename").unwrap().to_string();
-        std::thread::spawn(move || {
-            let mut file = File::open(rom_filename)
-                .map_err(|e| format!("{:?}", e))
-                .unwrap();
-            let mut buffer = Vec::new();
-            file.read_to_end(&mut buffer)
-                .map_err(|e| format!("{:?}", e))
-                .unwrap();
-
-            gameboy_opengl::start(buffer, sdl_subsystems).unwrap();
-        });
     });
 
     application.run(&[]);

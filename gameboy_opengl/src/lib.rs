@@ -1,8 +1,10 @@
 mod native_rtc;
 mod screen;
+pub mod sdl_subsystems;
 
 use crate::native_rtc::NativeRTC;
 use crate::screen::Screen;
+use crate::sdl_subsystems::SdlSubsystems;
 use directories::BaseDirs;
 use gameboy_core::{Button, Cartridge, Gameboy, Rtc, StepResult};
 use sdl2::audio::AudioSpecDesired;
@@ -14,22 +16,23 @@ use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-pub fn start(rom: Vec<u8>) -> Result<(), String> {
-    let sdl_context = sdl2::init()?;
-
-    let audio_subsystem = sdl_context.audio()?;
+pub fn start(rom: Vec<u8>, sdl_subsystems: Arc<Mutex<SdlSubsystems>>) -> Result<(), String> {
+    let mut sdl_subsystems = sdl_subsystems.lock().map_err(|e| format!("{:?}", e))?;
     let desired_spec = AudioSpecDesired {
         freq: Some(44_100),
         channels: Some(2),
         samples: Some(4096),
     };
-    let device = audio_subsystem.open_queue(None, &desired_spec)?;
+    let device = sdl_subsystems
+        .audio_subsystem
+        .open_queue(None, &desired_spec)?;
     device.resume();
 
-    let video_subsystem = sdl_context.video()?;
-    let window = video_subsystem
+    let window = sdl_subsystems
+        .video_subsystem
         .window("Gameboy Emulator", 900, 700)
         .position_centered()
         .resizable()
@@ -69,7 +72,6 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
     }
     let mut screen = Screen::new();
 
-    let mut event_pump = sdl_context.event_pump()?;
     'game_loop: loop {
         loop {
             let step_result = emulator.emulate(&mut screen);
@@ -110,7 +112,7 @@ pub fn start(rom: Vec<u8>) -> Result<(), String> {
             }
         }
 
-        for event in event_pump.poll_iter() {
+        for event in sdl_subsystems.event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => break 'game_loop,
                 Event::KeyDown {

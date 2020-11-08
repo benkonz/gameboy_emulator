@@ -12,9 +12,20 @@ name = "gameboy_emulator"
 
 [dependencies]
 gameboy_core = { path = "../gameboy_core", version = "0.3.3" }
-clap = "2.33"
 directories = "2.0"
 
 [dependencies.sdl2]
 version = "0.34.0"
 features = ["bundled", "static-link"]
+
+[dependencies.gtk]
+version = "0.9.0"
+features = ["v3_16"]
+
+[dependencies.gio]
+version = ""
+features = ["v2_44"]
+
+[dependencies.glib]
+version = ""
+features = ["v2_44"]

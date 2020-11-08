@@ -43,16 +43,22 @@ impl Cartridge {
             _ => Err(format!("Unknown number of RAM banks: 0x{:02X}", ram_size)),
         }?;
 
-        let has_rtc = match cartridge_type {
-            0x0F | 0x10 => true,
-            _ => false,
-        };
-        let has_battery = match cartridge_type {
-            0x03 | 0x06 | 0x09 | 0x0D | 0x0F | 0x10 | 0x13 | 0x17 | 0x1E | 0x1B | 0x22 | 0xFD
-            | 0xFF => true,
-            _ => false,
-        };
-
+        let has_rtc = matches!(cartridge_type, 0x0F | 0x10);
+        let has_battery = matches!(
+            cartridge_type,
+            0x03 | 0x06
+                | 0x09
+                | 0x0D
+                | 0x0F
+                | 0x10
+                | 0x13
+                | 0x17
+                | 0x1E
+                | 0x1B
+                | 0x22
+                | 0xFD
+                | 0xFF
+        );
         let mut name = String::new();
         let mut name_index = 0x0134;
         while rom[name_index] != 0x00 && name_index < 0x0143 {

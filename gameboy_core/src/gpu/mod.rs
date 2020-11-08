@@ -24,7 +24,7 @@ const GAMEBOY_HEIGHT: i32 = 144;
 
 pub struct GPU {
     is_cgb: bool,
-    background: [u8; (GAMEBOY_HEIGHT * GAMEBOY_WIDTH) as usize],
+    background: Vec<u8>,
     hide_frames: i32,
     scan_line_transferred: bool,
     vblank_line: i32,
@@ -35,7 +35,7 @@ impl GPU {
     pub fn new(is_cgb: bool) -> GPU {
         GPU {
             is_cgb,
-            background: [0; (GAMEBOY_WIDTH * GAMEBOY_HEIGHT) as usize],
+            background: vec![0; (GAMEBOY_WIDTH * GAMEBOY_HEIGHT) as usize],
             hide_frames: 0,
             scan_line_transferred: false,
             vblank_line: 0,

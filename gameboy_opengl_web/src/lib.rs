@@ -419,9 +419,10 @@ fn main_loop(emulator_state: Rc<RefCell<EmulatorState>>) {
     emulator_state.borrow_mut().render();
     emulator_state.borrow_mut().save_ram_data();
     emulator_state.borrow_mut().save_timestamp_data();
-    window().request_animation_frame(move |_| {
+    let refresh_rate = (1.0 / 60.0 * 1000.0) as u32;
+    window().set_timeout(move || {
         main_loop(emulator_state);
-    });
+    }, refresh_rate);
 }
 
 fn emulate_a_single_frame(emulator_state: Rc<RefCell<EmulatorState>>) {

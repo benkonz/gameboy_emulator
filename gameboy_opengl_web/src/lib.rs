@@ -11,7 +11,7 @@ mod web_rtc;
 
 use crate::screen::Screen;
 use crate::web_rtc::WebRTC;
-use gameboy_core::{Button, Cartridge, ControllerEvent, Gameboy, Rtc, StepResult};
+use gameboy_core::{Button, ControllerEvent, Gameboy, Rtc, StepResult};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -33,8 +33,44 @@ struct EmulatorState {
     js_ctx: Value,
     busy: bool,
     audio_underrun: Option<usize>,
+    save: Box<dyn SaveFile>,
 }
-
+//Generic object for saving emulator state
+trait SaveFile {
+    fn load(&mut self) -> Option<Vec<u8>>;
+    fn save(&mut self, ram: Vec<u8>);
+}
+struct LocalStorageSaveFile {
+    save_name: String,
+}
+impl LocalStorageSaveFile {
+    pub fn new(name: String) -> LocalStorageSaveFile {
+        return LocalStorageSaveFile { save_name: name };
+    }
+}
+impl SaveFile for LocalStorageSaveFile {
+    fn load(&mut self) -> Option<Vec<u8>> {
+        if let Some(ram_str) = window().local_storage().get(&self.save_name) {
+            let chars: Vec<char> = ram_str.chars().collect();
+            let bytes: Vec<u8> = chars
+                .chunks(2)
+                .map(|chunk| {
+                    let byte: String = chunk.iter().collect();
+                    u8::from_str_radix(&byte, 16).unwrap()
+                })
+                .collect();
+            return Some(bytes);
+        }
+        None
+    }
+    fn save(&mut self, ram: Vec<u8>) {
+        let save_str: String = ram.iter().map(|x| format!("{:02X}", x)).collect();
+        window()
+            .local_storage()
+            .insert(&self.save_name, &save_str)
+            .unwrap();
+    }
+}
 impl EmulatorState {
     pub fn emulate_until_vblank_or_audio(&mut self) -> StepResult {
         let step_result = loop {
@@ -122,20 +158,15 @@ impl EmulatorState {
     }
 
     pub fn save_ram_data(&mut self) {
-        if *self.should_save_to_local.borrow() && self.gameboy.get_cartridge().has_battery() {
-            let name = self.gameboy.get_cartridge().get_name();
-            window()
-                .local_storage()
-                .insert(&name, &self.ram_str.borrow())
-                .unwrap();
-            *self.should_save_to_local.borrow_mut() = false;
+        if *self.should_save_to_local.borrow() && self.gameboy.has_battery() {
+            self.save.save(self.gameboy.get_cartridge_ram().to_vec());
         }
     }
 
     pub fn save_timestamp_data(&mut self) {
-        if self.gameboy.get_cartridge().has_rtc() {
-            let name = format!("{}-timestamp", self.gameboy.get_cartridge().get_name());
-            let (rtc_data, last_timestamp) = self.gameboy.get_cartridge().get_last_timestamp();
+        if self.gameboy.has_rtc() {
+            let name = format!("{}-timestamp", self.gameboy.get_cartridge_name());
+            let (rtc_data, last_timestamp) = self.gameboy.get_last_timestamp();
             let mut rtc_bytes = rtc_data.to_bytes().to_vec();
             let mut last_timestamp_bytes = u64::to_ne_bytes(last_timestamp).to_vec();
             rtc_bytes.append(&mut last_timestamp_bytes);
@@ -153,7 +184,7 @@ impl EmulatorState {
     pub fn set_ram_change_listener(&mut self) {
         let ram_str = self.ram_str.clone();
         let should_save_to_local = self.should_save_to_local.clone();
-        let has_battery = self.gameboy.get_cartridge().has_battery();
+        let has_battery = self.gameboy.has_battery();
         self.gameboy
             .set_ram_change_callback(Box::new(move |address, value| {
                 if has_battery {
@@ -269,16 +300,18 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) -> Result<(), String> {
     };
     let rtc = Box::new(WebRTC::new());
     let mut gameboy = Gameboy::from_rom(rom, rtc)?;
-    load_ram_save_data(gameboy.get_cartridge_mut());
-    load_timestamp_data(gameboy.get_cartridge_mut());
-    let ram = gameboy.get_cartridge().get_ram().to_vec();
+    let mut save = LocalStorageSaveFile::new(gameboy.get_cartridge_name().to_string());
+    if let Some(ram) = save.load() {
+        gameboy.set_cartridge_ram(ram)
+    }
+    load_timestamp_data(&mut gameboy);
+    let ram = gameboy.get_cartridge_ram().to_vec();
     let ram_str = Rc::new(RefCell::new(
         ram.iter().map(|byte| format!("{:02x}", byte)).collect(),
     ));
     let screen = Screen::new();
 
     let mut emulator_state = EmulatorState {
-        //from opengl_web
         gameboy,
         screen,
         controller_receiver: receiver,
@@ -287,6 +320,7 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) -> Result<(), String> {
         js_ctx,
         busy: false,
         audio_underrun: None,
+        save: Box::new(save),
     };
 
     emulator_state.set_ram_change_listener();
@@ -377,23 +411,8 @@ fn add_multi_controller_event_listener<T: ConcreteEvent>(
         sender.send(second_controller_event).unwrap();
     });
 }
-
-fn load_ram_save_data(cartridge: &mut Cartridge) {
-    if let Some(ram_str) = window().local_storage().get(cartridge.get_name()) {
-        let chars: Vec<char> = ram_str.chars().collect();
-        let bytes: Vec<u8> = chars
-            .chunks(2)
-            .map(|chunk| {
-                let byte: String = chunk.iter().collect();
-                u8::from_str_radix(&byte, 16).unwrap()
-            })
-            .collect();
-        cartridge.set_ram(bytes);
-    }
-}
-
-fn load_timestamp_data(cartridge: &mut Cartridge) {
-    let key = format!("{}-timestamp", cartridge.get_name());
+fn load_timestamp_data(cartridge: &mut Gameboy) {
+    let key = format!("{}-timestamp", cartridge.get_cartridge_name());
     if let Some(timestamp_str) = window().local_storage().get(&key) {
         let chars: Vec<char> = timestamp_str.chars().collect();
         let bytes: Vec<u8> = chars

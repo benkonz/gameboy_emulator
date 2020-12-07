@@ -41,11 +41,28 @@ impl Gameboy {
     pub fn get_audio_buffer(&self) -> &[f32] {
         self.emulator.get_audio_buffer()
     }
-    pub fn get_cartridge(&self) -> &Cartridge {
-        self.emulator.get_cartridge()
+    pub fn set_cartridge_ram(&mut self, ram: Vec<u8>) {
+        self.emulator.get_cartridge_mut().set_ram(ram)
     }
-    pub fn get_cartridge_mut(&mut self) -> &mut Cartridge {
-        self.emulator.get_cartridge_mut()
+    pub fn has_battery(&self) -> bool {
+        self.emulator.get_cartridge().has_battery()
+    }
+    pub fn has_rtc(&self) -> bool {
+        self.emulator.get_cartridge().has_rtc()
+    }
+    pub fn get_cartridge_ram(&self) -> &[u8] {
+        self.emulator.get_cartridge().get_ram()
+    }
+    pub fn get_cartridge_name(&self) -> &str {
+        self.emulator.get_cartridge().get_name()
+    }
+    pub fn get_last_timestamp(&self) -> (rtc::Rtc, u64) {
+        self.emulator.get_cartridge().get_last_timestamp()
+    }
+    pub fn set_last_timestamp(&mut self, rtc: Rtc, timestamp: u64) {
+        self.emulator
+            .get_cartridge_mut()
+            .set_last_timestamp(rtc, timestamp)
     }
     pub fn set_ram_change_callback(&mut self, f: Box<dyn FnMut(usize, u8)>) {
         self.emulator.set_ram_change_callback(f)

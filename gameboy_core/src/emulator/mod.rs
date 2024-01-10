@@ -10,6 +10,7 @@ use crate::mmu::cartridge::Cartridge;
 use crate::mmu::interrupt::Interrupt;
 use crate::mmu::Memory;
 use crate::timer::Timer;
+use crate::transfer::ByteTransfer;
 
 pub struct Emulator {
     cpu: Cpu,
@@ -33,12 +34,14 @@ impl Emulator {
         &mut self,
         system: &mut impl PixelMapper,
         controller: &mut Controller,
+        link_cable: &mut dyn ByteTransfer,
     ) -> StepResult {
         let cycles = self.cpu.step(&mut self.memory);
         self.timer.update(cycles, &mut self.memory);
         let audio_buffer_full = self.memory.get_sound_mut().step(cycles);
         let vblank = self.gpu.step(cycles, &mut self.memory, system);
         controller.update(&mut self.memory);
+        link_cable.update(cycles, &mut self.memory);
         self.handle_interrupts();
 
         if audio_buffer_full {

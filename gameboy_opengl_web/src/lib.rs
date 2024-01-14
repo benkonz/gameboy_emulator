@@ -268,7 +268,8 @@ pub fn start(rom: Vec<u8>, dom_ids: DOMInfo) -> Result<(), String> {
         return h;
     };
     let rtc = Box::new(WebRTC::new());
-    let mut gameboy = Gameboy::from_rom(rom, rtc)?;
+    let slc = Box::new(gameboy_core::Unlinked);
+    let mut gameboy = Gameboy::from_rom(rom, rtc, slc)?;
     load_ram_save_data(gameboy.get_cartridge_mut());
     load_timestamp_data(gameboy.get_cartridge_mut());
     let ram = gameboy.get_cartridge().get_ram().to_vec();

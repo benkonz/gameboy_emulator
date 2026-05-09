@@ -5,7 +5,7 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/mllgt64mwj4966lu/branch/master?svg=true)](https://ci.appveyor.com/project/benkonz/gameboy-emulator/branch/master)
 
 This is a GameBoy emulator written in Rust. It can be compiled to native
-and web assembly, see the build section for more details.
+and WebAssembly; see the build section for more details.
 
 Emulator supports sound, several hardware types, RTC, gameboy color emulation,
 sprites, and saving to browser local storage (web) and user config directories (native)
@@ -48,27 +48,63 @@ Then you can run it by running: `gameboy_emulator` from your terminal
 
 ## Building from source
 
-The project uses Cargo as a build system, so building the project is relatively
-simple.
+The project uses Cargo as a build system.
 
-### Native
+### Native (desktop)
+
+Prerequisites: a normal Rust toolchain with cargo; SDL2 is bundled via the `sdl2` crate.
 
 ```text
 cargo build --package gameboy_opengl --bin gameboy_emulator --release
 ```
 
-this produces the executable `target/release/gameboy_emulator.exe`
-
-to run it, just supply the rom file as the first file argument
-
-### Web Assembly
-
-`cargo-web` is very useful for building the web
-port of the emulator.
+Run the binary with a ROM path:
 
 ```text
-cargo-web deploy --release
+# Linux / macOS
+./target/release/gameboy_emulator /path/to/game.gb
+
+# Windows
+.\target\release\gameboy_emulator.exe C:\path\to\game.gb
 ```
 
-use your favorite static file server to serve the files generated in the
-`target/deploy` directory. You can also run `cargo-web start --release`, to serve the files locally.
+### WebAssembly
+
+The browser build uses [**wasm-pack**](https://rustwasm.github.io/docs/wasm-pack/) (which wraps [**wasm-bindgen**](https://rustwasm.github.io/docs/wasm-bindgen/)) and loads the UI from [`static/index.html`](static/index.html).
+
+Prerequisites:
+
+```text
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack
+```
+
+From the repository root (the `gameboy_emulator` crate that builds `gameboy_lib` as a `cdylib`):
+
+```text
+wasm-pack build . --release --target web --out-dir static/pkg
+```
+
+This writes JavaScript and Wasm bindings under `static/pkg/`. The HTML page imports `./pkg/gameboy_lib.js` and calls `init()` before `start`.
+
+Serve the `static` directory over HTTP (browsers block Wasm on `file://`):
+
+```text
+cd static && python3 -m http.server 8080
+```
+
+Then open `http://localhost:8080` in a browser, choose a ROM, and play.
+
+If audio does not start immediately, click or tap the page once; browsers often require a user gesture before `AudioContext` runs.
+
+### Alternative: wasm-bindgen CLI
+
+If you prefer not to install wasm-pack, build the crate and run `wasm-bindgen` yourself:
+
+```text
+cargo build --release --target wasm32-unknown-unknown
+wasm-bindgen target/wasm32-unknown-unknown/release/gameboy_lib.wasm \
+  --out-dir static/pkg --target web
+```
+
+You need `wasm-bindgen` on your PATH (for example `cargo install wasm-bindgen-cli`, matching the `wasm-bindgen` crate version used in this repo).

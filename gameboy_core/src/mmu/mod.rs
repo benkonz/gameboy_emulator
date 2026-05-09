@@ -253,7 +253,7 @@ impl Memory {
                 }
                 CGB_BACKGROUND_PALETTE_DATA_INDEX | CGB_SPRITE_PALETTE_DATA_INDEX => {
                     if self.is_cgb {
-                        self.load(index) | 0xF8
+                        self.load(index)
                     } else {
                         0xFF
                     }
@@ -645,29 +645,36 @@ impl Memory {
     }
 
     fn set_color_palette(&mut self, background: bool, value: u8) {
-        let mut ps = if background {
+        let ps = if background {
             self.load(CGB_BACKGROUND_PALETTE_INDEX_INDEX)
         } else {
             self.load(CGB_SPRITE_PALETTE_INDEX_INDEX)
         };
+        let increment = bit_utils::is_set(ps, 7);
+
+        // Mode 3 (LCD pixel transfer): palette RAM ignores BCPD/OCPD writes, but BCPS/OCPS
+        // address still auto-increments after each attempt (Pan Docs: Palettes).
+        if self.is_cgb && self.lcd_status_mode == 0b11 {
+            self.update_color_palette(background, ps);
+            if increment {
+                let address = ((ps & 0x3F) + 1) & 0x3F;
+                let ps_new = (ps & 0x80) | address;
+                if background {
+                    self.store(CGB_BACKGROUND_PALETTE_INDEX_INDEX, ps_new);
+                } else {
+                    self.store(CGB_SPRITE_PALETTE_INDEX_INDEX, ps_new);
+                }
+                self.update_color_palette(background, ps_new);
+            }
+            return;
+        }
+
         let hl = bit_utils::is_set(ps, 0);
         let index = ((ps >> 1) & 0x03) as usize;
         let pal = ((ps >> 3) & 0x07) as usize;
-        let increment = bit_utils::is_set(ps, 7);
 
-        if increment {
-            let mut address = ps & 0x3F;
-            address += 1;
-            address &= 0x3F;
-            ps = (ps & 0x80) | address;
-            if background {
-                self.store(CGB_BACKGROUND_PALETTE_INDEX_INDEX, ps);
-            } else {
-                self.store(CGB_SPRITE_PALETTE_INDEX_INDEX, ps);
-            }
-            self.update_color_palette(background, ps);
-        }
-
+        // Each BCPD/BGPD (FF69) write updates palette RAM for the index in FF68 *first*;
+        // if bit 7 of FF68 is set, the index increments *after* the write (Pan Docs).
         if hl {
             let blue = (value >> 2) & 0x1F;
             let half_green_hi = (value & 0x03) << 3;
@@ -694,6 +701,19 @@ impl Memory {
                 self.cgb_sprite_palettes[pal][index].green =
                     (self.cgb_sprite_palettes[pal][index].green & 0x18) | half_green_low;
             }
+        }
+
+        self.update_color_palette(background, ps);
+
+        if increment {
+            let address = ((ps & 0x3F) + 1) & 0x3F;
+            let ps_new = (ps & 0x80) | address;
+            if background {
+                self.store(CGB_BACKGROUND_PALETTE_INDEX_INDEX, ps_new);
+            } else {
+                self.store(CGB_SPRITE_PALETTE_INDEX_INDEX, ps_new);
+            }
+            self.update_color_palette(background, ps_new);
         }
     }
 

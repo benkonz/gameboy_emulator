@@ -7,9 +7,31 @@ repository = "https://github.com/benkonz/gameboy_emulator"
 edition = "2018"
 
 [dependencies]
-stdweb = "0.4"
-serde = "1.0"
-serde_derive = "1.0"
-stdweb-derive = "0.5"
 gameboy_core = { path = "../gameboy_core", version = "0.3.3" }
-wasm-bindgen = {version="0.2.58",features=["serde-serialize"]}
+serde = { version = "1.0", features = ["derive"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "ImageData",
+    "Storage",
+    "KeyboardEvent",
+    "MouseEvent",
+    "TouchEvent",
+    "TouchList",
+    "Touch",
+    "Event",
+    "EventTarget",
+    "AudioContext",
+    "AudioBuffer",
+    "AudioBufferSourceNode",
+    "AudioDestinationNode",
+    "BaseAudioContext",
+    "console",
+] }

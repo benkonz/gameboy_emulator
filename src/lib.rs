@@ -1,10 +1,3 @@
-#[cfg(target_arch = "wasm32")]
-#[macro_use]
-extern crate stdweb;
-
-/// # Safety
-///
-/// creates a vector from the pointer and length.
 #[cfg(not(target_arch = "wasm32"))]
 #[no_mangle]
 pub unsafe fn start(pointer: *mut u8, length: usize) {
@@ -13,10 +6,13 @@ pub unsafe fn start(pointer: *mut u8, length: usize) {
 }
 
 #[cfg(target_arch = "wasm32")]
-#[js_export]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
 pub fn start(rom: Vec<u8>, dom_ids: String) {
     if let Err(msg) = start_with_result(rom, dom_ids) {
-        console!(error, msg);
+        web_sys::console::error_1(&wasm_bindgen::JsValue::from_str(&msg));
     }
 }
 

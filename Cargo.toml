@@ -1,16 +1,20 @@
 [package]
 name = "gameboy_emulator"
 version = "0.2.8"
-authors = ["Benjamin Konz <benkonz@protonmail.com>","Nicholas Alexeev <scifi6546@protonmail.com"]
+authors = ["Benjamin Konz <benkonz@protonmail.com>","Nicholas Alexeev <scifi6546@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
 
 [target.wasm32-unknown-unknown.dependencies]
 gameboy_opengl_web = { path = "gameboy_opengl_web", version = "0.2.8" }
-stdweb = "0.4"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["console"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-serde_derive = "1.0.0"
+serde = { version = "1.0", features = ["derive"] }
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gameboy_opengl = { path = "gameboy_opengl", version = "0.2.8" }
 

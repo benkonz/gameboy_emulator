@@ -11,4 +11,7 @@ target/
 dist/
 node_modules/
 
+# wasm-bindgen / wasm-pack output (regenerate with README WebAssembly instructions)
+static/pkg/
+
 .DS_Store
